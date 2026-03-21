@@ -11,144 +11,210 @@
       <header class="topbar">
         <div>
           <h1>Incrementum Dashboard</h1>
+          <div class="topbar-status-row">
+            <span id="connection-status" class="status-pill">Using local fallback</span>
+            <span id="last-saved-status" class="status-pill status-pill--muted">Last saved: not yet</span>
+            <span id="active-context-status" class="status-pill status-pill--muted">Source: Manual</span>
+          </div>
         </div>
         <div class="topbar-metrics">
           <div class="metric-chip">
-            <span>Positions</span>
+            <span>Portfolio Positions</span>
             <strong id="header-positions">0</strong>
           </div>
           <div class="metric-chip">
-            <span>Net Invested</span>
+            <span>Net Contributions</span>
             <strong id="header-net-invested">$0.00</strong>
           </div>
           <div class="metric-chip">
             <span>Portfolio Value</span>
             <strong id="header-portfolio-value">$0.00</strong>
           </div>
+          <button id="export-excel-button" type="button" class="button button--secondary topbar-action">Export Excel</button>
         </div>
       </header>
 
       <nav class="tab-nav" aria-label="Main navigation">
         <button class="tab-button is-active" data-tab-target="dashboard-tab">Dashboard</button>
-        <button class="tab-button" data-tab-target="holdings-tab">Holdings</button>
         <button class="tab-button" data-tab-target="transactions-tab">Transactions</button>
         <button class="tab-button" data-tab-target="summary-returns-tab">Summary Returns</button>
       </nav>
 
       <main class="content-grid">
         <section id="dashboard-tab" class="tab-panel is-active">
-          <div class="dashboard-hero panel">
-            <div>
-              <p class="panel-label">Current Portfolio Value</p>
-              <strong id="summary-portfolio-value" class="hero-value">$0.00</strong>
-            </div>
-            <div class="hero-stats">
-              <div>
-                <span>Cash</span>
-                <strong id="summary-cash">$0.00</strong>
-              </div>
-              <div>
-                <span>Net Invested Capital</span>
-                <strong id="summary-net-invested">$0.00</strong>
-              </div>
-              <div>
-                <span>Deployed Capital</span>
-                <strong id="summary-deployed-capital">$0.00</strong>
-              </div>
-            </div>
-          </div>
-
           <div class="panel-grid panel-grid--summary">
             <article class="panel stat-panel">
-              <p class="panel-label">Total Deposits</p>
-              <strong id="summary-total-deposits" class="panel-value">$0.00</strong>
-            </article>
-            <article class="panel stat-panel">
-              <p class="panel-label">Total Withdrawals</p>
-              <strong id="summary-total-withdrawals" class="panel-value">$0.00</strong>
-            </article>
-            <article class="panel stat-panel">
-              <p class="panel-label">Net Invested Capital</p>
+              <p class="panel-label">Net Contributions</p>
               <strong id="summary-net-invested-card" class="panel-value">$0.00</strong>
+              <p class="metric-footnote">Net external capital contributed to the portfolio after withdrawals.</p>
             </article>
             <article class="panel stat-panel">
-              <p class="panel-label">Deployed Capital</p>
-              <strong id="summary-deployed-capital-card" class="panel-value">$0.00</strong>
+              <p class="panel-label">Total P&amp;L</p>
+              <strong id="summary-total-pnl" class="panel-value">$0.00</strong>
+              <p class="metric-footnote">Aggregate result across realized gains and the remaining open-position P&amp;L.</p>
+            </article>
+            <article class="panel stat-panel">
+              <p class="panel-label">Realized P&amp;L</p>
+              <strong id="summary-realized-pnl" class="panel-value">$0.00</strong>
             </article>
             <article class="panel stat-panel">
               <p class="panel-label">Unrealized P&amp;L</p>
               <strong id="summary-unrealized-pnl" class="panel-value">$0.00</strong>
             </article>
             <article class="panel stat-panel">
-              <p class="panel-label">Unrealized Return</p>
-              <strong id="summary-unrealized-return" class="panel-value">0.00%</strong>
+              <p class="panel-label">Current Portfolio Value</p>
+              <strong id="summary-portfolio-value" class="panel-value">$0.00</strong>
             </article>
             <article class="panel stat-panel">
-              <p class="panel-label">Number of Positions</p>
-              <strong id="summary-position-count" class="panel-value">0</strong>
+              <p class="panel-label">Mark-to-Market P&amp;L</p>
+              <strong id="summary-mtm-pnl" class="panel-value">$0.00</strong>
+              <p class="metric-footnote">Statement-date valuation change of the portfolio based on market prices at the statement date.</p>
+            </article>
+            <article class="panel stat-panel">
+              <p class="panel-label">IRR</p>
+              <strong id="summary-irr" class="panel-value">Pending</strong>
+              <p class="metric-footnote">Money-weighted annualized return based on external cash flows and the ending portfolio value.</p>
+            </article>
+            <article class="panel stat-panel">
+              <p class="panel-label">Time-Weighted Return</p>
+              <strong id="summary-twr" class="panel-value">Pending</strong>
+              <p class="metric-footnote">Return measure that neutralizes deposits and withdrawals to isolate investment performance.</p>
+            </article>
+            <article class="panel stat-panel">
+              <p class="panel-label">Net Contribution Return</p>
+              <strong id="summary-net-contribution-return" class="panel-value">Pending</strong>
+              <p class="metric-footnote">Current portfolio value relative to net contributed capital, without time-weighting.</p>
+            </article>
+            <article class="panel stat-panel">
+              <p class="panel-label">Year-to-Date Return</p>
+              <strong id="summary-ytd" class="panel-value">Pending</strong>
+              <p class="metric-footnote">Return since the start of the current calendar year through the active valuation date.</p>
+            </article>
+            <article class="panel stat-panel">
+              <p class="panel-label">Inception-to-Date Return</p>
+              <strong id="summary-itd" class="panel-value">Pending</strong>
+              <p class="metric-footnote">Return since the first portfolio transaction date in the active ledger history.</p>
             </article>
           </div>
 
-          <div class="panel-grid panel-grid--main">
-            <section class="panel">
-              <div class="panel-header">
-                <div>
-                  <h2>Allocation by Position</h2>
-                  <p class="panel-subtitle">Allocation includes open holdings and cash.</p>
-                </div>
-              </div>
-              <div id="allocation-list" class="allocation-list"></div>
-            </section>
+          <div class="dashboard-secondary panel">
+            <div class="secondary-stat">
+              <span>Committed Capital</span>
+              <strong id="summary-committed-capital">$0.00</strong>
+              <p class="secondary-stat-helper">Total deposits contributed into the portfolio over time.</p>
+            </div>
+            <div class="secondary-stat">
+              <span>Net Contributions</span>
+              <strong id="summary-net-contributions">$0.00</strong>
+              <p class="secondary-stat-helper">Deposits less withdrawals.</p>
+            </div>
+            <div class="secondary-stat">
+              <span>Net Invested Capital</span>
+              <strong id="summary-deployed-capital">$0.00</strong>
+              <p id="summary-deployed-share" class="secondary-stat-helper">0.0% of portfolio</p>
+            </div>
+            <div class="secondary-stat">
+              <span>Cash Balance</span>
+              <strong id="summary-cash">$0.00</strong>
+              <p id="summary-cash-share" class="secondary-stat-helper">0.0% of portfolio</p>
+            </div>
+          </div>
 
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Portfolio Positions</h2>
+                <p class="panel-subtitle">Consolidated portfolio view based on current open holdings and cash balance.</p>
+              </div>
+            </div>
+            <div class="table-wrap table-wrap--positions">
+              <table class="data-table positions-table">
+                <thead>
+                  <tr>
+                    <th>Position</th>
+                    <th class="numeric-cell">Shares</th>
+                    <th class="numeric-cell">Average Cost</th>
+                    <th class="numeric-cell">Current Price</th>
+                    <th class="numeric-cell">Market Value</th>
+                    <th class="numeric-cell">Cost Basis</th>
+                    <th class="numeric-cell">Weight (MV)</th>
+                    <th class="numeric-cell">Weight (Cost)</th>
+                    <th class="numeric-cell">Unrealized P&amp;L</th>
+                    <th class="numeric-cell">Return %</th>
+                  </tr>
+                </thead>
+                <tbody id="dashboard-positions-body"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Allocation by Position</h2>
+                <p class="panel-subtitle">Allocation includes open holdings and cash balance.</p>
+              </div>
+            </div>
+            <div id="allocation-list" class="allocation-list"></div>
+          </section>
+
+          <div class="panel-grid panel-grid--analytics">
             <section class="panel">
               <div class="panel-header">
                 <div>
-                  <h2>Top Positions</h2>
-                  <p class="panel-subtitle">Largest positions by market value, including cash.</p>
+                  <h2>Benchmark Comparison</h2>
+                  <p class="panel-subtitle">Compares portfolio window returns against the selected benchmark and hurdle set.</p>
                 </div>
+                <label class="filter-field benchmark-field">
+                  <span>Primary Benchmark</span>
+                  <select id="benchmark-select">
+                    <option value="SPX">SPX / S&amp;P 500</option>
+                    <option value="SOFR">SOFR</option>
+                    <option value="HURDLE">USD + 8% Hurdle</option>
+                  </select>
+                </label>
               </div>
               <div class="table-wrap">
-                <table class="data-table">
+                <table class="data-table benchmark-table">
                   <thead>
                     <tr>
-                      <th>Ticker</th>
-                      <th>Shares</th>
-                      <th>Market Value</th>
-                      <th>Weight</th>
-                      <th>Unrealized P&amp;L</th>
+                      <th>Window</th>
+                      <th class="numeric-cell">Portfolio</th>
+                      <th class="numeric-cell">Primary</th>
+                      <th class="numeric-cell">Excess</th>
+                      <th class="numeric-cell">SOFR</th>
+                      <th class="numeric-cell">USD + 8%</th>
                     </tr>
                   </thead>
-                  <tbody id="top-positions-body"></tbody>
+                  <tbody id="benchmark-comparison-body"></tbody>
                 </table>
               </div>
             </section>
-          </div>
-        </section>
 
-        <section id="holdings-tab" class="tab-panel">
-          <div class="panel">
-            <div class="panel-header">
-              <div>
-                <h2>Current Holdings</h2>
-                <p class="panel-subtitle">Current portfolio composition based on BUY and SELL transactions, with cash shown as a position.</p>
+            <section class="panel">
+              <div class="panel-header">
+                <div>
+                  <h2>Portfolio Value History</h2>
+                  <p class="panel-subtitle">Uses imported statement snapshots today and is ready for daily market-data history later.</p>
+                </div>
               </div>
-            </div>
-            <div class="table-wrap">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>Ticker</th>
-                    <th>Shares</th>
-                    <th>Average Cost</th>
-                    <th>Current Price</th>
-                    <th>Market Value</th>
-                    <th>Weight (Market Value)</th>
-                    <th>Weight (Cost Basis)</th>
-                  </tr>
-                </thead>
-                <tbody id="holdings-body"></tbody>
-              </table>
-            </div>
+              <div id="history-status" class="history-status">History will become richer as more statement snapshots are stored.</div>
+              <div id="history-chart" class="history-chart"></div>
+              <div class="table-wrap">
+                <table class="data-table data-table--compact">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th class="numeric-cell">Portfolio Value</th>
+                      <th class="numeric-cell">Net Contributions</th>
+                      <th class="numeric-cell">Total P&amp;L</th>
+                      <th>Source</th>
+                    </tr>
+                  </thead>
+                  <tbody id="history-body"></tbody>
+                </table>
+              </div>
+            </section>
           </div>
         </section>
 
@@ -230,9 +296,6 @@
               <div class="import-box">
                 <input id="import-file-input" class="visually-hidden" type="file" accept=".csv,.pdf,text/csv,application/pdf" />
                 <div id="import-dropzone" class="dropzone" role="button" tabindex="0" aria-label="Attach Interactive Brokers statement file">
-                  <div class="dropzone-button-row">
-                    <button id="attach-file-button" type="button" class="button button--primary">Attach File</button>
-                  </div>
                   <p class="dropzone-title">Drop your Interactive Brokers Activity Statement CSV here</p>
                   <p class="dropzone-subtitle">or click to attach file.</p>
                 </div>
@@ -246,12 +309,20 @@
                 </div>
 
                 <div class="import-actions">
-                  <button id="import-button" type="button" class="button button--primary">Import File</button>
+                  <div class="import-step">
+                    <span class="import-step-label">Step 1</span>
+                    <button id="attach-file-button" type="button" class="button button--secondary">Attach File</button>
+                  </div>
+                  <div class="import-step">
+                    <span class="import-step-label">Step 2</span>
+                    <button id="import-button" type="button" class="button button--primary">Import File</button>
+                  </div>
                 </div>
                 <div id="import-status" class="import-status">
                   <div id="import-status-summary">No file selected yet.</div>
+                  <div id="import-status-meta" class="import-status-meta is-hidden"></div>
                   <details id="import-status-details" class="import-status-details is-hidden">
-                    <summary>View import details</summary>
+                    <summary>Show details</summary>
                     <div id="import-status-details-body" class="import-status-details__body"></div>
                   </details>
                 </div>
@@ -318,7 +389,7 @@
                 <h2>Imported Statements</h2>
                 <p id="statement-mode-indicator" class="panel-subtitle">Manual mode is active.</p>
               </div>
-              <button id="use-manual-mode-button" type="button" class="button button--secondary">Use Manual Mode</button>
+              <button id="use-manual-mode-button" type="button" class="button button--secondary">Switch to Manual Mode</button>
             </div>
 
             <div class="table-wrap">
@@ -330,7 +401,7 @@
                     <th>Imported</th>
                     <th>Portfolio Value</th>
                     <th>Cash</th>
-                    <th>Net Invested</th>
+                    <th>Net Contributions</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -341,14 +412,16 @@
         </section>
 
         <section id="summary-returns-tab" class="tab-panel">
-          <div class="panel-grid panel-grid--summary-returns">
+          <div class="panel-grid panel-grid--summary">
             <article class="panel stat-panel">
-              <p class="panel-label">Net Invested Capital</p>
+              <p class="panel-label">Net Contributions</p>
               <strong id="returns-net-invested" class="panel-value">$0.00</strong>
+              <p class="metric-footnote">Net external capital contributed to the portfolio after withdrawals.</p>
             </article>
             <article class="panel stat-panel">
-              <p class="panel-label">Current Portfolio Value</p>
-              <strong id="returns-portfolio-value" class="panel-value">$0.00</strong>
+              <p class="panel-label">Total P&amp;L</p>
+              <strong id="returns-total-pnl" class="panel-value">$0.00</strong>
+              <p class="metric-footnote">Aggregate result across realized gains and the remaining open-position P&amp;L.</p>
             </article>
             <article class="panel stat-panel">
               <p class="panel-label">Realized P&amp;L</p>
@@ -359,36 +432,50 @@
               <strong id="returns-unrealized-pnl" class="panel-value">$0.00</strong>
             </article>
             <article class="panel stat-panel">
-              <p class="panel-label">Total P&amp;L</p>
-              <strong id="returns-total-pnl" class="panel-value">$0.00</strong>
-              <p class="metric-footnote">Total P&amp;L = realized P&amp;L + unrealized P&amp;L.</p>
+              <p class="panel-label">Current Portfolio Value</p>
+              <strong id="returns-portfolio-value" class="panel-value">$0.00</strong>
             </article>
             <article class="panel stat-panel">
               <p class="panel-label">Mark-to-Market P&amp;L</p>
               <strong id="returns-mtm-pnl" class="panel-value">$0.00</strong>
-              <p class="metric-footnote">Statement-based mark-to-market value imported from IBKR.</p>
+              <p class="metric-footnote">Statement-date valuation change of the portfolio based on market prices at the statement date.</p>
             </article>
             <article class="panel stat-panel">
               <p class="panel-label">IRR</p>
               <strong id="returns-irr" class="panel-value">Pending</strong>
-              <p class="metric-footnote">Annualized XIRR based on external cash flows and the terminal portfolio value.</p>
+              <p class="metric-footnote">Money-weighted annualized return based on external cash flows and the ending portfolio value.</p>
             </article>
             <article class="panel stat-panel">
               <p class="panel-label">Time-Weighted Return</p>
               <strong id="returns-twr" class="panel-value">Pending</strong>
-              <p class="metric-footnote">Return measure that neutralizes the impact of external cash flows.</p>
+              <p class="metric-footnote">Return measure that neutralizes deposits and withdrawals to isolate investment performance.</p>
+            </article>
+            <article class="panel stat-panel">
+              <p class="panel-label">Net Contribution Return</p>
+              <strong id="returns-net-contribution-return" class="panel-value">Pending</strong>
+              <p class="metric-footnote">Current portfolio value relative to net contributed capital, without time-weighting.</p>
+            </article>
+            <article class="panel stat-panel">
+              <p class="panel-label">Year-to-Date Return</p>
+              <strong id="returns-ytd" class="panel-value">Pending</strong>
+              <p class="metric-footnote">Return since the start of the current calendar year through the active valuation date.</p>
+            </article>
+            <article class="panel stat-panel">
+              <p class="panel-label">Inception-to-Date Return</p>
+              <strong id="returns-itd" class="panel-value">Pending</strong>
+              <p class="metric-footnote">Return since the first portfolio transaction date in the active ledger history.</p>
             </article>
           </div>
 
           <section class="panel">
             <div class="panel-header">
               <div>
-                <h2>Reconciliation</h2>
+                <h2>Reconciliation Status</h2>
                 <p id="reconciliation-status" class="panel-subtitle">No reconciliation data available.</p>
               </div>
             </div>
             <details id="reconciliation-details" class="reconciliation-details">
-              <summary>Show reconciliation details</summary>
+              <summary>Review mismatches</summary>
               <div class="table-wrap">
                 <table class="data-table">
                   <thead>
@@ -413,17 +500,17 @@
               </div>
             </div>
             <div class="table-wrap">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>Ticker</th>
-                    <th>Realized P&amp;L</th>
-                    <th>Unrealized P&amp;L</th>
-                    <th>Total P&amp;L</th>
-                    <th>Market Value</th>
-                    <th>Return %</th>
-                  </tr>
-                </thead>
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Ticker</th>
+                      <th class="numeric-cell">Realized P&amp;L</th>
+                      <th class="numeric-cell">Unrealized P&amp;L</th>
+                      <th class="numeric-cell">Total P&amp;L</th>
+                      <th class="numeric-cell">Market Value</th>
+                      <th class="numeric-cell">Return %</th>
+                    </tr>
+                  </thead>
                 <tbody id="asset-performance-body"></tbody>
               </table>
             </div>
@@ -432,6 +519,6 @@
       </main>
     </div>
 
-    <script src="./app.js"></script>
+    <script type="module" src="./src/bootstrap.js"></script>
   </body>
 </html>

@@ -1,6 +1,16 @@
-const STORAGE_KEY = "incrementum-dashboard-state-v5";
+const STORAGE_KEY = "incrementum-dashboard-state-v6";
 const ACTIVE_TAB_KEY = "incrementum-dashboard-active-tab";
-const LEGACY_STORAGE_KEYS = ["incrementum-dashboard-state-v3", "incrementum-dashboard-state-v2", "incrementum-dashboard-state-v1"];
+const runtime = window.IncrementumRuntime || null;
+const stateRepository = runtime?.services?.stateRepository || null;
+const uiContextService = runtime?.services?.uiContextService || null;
+const shareLinkService = runtime?.services?.shareLinkService || null;
+const repositoryStatus = stateRepository?.getStatus?.() || null;
+const LEGACY_STORAGE_KEYS = [
+  "incrementum-dashboard-state-v5",
+  "incrementum-dashboard-state-v3",
+  "incrementum-dashboard-state-v2",
+  "incrementum-dashboard-state-v1",
+];
 
 const TRADE_TYPES = new Set(["BUY", "SELL"]);
 const CAPITAL_TYPES = new Set(["DEPOSIT", "WITHDRAWAL"]);
@@ -15,6 +25,18 @@ const LEGACY_SEED_SIGNATURES = new Set([
   "2026-03-01|BUY|GOOGL|2984.4|",
 ]);
 
+const CRC32_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let index = 0; index < 256; index += 1) {
+    let value = index;
+    for (let bit = 0; bit < 8; bit += 1) {
+      value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+    }
+    table[index] = value >>> 0;
+  }
+  return table;
+})();
+
 const defaultState = {
   manual: {
     prices: {},
@@ -22,9 +44,27 @@ const defaultState = {
   },
   importedSnapshots: [],
   activeSnapshotId: null,
+  lastActiveContext: {
+    mode: "manual",
+    snapshotId: null,
+  },
+  marketData: {
+    benchmarkHistory: {},
+    assetPriceHistory: {},
+  },
+  preferences: {
+    primaryBenchmark: "SPX",
+    sofrRate: 0.045,
+    hurdleRate: 0.08,
+  },
 };
 
-let state = loadState();
+let state = applyRuntimeContext(loadState());
+const syncUiState = {
+  status: "idle",
+  restored: Boolean(runtime?.preloadedAppState),
+  lastSavedAt: stateRepository?.getStatus?.()?.lastSavedAt || null,
+};
 
 const elements = {
   tabButtons: [...document.querySelectorAll(".tab-button")],
@@ -41,23 +81,32 @@ const elements = {
   tradeFields: [...document.querySelectorAll("[data-trade-field]")],
   amountFields: [...document.querySelectorAll("[data-amount-field]")],
   transactionsBody: document.getElementById("transactions-body"),
-  holdingsBody: document.getElementById("holdings-body"),
-  topPositionsBody: document.getElementById("top-positions-body"),
+  dashboardPositionsBody: document.getElementById("dashboard-positions-body"),
   allocationList: document.getElementById("allocation-list"),
   headerPositions: document.getElementById("header-positions"),
   headerNetInvested: document.getElementById("header-net-invested"),
   headerPortfolioValue: document.getElementById("header-portfolio-value"),
+  connectionStatus: document.getElementById("connection-status"),
+  lastSavedStatus: document.getElementById("last-saved-status"),
+  activeContextStatus: document.getElementById("active-context-status"),
+  exportExcelButton: document.getElementById("export-excel-button"),
   summaryPortfolioValue: document.getElementById("summary-portfolio-value"),
   summaryCash: document.getElementById("summary-cash"),
-  summaryNetInvested: document.getElementById("summary-net-invested"),
+  summaryCashShare: document.getElementById("summary-cash-share"),
+  summaryCommittedCapital: document.getElementById("summary-committed-capital"),
+  summaryNetContributions: document.getElementById("summary-net-contributions"),
   summaryNetInvestedCard: document.getElementById("summary-net-invested-card"),
   summaryDeployedCapital: document.getElementById("summary-deployed-capital"),
-  summaryDeployedCapitalCard: document.getElementById("summary-deployed-capital-card"),
+  summaryDeployedShare: document.getElementById("summary-deployed-share"),
   summaryUnrealizedPnl: document.getElementById("summary-unrealized-pnl"),
-  summaryUnrealizedReturn: document.getElementById("summary-unrealized-return"),
-  summaryPositionCount: document.getElementById("summary-position-count"),
-  summaryTotalDeposits: document.getElementById("summary-total-deposits"),
-  summaryTotalWithdrawals: document.getElementById("summary-total-withdrawals"),
+  summaryTotalPnl: document.getElementById("summary-total-pnl"),
+  summaryRealizedPnl: document.getElementById("summary-realized-pnl"),
+  summaryMtmPnl: document.getElementById("summary-mtm-pnl"),
+  summaryIrr: document.getElementById("summary-irr"),
+  summaryTwr: document.getElementById("summary-twr"),
+  summaryNetContributionReturn: document.getElementById("summary-net-contribution-return"),
+  summaryYtd: document.getElementById("summary-ytd"),
+  summaryItd: document.getElementById("summary-itd"),
   returnsNetInvested: document.getElementById("returns-net-invested"),
   returnsPortfolioValue: document.getElementById("returns-portfolio-value"),
   returnsRealizedPnl: document.getElementById("returns-realized-pnl"),
@@ -66,6 +115,14 @@ const elements = {
   returnsMtmPnl: document.getElementById("returns-mtm-pnl"),
   returnsIrr: document.getElementById("returns-irr"),
   returnsTwr: document.getElementById("returns-twr"),
+  returnsNetContributionReturn: document.getElementById("returns-net-contribution-return"),
+  returnsYtd: document.getElementById("returns-ytd"),
+  returnsItd: document.getElementById("returns-itd"),
+  benchmarkSelect: document.getElementById("benchmark-select"),
+  benchmarkComparisonBody: document.getElementById("benchmark-comparison-body"),
+  historyStatus: document.getElementById("history-status"),
+  historyChart: document.getElementById("history-chart"),
+  historyBody: document.getElementById("history-body"),
   reconciliationStatus: document.getElementById("reconciliation-status"),
   reconciliationDetails: document.getElementById("reconciliation-details"),
   reconciliationBody: document.getElementById("reconciliation-body"),
@@ -80,6 +137,7 @@ const elements = {
   importButton: document.getElementById("import-button"),
   importStatus: document.getElementById("import-status"),
   importStatusSummary: document.getElementById("import-status-summary"),
+  importStatusMeta: document.getElementById("import-status-meta"),
   importStatusDetails: document.getElementById("import-status-details"),
   importStatusDetailsBody: document.getElementById("import-status-details-body"),
   statementHistoryBody: document.getElementById("statement-history-body"),
@@ -96,10 +154,18 @@ setupTabs();
 setupTransactionForm();
 setupImport();
 setupFilters();
+setupPreferences();
+setupExport();
 renderFilterOptions();
 renderApp();
+triggerInitialBackendMigration();
 
 function loadState() {
+  const preloadedState = runtime?.preloadedAppState;
+  if (preloadedState) {
+    return normalizeState(preloadedState);
+  }
+
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved) {
     try {
@@ -114,7 +180,7 @@ function loadState() {
     if (!legacySaved) continue;
     try {
       const parsed = JSON.parse(legacySaved);
-      const migrated = migrateLegacyState(parsed);
+      const migrated = legacyKey === "incrementum-dashboard-state-v5" ? normalizeState(parsed) : migrateLegacyState(parsed);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
       return migrated;
     } catch {
@@ -135,7 +201,14 @@ function normalizeState(rawState) {
     const importedSnapshots = Array.isArray(rawState?.importedSnapshots)
       ? rawState.importedSnapshots.map(normalizeImportedSnapshot).filter(Boolean)
       : [];
-    const activeSnapshotId = importedSnapshots.some((snapshot) => snapshot.id === rawState?.activeSnapshotId) ? rawState.activeSnapshotId : null;
+    const restoredSnapshotId =
+      importedSnapshots.some((snapshot) => snapshot.id === rawState?.lastActiveContext?.snapshotId)
+        ? rawState.lastActiveContext.snapshotId
+        : importedSnapshots.some((snapshot) => snapshot.id === rawState?.activeSnapshotId)
+          ? rawState.activeSnapshotId
+          : null;
+    const marketData = normalizeMarketData(rawState?.marketData);
+    const preferences = normalizePreferences(rawState?.preferences);
 
     return {
       manual: {
@@ -143,7 +216,13 @@ function normalizeState(rawState) {
         transactions: stripLegacySeedTransactions(manualTransactions),
       },
       importedSnapshots,
-      activeSnapshotId: activeSnapshotId || importedSnapshots[0]?.id || null,
+      activeSnapshotId: restoredSnapshotId || importedSnapshots[0]?.id || null,
+      lastActiveContext: {
+        mode: rawState?.lastActiveContext?.mode === "snapshot" && restoredSnapshotId ? "snapshot" : "manual",
+        snapshotId: restoredSnapshotId || null,
+      },
+      marketData,
+      preferences,
     };
   }
 
@@ -169,6 +248,12 @@ function normalizeState(rawState) {
       },
       importedSnapshots: [importedSnapshot],
       activeSnapshotId: importedSnapshot.id,
+      lastActiveContext: {
+        mode: "snapshot",
+        snapshotId: importedSnapshot.id,
+      },
+      marketData: normalizeMarketData(rawState?.marketData),
+      preferences: normalizePreferences(rawState?.preferences),
     };
   }
 
@@ -179,6 +264,12 @@ function normalizeState(rawState) {
     },
     importedSnapshots: [],
     activeSnapshotId: null,
+    lastActiveContext: {
+      mode: "manual",
+      snapshotId: null,
+    },
+    marketData: normalizeMarketData(rawState?.marketData),
+    preferences: normalizePreferences(rawState?.preferences),
   };
 }
 
@@ -212,6 +303,29 @@ function migrateLegacyState(legacyState) {
     },
     importedSnapshots: [],
     activeSnapshotId: null,
+    lastActiveContext: {
+      mode: "manual",
+      snapshotId: null,
+    },
+    marketData: normalizeMarketData(),
+    preferences: normalizePreferences(),
+  };
+}
+
+function normalizeMarketData(rawMarketData) {
+  return {
+    benchmarkHistory:
+      rawMarketData?.benchmarkHistory && typeof rawMarketData.benchmarkHistory === "object" ? rawMarketData.benchmarkHistory : {},
+    assetPriceHistory:
+      rawMarketData?.assetPriceHistory && typeof rawMarketData.assetPriceHistory === "object" ? rawMarketData.assetPriceHistory : {},
+  };
+}
+
+function normalizePreferences(rawPreferences) {
+  return {
+    primaryBenchmark: ["SPX", "SOFR", "HURDLE"].includes(rawPreferences?.primaryBenchmark) ? rawPreferences.primaryBenchmark : "SPX",
+    sofrRate: Number.isFinite(Number(rawPreferences?.sofrRate)) ? Number(rawPreferences.sofrRate) : 0.045,
+    hurdleRate: Number.isFinite(Number(rawPreferences?.hurdleRate)) ? Number(rawPreferences.hurdleRate) : 0.08,
   };
 }
 
@@ -301,6 +415,8 @@ function normalizeImportedSnapshot(rawSnapshot) {
     summary: {
       portfolioValue: roundNumber(summary.portfolioValue),
       cash: roundNumber(summary.cash),
+      committedCapital: roundNumber(summary.committedCapital),
+      netContributions: roundNumber(summary.netContributions ?? summary.netInvestedCapital),
       netInvestedCapital: roundNumber(summary.netInvestedCapital),
       realizedPnL: roundNumber(summary.realizedPnL),
       unrealizedPnL: roundNumber(summary.unrealizedPnL),
@@ -327,6 +443,8 @@ function createImportedSnapshot({ fileName, transactions, prices, statement, imp
     summary: {
       portfolioValue: roundNumber(summary.portfolioValue),
       cash: roundNumber(summary.cash),
+      committedCapital: roundNumber(summary.committedCapital),
+      netContributions: roundNumber(summary.netContributions),
       netInvestedCapital: roundNumber(summary.netInvestedCapital),
       realizedPnL: roundNumber(summary.realizedPnL),
       unrealizedPnL: roundNumber(summary.unrealizedPnL),
@@ -359,7 +477,51 @@ function deriveCashImpact(type, amount, quantity, price, fxRate) {
 }
 
 function saveState() {
+  state.lastActiveContext = {
+    mode: state.activeSnapshotId ? "snapshot" : "manual",
+    snapshotId: state.activeSnapshotId || null,
+  };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  syncUiState.status = "syncing";
+  renderSyncStatus();
+  const remoteSave = stateRepository?.saveAppState?.(STORAGE_KEY, state);
+  if (remoteSave?.then) {
+    remoteSave
+      .then(() => {
+        syncUiState.status = "saved";
+        syncUiState.lastSavedAt = stateRepository?.getStatus?.()?.lastSavedAt || new Date().toISOString();
+        renderSyncStatus();
+      })
+      .catch(() => {
+        syncUiState.status = "failed";
+        renderSyncStatus();
+      });
+  } else {
+    syncUiState.status = "saved";
+    syncUiState.lastSavedAt = new Date().toISOString();
+    renderSyncStatus();
+  }
+}
+
+function applyRuntimeContext(currentState) {
+  const nextState = normalizeState(currentState);
+  const runtimeUiContext = runtime?.preloadedUiContext || uiContextService?.getAll?.() || null;
+  const routeContext = shareLinkService?.getRouteContext?.() || null;
+
+  if (runtimeUiContext?.selectedBenchmark) {
+    nextState.preferences.primaryBenchmark = runtimeUiContext.selectedBenchmark;
+  }
+
+  const requestedSnapshotId = routeContext?.snapshotId || runtimeUiContext?.activeSnapshotId || null;
+  if (requestedSnapshotId && nextState.importedSnapshots.some((snapshot) => snapshot.id === requestedSnapshotId)) {
+    nextState.activeSnapshotId = requestedSnapshotId;
+    nextState.lastActiveContext = {
+      mode: "snapshot",
+      snapshotId: requestedSnapshotId,
+    };
+  }
+
+  return nextState;
 }
 
 function getActiveSnapshot() {
@@ -397,7 +559,7 @@ function setupTabs() {
     button.addEventListener("click", () => activateTab(button.dataset.tabTarget));
   });
 
-  const savedTab = localStorage.getItem(ACTIVE_TAB_KEY);
+  const savedTab = uiContextService?.get?.("activeTab") || localStorage.getItem(ACTIVE_TAB_KEY);
   const validTab = elements.tabPanels.some((panel) => panel.id === savedTab) ? savedTab : "dashboard-tab";
   activateTab(validTab, false);
 }
@@ -413,6 +575,7 @@ function activateTab(tabId, persist = true) {
 
   if (persist) {
     localStorage.setItem(ACTIVE_TAB_KEY, tabId);
+    uiContextService?.set?.("activeTab", tabId);
   }
 }
 
@@ -470,7 +633,7 @@ function setupTransactionForm() {
     renderApp();
   });
 
-  elements.holdingsBody.addEventListener("change", (event) => {
+  elements.dashboardPositionsBody?.addEventListener("change", (event) => {
     const input = event.target.closest("[data-price-ticker]");
     if (!input) return;
 
@@ -494,6 +657,7 @@ function setupTransactionForm() {
         const snapshotId = activateButton.dataset.activateSnapshotId;
         if (state.importedSnapshots.some((snapshot) => snapshot.id === snapshotId)) {
           state.activeSnapshotId = snapshotId;
+          uiContextService?.set?.("activeSnapshotId", snapshotId);
           saveState();
           renderApp();
         }
@@ -507,6 +671,7 @@ function setupTransactionForm() {
       state.importedSnapshots = state.importedSnapshots.filter((snapshot) => snapshot.id !== snapshotId);
       if (state.activeSnapshotId === snapshotId) {
         state.activeSnapshotId = getLatestSnapshotId();
+        uiContextService?.set?.("activeSnapshotId", state.activeSnapshotId);
       }
       saveState();
       renderApp();
@@ -516,6 +681,7 @@ function setupTransactionForm() {
   if (elements.useManualModeButton) {
     elements.useManualModeButton.addEventListener("click", () => {
       state.activeSnapshotId = null;
+      uiContextService?.set?.("activeSnapshotId", null);
       saveState();
       renderApp();
     });
@@ -659,6 +825,7 @@ function setupImport() {
 
       state.importedSnapshots = [importedSnapshot, ...state.importedSnapshots];
       state.activeSnapshotId = importedSnapshot.id;
+      uiContextService?.set?.("activeSnapshotId", importedSnapshot.id);
       saveState();
       renderApp();
 
@@ -677,7 +844,8 @@ function setupImport() {
           `Fees: ${result.counts.fees}`,
           `Taxes: ${result.counts.tax}`,
           `Rows skipped: ${result.skippedRows}`,
-        ]
+        ],
+        `${file.name} · ${result.transactions.length} transactions${importedSnapshot.statementPeriodEndDate ? ` · statement date ${importedSnapshot.statementPeriodEndDate}` : ""}`
       );
     } catch (error) {
       setImportStatus(`The file could not be imported. ${error instanceof Error ? error.message : "Unknown parsing error."}`, "error");
@@ -720,10 +888,93 @@ function setupFilters() {
   });
 }
 
+function setupPreferences() {
+  if (elements.benchmarkSelect) {
+    elements.benchmarkSelect.value = uiContextService?.get?.("selectedBenchmark") || state.preferences.primaryBenchmark;
+    elements.benchmarkSelect.addEventListener("change", () => {
+      state.preferences.primaryBenchmark = elements.benchmarkSelect.value;
+      uiContextService?.set?.("selectedBenchmark", elements.benchmarkSelect.value);
+      saveState();
+      renderApp();
+    });
+  }
+}
+
+function setupExport() {
+  if (!elements.exportExcelButton) return;
+  elements.exportExcelButton.addEventListener("click", () => {
+    const context = getCurrentContext();
+    const analytics = calculatePortfolioAnalytics(context.transactions, context.prices, context.statement);
+    const summary = calculateSummary(context.transactions, analytics, context.statement);
+    const historySeries = buildPortfolioHistorySeries(context);
+    const benchmarkRows = buildBenchmarkWindowRows(historySeries, state.preferences);
+    exportWorkbook({
+      context,
+      analytics,
+      summary,
+      historySeries,
+      benchmarkRows,
+    });
+  });
+}
+
 function renderFilterOptions() {
   elements.filterType.innerHTML = ['<option value="">All types</option>']
     .concat(ALL_TRANSACTION_TYPES.map((type) => `<option value="${type}">${type}</option>`))
     .join("");
+}
+
+function triggerInitialBackendMigration() {
+  if (!runtime?.services?.supabase || runtime?.preloadedAppState) return;
+  const hasMeaningfulLocalState =
+    state.manual.transactions.length > 0 ||
+    state.importedSnapshots.length > 0 ||
+    Object.keys(state.manual.prices || {}).length > 0;
+
+  if (!hasMeaningfulLocalState) return;
+  saveState();
+}
+
+function renderSyncStatus() {
+  const status = stateRepository?.getStatus?.() || {};
+  const connectionLabel = status.connectionLabel || "Using local fallback";
+  const isSupabase = connectionLabel.toLowerCase().includes("supabase");
+  const syncLabel =
+    syncUiState.status === "syncing"
+      ? "Syncing..."
+      : syncUiState.status === "failed"
+        ? "Save failed"
+        : syncUiState.lastSavedAt
+          ? `Last saved ${formatRelativeTime(syncUiState.lastSavedAt)}`
+          : syncUiState.restored
+            ? "Restored latest working session"
+            : "Last saved: not yet";
+
+  if (elements.connectionStatus) {
+    elements.connectionStatus.textContent = connectionLabel;
+    elements.connectionStatus.className = `status-pill ${isSupabase ? "status-pill--success" : "status-pill--warning"}`.trim();
+  }
+
+  if (elements.lastSavedStatus) {
+    elements.lastSavedStatus.textContent = syncLabel;
+    elements.lastSavedStatus.className = `status-pill ${
+      syncUiState.status === "failed"
+        ? "status-pill--error"
+        : syncUiState.status === "syncing"
+          ? "status-pill--warning"
+          : "status-pill--muted"
+    }`.trim();
+  }
+
+  if (elements.activeContextStatus) {
+    const sourceLabel = state.activeSnapshotId
+      ? `Source: Snapshot ${state.activeSnapshotId.slice(0, 8)}`
+      : status.lastLoadSource === "supabase"
+        ? "Source: Supabase state"
+        : "Source: Manual / Local";
+    elements.activeContextStatus.textContent = sourceLabel;
+    elements.activeContextStatus.className = "status-pill status-pill--muted";
+  }
 }
 
 function renderApp() {
@@ -731,10 +982,13 @@ function renderApp() {
   const analytics = calculatePortfolioAnalytics(context.transactions, context.prices, context.statement);
   const summary = calculateSummary(context.transactions, analytics, context.statement);
   const filteredTransactions = filterTransactions(context.transactions);
+  const historySeries = buildPortfolioHistorySeries(context);
+  const benchmarkRows = buildBenchmarkWindowRows(historySeries, state.preferences);
 
+  renderSyncStatus();
   renderTransactions(filteredTransactions, context.mode);
-  renderHoldings(analytics.holdings);
-  renderDashboard(analytics.positionsForAllocation, summary);
+  renderPortfolioPositions(analytics.holdings);
+  renderDashboard(analytics.positionsForAllocation, summary, benchmarkRows, historySeries);
   renderSummaryReturns(summary, analytics.assetPerformance);
   renderStatementHistory();
   syncTransactionFormMode();
@@ -771,13 +1025,15 @@ function renderTransactions(transactions, mode) {
     .join("");
 }
 
-function renderHoldings(holdings) {
+function renderPortfolioPositions(holdings) {
+  if (!elements.dashboardPositionsBody) return;
+
   if (!holdings.length) {
-    elements.holdingsBody.innerHTML = buildEmptyRow("Your portfolio is empty. Import IBKR data or add transactions manually.", 7);
+    elements.dashboardPositionsBody.innerHTML = buildEmptyRow("Your portfolio is empty. Import IBKR data or add transactions manually.", 10);
     return;
   }
 
-  elements.holdingsBody.innerHTML = holdings
+  elements.dashboardPositionsBody.innerHTML = holdings
     .map((holding) => {
       const priceCell =
         holding.ticker === "CASH" || holding.isStatementPrice
@@ -796,13 +1052,21 @@ function renderHoldings(holdings) {
 
       return `
         <tr>
-          <td class="ticker-cell">${escapeHtml(getDisplayTicker(holding.ticker))}</td>
-          <td>${holding.ticker === "CASH" ? "-" : formatNumber(holding.shares)}</td>
-          <td>${formatCurrency(holding.averageCost)}</td>
-          <td>${priceCell}</td>
-          <td>${formatCurrency(holding.marketValue)}</td>
-          <td>${formatPercent(holding.portfolioWeight)}</td>
-          <td>${formatPercent(holding.costWeight)}</td>
+          <td class="ticker-cell">
+            <div class="position-name">
+              <strong>${escapeHtml(getDisplayTicker(holding.ticker))}</strong>
+              <span>${holding.ticker === "CASH" ? "Liquidity" : "Open position"}</span>
+            </div>
+          </td>
+          <td class="numeric-cell">${holding.ticker === "CASH" ? "-" : formatNumber(holding.shares)}</td>
+          <td class="numeric-cell">${formatCurrency(holding.averageCost)}</td>
+          <td class="numeric-cell">${priceCell}</td>
+          <td class="numeric-cell">${formatCurrency(holding.marketValue)}</td>
+          <td class="numeric-cell">${formatCurrency(holding.totalCostBasis)}</td>
+          <td class="numeric-cell">${formatPercent(holding.portfolioWeight)}</td>
+          <td class="numeric-cell">${formatPercent(holding.costWeight)}</td>
+          <td class="numeric-cell ${getValueClass(holding.unrealizedPnL)}">${formatCurrency(holding.unrealizedPnL)}</td>
+          <td class="numeric-cell ${getValueClass(holding.returnPct)}">${formatPercent(holding.returnPct)}</td>
         </tr>
       `;
     })
@@ -814,7 +1078,7 @@ function renderStatementHistory() {
     const activeSnapshot = getActiveSnapshot();
     elements.statementModeIndicator.textContent = activeSnapshot
       ? `Snapshot mode is active. Showing ${activeSnapshot.fileName}${activeSnapshot.statementPeriodEndDate ? ` (${activeSnapshot.statementPeriodEndDate})` : ""}.`
-      : "Manual mode is active. Dashboard, Holdings, and Summary Returns are using the live manual ledger.";
+      : "Manual mode is active. Dashboard, Transactions, and Summary Returns are using the live manual ledger.";
   }
 
   if (elements.useManualModeButton) {
@@ -843,20 +1107,22 @@ function renderStatementHistory() {
       }
 
       return `
-        <tr>
+        <tr class="${snapshot.id === state.activeSnapshotId ? "statement-row--active" : ""}">
           <td>
-            <div>${escapeHtml(snapshot.fileName)}</div>
+            <div class="statement-file">
+              <div class="statement-file-name">${escapeHtml(snapshot.fileName)}</div>
+            </div>
             <div class="table-badges">${badges.join("")}</div>
           </td>
           <td>${escapeHtml(snapshot.statementPeriodEndDate || "-")}</td>
           <td>${formatDateTime(snapshot.importedAt)}</td>
-          <td>${formatCurrency(snapshot.summary.portfolioValue)}</td>
-          <td>${formatCurrency(snapshot.summary.cash)}</td>
-          <td>${formatCurrency(snapshot.summary.netInvestedCapital)}</td>
+          <td class="numeric-cell">${formatCurrency(snapshot.summary.portfolioValue)}</td>
+          <td class="numeric-cell">${formatCurrency(snapshot.summary.cash)}</td>
+          <td class="numeric-cell">${formatCurrency(snapshot.summary.netContributions ?? snapshot.summary.netInvestedCapital)}</td>
           <td>
             <div class="table-actions">
               <button class="button ${snapshot.id === state.activeSnapshotId ? "button--secondary" : "button--primary"} button--small" data-activate-snapshot-id="${snapshot.id}" type="button">
-                ${snapshot.id === state.activeSnapshotId ? "Active" : "Activate"}
+                ${snapshot.id === state.activeSnapshotId ? "Viewing" : "View Snapshot"}
               </button>
               <button class="button button--ghost button--small" data-delete-snapshot-id="${snapshot.id}" type="button">Delete</button>
             </div>
@@ -867,65 +1133,56 @@ function renderStatementHistory() {
     .join("");
 }
 
-function renderDashboard(positionsForAllocation, summary) {
+function renderDashboard(positionsForAllocation, summary, benchmarkRows, historySeries) {
   setElementText(elements.headerPositions, String(summary.positionCount));
-  setElementText(elements.headerNetInvested, formatCurrency(summary.netInvestedCapital));
+  setElementText(elements.headerNetInvested, formatCurrency(summary.netContributions));
   setElementText(elements.headerPortfolioValue, formatCurrency(summary.portfolioValue));
   setElementText(elements.summaryPortfolioValue, formatCurrency(summary.portfolioValue));
   setElementText(elements.summaryCash, formatCurrency(summary.cash));
-  setElementText(elements.summaryNetInvested, formatCurrency(summary.netInvestedCapital));
-  setElementText(elements.summaryNetInvestedCard, formatCurrency(summary.netInvestedCapital));
+  setElementText(elements.summaryCashShare, summary.cashShareLabel);
+  setElementText(elements.summaryCommittedCapital, formatCurrency(summary.committedCapital));
+  setElementText(elements.summaryNetContributions, formatCurrency(summary.netContributions));
+  setElementText(elements.summaryNetInvestedCard, formatCurrency(summary.netContributions));
   setElementText(elements.summaryDeployedCapital, formatCurrency(summary.deployedCapital));
-  setElementText(elements.summaryDeployedCapitalCard, formatCurrency(summary.deployedCapital));
-  setElementText(elements.summaryTotalDeposits, formatCurrency(summary.totalDeposits));
-  setElementText(elements.summaryTotalWithdrawals, formatCurrency(summary.totalWithdrawals));
+  setElementText(elements.summaryDeployedShare, summary.deployedShareLabel);
+  setElementText(elements.summaryTotalPnl, formatCurrency(summary.totalPnL));
+  setElementClassName(elements.summaryTotalPnl, `panel-value ${getValueClass(summary.totalPnL)}`.trim());
+  setElementText(elements.summaryRealizedPnl, formatCurrency(summary.realizedPnL));
+  setElementClassName(elements.summaryRealizedPnl, `panel-value ${getValueClass(summary.realizedPnL)}`.trim());
   setElementText(elements.summaryUnrealizedPnl, formatCurrency(summary.unrealizedPnL));
   setElementClassName(elements.summaryUnrealizedPnl, `panel-value ${getValueClass(summary.unrealizedPnL)}`.trim());
-  setElementText(elements.summaryUnrealizedReturn, formatPercent(summary.unrealizedReturnPct));
-  setElementClassName(elements.summaryUnrealizedReturn, `panel-value ${getValueClass(summary.unrealizedReturnPct)}`.trim());
-  setElementText(elements.summaryPositionCount, String(summary.positionCount));
+  setElementText(elements.summaryMtmPnl, formatCurrency(summary.markToMarketPnL));
+  setElementClassName(elements.summaryMtmPnl, `panel-value ${getValueClass(summary.markToMarketPnL)}`.trim());
+  setElementText(elements.summaryIrr, summary.irrLabel);
+  setElementText(elements.summaryTwr, summary.twrLabel);
+  setElementText(elements.summaryNetContributionReturn, summary.netContributionReturnLabel);
+  setElementText(elements.summaryYtd, summary.ytdLabel);
+  setElementText(elements.summaryItd, summary.itdLabel);
 
   if (!positionsForAllocation.length) {
     elements.allocationList.innerHTML = `<div class="empty-state">Allocation will appear once you add transactions or import your IBKR statement.</div>`;
-    elements.topPositionsBody.innerHTML = buildEmptyRow("Top positions will appear here.", 5);
-    return;
+  } else {
+    elements.allocationList.innerHTML = positionsForAllocation
+      .map((position) => `
+        <div class="allocation-row">
+          <div class="allocation-meta">
+            <strong>${escapeHtml(getDisplayTicker(position.ticker))}</strong>
+            <span>${formatCurrency(position.marketValue)} | ${formatPercent(position.portfolioWeight)}</span>
+          </div>
+          <div class="allocation-bar">
+            <span style="width: ${Math.max(position.portfolioWeight, 0)}%"></span>
+          </div>
+        </div>
+      `)
+      .join("");
   }
 
-  elements.allocationList.innerHTML = positionsForAllocation
-    .map((position) => `
-      <div class="allocation-row">
-        <div class="allocation-meta">
-          <strong>${escapeHtml(getDisplayTicker(position.ticker))}</strong>
-          <span>${formatCurrency(position.marketValue)} | ${formatPercent(position.portfolioWeight)}</span>
-        </div>
-        <div class="allocation-bar">
-          <span style="width: ${Math.max(position.portfolioWeight, 0)}%"></span>
-        </div>
-      </div>
-    `)
-    .join("");
-
-  elements.topPositionsBody.innerHTML = positionsForAllocation
-    .slice(0, 5)
-    .map((position) => `
-      <tr>
-        <td class="ticker-cell">
-          <div class="top-position-ticker">
-            <strong>${escapeHtml(getDisplayTicker(position.ticker))}</strong>
-            <span class="top-position-meta">${position.ticker === "CASH" ? "Cash holding" : `${formatNumber(position.shares)} share(s)`}</span>
-          </div>
-        </td>
-        <td class="numeric-cell">${position.ticker === "CASH" ? "-" : formatNumber(position.shares)}</td>
-        <td class="numeric-cell">${formatCurrency(position.marketValue)}</td>
-        <td class="numeric-cell">${formatPercent(position.portfolioWeight)}</td>
-        <td class="numeric-cell ${getValueClass(position.unrealizedPnL)}">${formatCurrency(position.unrealizedPnL)}</td>
-      </tr>
-    `)
-    .join("");
+  renderBenchmarkComparison(benchmarkRows);
+  renderHistory(historySeries);
 }
 
 function renderSummaryReturns(summary, assetPerformance) {
-  elements.returnsNetInvested.textContent = formatCurrency(summary.netInvestedCapital);
+  elements.returnsNetInvested.textContent = formatCurrency(summary.netContributions);
   elements.returnsPortfolioValue.textContent = formatCurrency(summary.portfolioValue);
   elements.returnsRealizedPnl.textContent = formatCurrency(summary.realizedPnL);
   elements.returnsRealizedPnl.className = `panel-value ${getValueClass(summary.realizedPnL)}`;
@@ -937,19 +1194,23 @@ function renderSummaryReturns(summary, assetPerformance) {
   elements.returnsMtmPnl.className = `panel-value ${getValueClass(summary.markToMarketPnL)}`;
   elements.returnsIrr.textContent = summary.irrLabel;
   elements.returnsTwr.textContent = summary.twrLabel;
+  setElementText(elements.returnsNetContributionReturn, summary.netContributionReturnLabel);
+  setElementText(elements.returnsYtd, summary.ytdLabel);
+  setElementText(elements.returnsItd, summary.itdLabel);
 
   if (elements.reconciliationStatus) {
     if (!summary.reconciliationRows.length) {
       elements.reconciliationStatus.textContent = "No reconciliation data available.";
     } else {
       const mismatchCount = summary.reconciliationRows.filter((row) => Math.abs(row.difference) >= 0.01).length;
-      elements.reconciliationStatus.textContent =
-        mismatchCount === 0 ? "Reconciled with IBKR." : `${mismatchCount} mismatch detected.`;
+      elements.reconciliationStatus.textContent = mismatchCount === 0 ? "All checks passed." : `${mismatchCount} mismatch detected.`;
     }
   }
 
   if (elements.reconciliationDetails) {
-    elements.reconciliationDetails.classList.toggle("is-hidden", !summary.reconciliationRows.length);
+    const mismatchCount = summary.reconciliationRows.filter((row) => Math.abs(row.difference) >= 0.01).length;
+    elements.reconciliationDetails.classList.toggle("is-hidden", mismatchCount === 0);
+    elements.reconciliationDetails.open = false;
   }
 
   if (elements.reconciliationBody) {
@@ -1006,6 +1267,701 @@ function renderSummaryReturns(summary, assetPerformance) {
       </tr>
     `)
     .join("");
+}
+
+function buildPortfolioHistorySeries(context) {
+  const sortedTransactions = [...context.transactions]
+    .filter((transaction) => transaction.date)
+    .sort((left, right) => left.date.localeCompare(right.date));
+
+  if (!sortedTransactions.length) {
+    return buildSnapshotCheckpointSeries();
+  }
+
+  const valuationDate = getActiveValuationDate(context.transactions, context.statement);
+  const startDate = sortedTransactions[0].date;
+  const snapshotAnchors = buildSnapshotPriceAnchors();
+  const history = [];
+  const holdings = new Map();
+  let cash = 0;
+  let netContributions = 0;
+  let transactionIndex = 0;
+
+  for (let currentDate = startDate; currentDate <= valuationDate; currentDate = shiftDateIso(currentDate, 1)) {
+    while (transactionIndex < sortedTransactions.length && sortedTransactions[transactionIndex].date === currentDate) {
+      const transaction = sortedTransactions[transactionIndex];
+      cash += transaction.cashImpact;
+
+      if (transaction.type === "DEPOSIT") netContributions += transaction.amount;
+      if (transaction.type === "WITHDRAWAL") netContributions -= transaction.amount;
+
+      if (TRADE_TYPES.has(transaction.type) && transaction.ticker) {
+        if (!holdings.has(transaction.ticker)) {
+          holdings.set(transaction.ticker, {
+            ticker: transaction.ticker,
+            shares: 0,
+            totalCostBasis: 0,
+          });
+        }
+
+        const holding = holdings.get(transaction.ticker);
+        const tradeCashMagnitude = Math.abs(transaction.cashImpact);
+
+        if (transaction.type === "BUY") {
+          holding.shares += transaction.quantity;
+          holding.totalCostBasis += tradeCashMagnitude;
+        } else if (holding.shares > 0) {
+          const sharesToRemove = Math.min(transaction.quantity, holding.shares);
+          const averageCost = holding.totalCostBasis / holding.shares;
+          const removedCostBasis = averageCost * sharesToRemove;
+          holding.shares -= sharesToRemove;
+          holding.totalCostBasis -= removedCostBasis;
+        }
+      }
+
+      transactionIndex += 1;
+    }
+
+    const marketValue = [...holdings.values()]
+      .filter((holding) => holding.shares > 0.0000001)
+      .reduce((sum, holding) => {
+        const price = resolveHistoricalPrice({
+          ticker: holding.ticker,
+          date: currentDate,
+          shares: holding.shares,
+          totalCostBasis: holding.totalCostBasis,
+          snapshotAnchors,
+          prices: context.prices,
+        });
+        return sum + holding.shares * price;
+      }, 0);
+
+    const portfolioValue = roundNumber(cash + marketValue);
+    history.push({
+      date: currentDate,
+      portfolioValue,
+      netContributions: roundNumber(netContributions),
+      totalPnL: roundNumber(portfolioValue - netContributions),
+      source: "Ledger NAV",
+    });
+  }
+
+  return history;
+}
+
+function buildSnapshotCheckpointSeries() {
+  return [...state.importedSnapshots]
+    .filter((snapshot) => snapshot.statementPeriodEndDate)
+    .sort((left, right) => left.statementPeriodEndDate.localeCompare(right.statementPeriodEndDate))
+    .filter((snapshot, index, list) => index === 0 || list[index - 1].statementPeriodEndDate !== snapshot.statementPeriodEndDate)
+    .map((snapshot) => ({
+      date: snapshot.statementPeriodEndDate,
+      portfolioValue: roundNumber(snapshot.summary.portfolioValue),
+      netContributions: roundNumber(snapshot.summary.netContributions ?? snapshot.summary.netInvestedCapital),
+      totalPnL: roundNumber(snapshot.summary.totalPnL),
+      source: "Snapshot Checkpoint",
+    }));
+}
+
+function buildSnapshotPriceAnchors() {
+  const anchorMap = new Map();
+
+  state.importedSnapshots.forEach((snapshot) => {
+    const anchorDate = snapshot.statementPeriodEndDate;
+    const positions = snapshot.statement?.openPositions || [];
+    if (!anchorDate) return;
+
+    positions.forEach((position) => {
+      if (!anchorMap.has(position.ticker)) {
+        anchorMap.set(position.ticker, []);
+      }
+      anchorMap.get(position.ticker).push({
+        date: anchorDate,
+        price: roundNumber(position.currentPrice),
+      });
+    });
+  });
+
+  anchorMap.forEach((anchors) => anchors.sort((left, right) => left.date.localeCompare(right.date)));
+  return anchorMap;
+}
+
+function resolveHistoricalPrice({ ticker, date, shares, totalCostBasis, snapshotAnchors, prices }) {
+  const cachedSeries = state.marketData?.assetPriceHistory?.[ticker];
+  if (Array.isArray(cachedSeries) && cachedSeries.length) {
+    const cachedPoint = [...cachedSeries].reverse().find((point) => point.date <= date && Number.isFinite(Number(point.price)));
+    if (cachedPoint) return Number(cachedPoint.price);
+  }
+
+  const anchors = snapshotAnchors.get(ticker) || [];
+  const anchor = [...anchors].reverse().find((point) => point.date <= date) || anchors[0];
+  if (anchor?.price) return anchor.price;
+
+  const currentPrice = Number(prices?.[ticker]?.price || 0);
+  if (currentPrice > 0) return currentPrice;
+
+  return shares > 0 ? roundNumber(totalCostBasis / shares) : 0;
+}
+
+function getWindowStartDate(windowId, endDate, inceptionDate) {
+  if (!endDate) return "";
+  const [year, month, day] = endDate.split("-").map(Number);
+  if (!year || !month || !day) return "";
+
+  if (windowId === "MTD") return `${year}-${String(month).padStart(2, "0")}-01`;
+  if (windowId === "YTD") return `${year}-01-01`;
+  if (windowId === "3M") return shiftDateIso(endDate, -90);
+  if (windowId === "6M") return shiftDateIso(endDate, -180);
+  if (windowId === "ITD") return inceptionDate || "";
+  return "";
+}
+
+function shiftDateIso(dateString, dayOffset) {
+  const date = new Date(`${dateString}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return "";
+  date.setDate(date.getDate() + dayOffset);
+  return date.toISOString().slice(0, 10);
+}
+
+function findHistoryWindowPoints(historySeries, startDate, endDate) {
+  if (!startDate || !endDate) return { startPoint: null, endPoint: null };
+  const series = [...historySeries].sort((left, right) => left.date.localeCompare(right.date));
+  const endPoint = [...series].reverse().find((point) => point.date <= endDate) || series[series.length - 1] || null;
+  const startPoint = series.find((point) => point.date >= startDate) || series.find((point) => point.date <= startDate) || null;
+  return { startPoint, endPoint };
+}
+
+function calculateHistoryWindowReturn(startPoint, endPoint) {
+  if (!startPoint || !endPoint || startPoint.date >= endPoint.date) return null;
+  const netFlow = endPoint.netContributions - startPoint.netContributions;
+  const denominator = startPoint.portfolioValue + netFlow * 0.5;
+  if (Math.abs(denominator) < 0.0000001) return null;
+  return roundNumber((endPoint.portfolioValue - startPoint.portfolioValue - netFlow) / denominator);
+}
+
+function getBenchmarkDefinition(benchmarkId, preferences) {
+  const map = {
+    SPX: {
+      label: "SPX / S&P 500",
+      type: "series",
+      series: state.marketData.benchmarkHistory.SPX || [],
+    },
+    SOFR: {
+      label: "SOFR",
+      type: "annualRate",
+      annualRate: preferences.sofrRate,
+    },
+    HURDLE: {
+      label: "USD + 8% Hurdle",
+      type: "annualRate",
+      annualRate: preferences.hurdleRate,
+    },
+  };
+  return map[benchmarkId];
+}
+
+function calculateBenchmarkReturn(benchmarkId, startDate, endDate, preferences) {
+  const definition = getBenchmarkDefinition(benchmarkId, preferences);
+  if (!definition || !startDate || !endDate) return null;
+
+  if (definition.type === "annualRate") {
+    const days = differenceInDays(startDate, endDate);
+    if (days <= 0) return null;
+    return roundNumber((1 + definition.annualRate) ** (days / 365) - 1);
+  }
+
+  if (definition.type === "series") {
+    const series = Array.isArray(definition.series) ? definition.series : [];
+    const startPoint = series.find((point) => point.date >= startDate) || series.find((point) => point.date <= startDate);
+    const endPoint = [...series].reverse().find((point) => point.date <= endDate) || null;
+    if (!startPoint || !endPoint || !startPoint.value || !endPoint.value || startPoint.date >= endPoint.date) return null;
+    return roundNumber(endPoint.value / startPoint.value - 1);
+  }
+
+  return null;
+}
+
+function differenceInDays(startDate, endDate) {
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
+  return Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
+}
+
+function buildBenchmarkWindowRows(historySeries, preferences) {
+  const endDate = historySeries[historySeries.length - 1]?.date || "";
+  const inceptionDate = historySeries[0]?.date || "";
+  const windows = [
+    { id: "MTD", label: "Month-to-Date" },
+    { id: "YTD", label: "Year-to-Date" },
+    { id: "3M", label: "Last 3 Months" },
+    { id: "6M", label: "Last 6 Months" },
+    { id: "ITD", label: "Since Inception" },
+  ];
+
+  return windows.map((windowDef) => {
+    const startDate = getWindowStartDate(windowDef.id, endDate, inceptionDate);
+    const { startPoint, endPoint } = findHistoryWindowPoints(historySeries, startDate, endDate);
+    const portfolioReturn = calculateHistoryWindowReturn(startPoint, endPoint);
+    const primaryReturn = calculateBenchmarkReturn(preferences.primaryBenchmark, startDate, endDate, preferences);
+    const sofrReturn = calculateBenchmarkReturn("SOFR", startDate, endDate, preferences);
+    const hurdleReturn = calculateBenchmarkReturn("HURDLE", startDate, endDate, preferences);
+
+    return {
+      windowId: windowDef.id,
+      label: windowDef.label,
+      startDate,
+      endDate,
+      portfolioReturn,
+      primaryReturn,
+      excessReturn: portfolioReturn !== null && primaryReturn !== null ? roundNumber(portfolioReturn - primaryReturn) : null,
+      sofrReturn,
+      hurdleReturn,
+    };
+  });
+}
+
+function renderBenchmarkComparison(rows) {
+  if (!elements.benchmarkComparisonBody) return;
+
+  if (!rows.length) {
+    elements.benchmarkComparisonBody.innerHTML = buildEmptyRow("Benchmark comparison will appear once enough history is available.", 6);
+    return;
+  }
+
+  elements.benchmarkComparisonBody.innerHTML = rows
+    .map((row) => `
+      <tr>
+        <td>${escapeHtml(row.label)}</td>
+        <td class="numeric-cell ${getValueClass(row.portfolioReturn)}">${formatNullablePercent(row.portfolioReturn)}</td>
+        <td class="numeric-cell ${getValueClass(row.primaryReturn)}">${formatNullablePercent(row.primaryReturn)}</td>
+        <td class="numeric-cell ${getValueClass(row.excessReturn)}">${formatNullablePercent(row.excessReturn)}</td>
+        <td class="numeric-cell ${getValueClass(row.sofrReturn)}">${formatNullablePercent(row.sofrReturn)}</td>
+        <td class="numeric-cell ${getValueClass(row.hurdleReturn)}">${formatNullablePercent(row.hurdleReturn)}</td>
+      </tr>
+    `)
+    .join("");
+}
+
+function renderHistory(historySeries) {
+  if (elements.historyStatus) {
+    elements.historyStatus.textContent = historySeries.length > 1
+      ? "Portfolio NAV reconstructed from the transaction ledger. Statement snapshots are used only as checkpoints and fallback price anchors when needed."
+      : "Portfolio NAV history needs transaction history to build. Statement snapshots are used only as fallback checkpoints.";
+  }
+
+  if (elements.historyBody) {
+    if (!historySeries.length) {
+      elements.historyBody.innerHTML = buildEmptyRow("History will appear once you save statement snapshots or build a manual track record.", 5);
+    } else {
+      elements.historyBody.innerHTML = [...historySeries]
+        .reverse()
+        .map((point) => `
+          <tr>
+            <td>${escapeHtml(point.date)}</td>
+            <td class="numeric-cell">${formatCurrency(point.portfolioValue)}</td>
+            <td class="numeric-cell">${formatCurrency(point.netContributions)}</td>
+            <td class="numeric-cell ${getValueClass(point.totalPnL)}">${formatCurrency(point.totalPnL)}</td>
+            <td>${escapeHtml(point.source)}</td>
+          </tr>
+        `)
+        .join("");
+    }
+  }
+
+  if (!elements.historyChart) return;
+  if (historySeries.length < 2) {
+    elements.historyChart.innerHTML = '<div class="history-chart__empty">Add more statement snapshots to draw the equity curve.</div>';
+    return;
+  }
+
+  const values = historySeries.map((point) => point.portfolioValue);
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const range = maxValue - minValue || 1;
+  const width = 520;
+  const height = 144;
+  const padding = 10;
+  const points = historySeries.map((point, index) => {
+    const x = padding + (index / (historySeries.length - 1)) * (width - padding * 2);
+    const y = height - padding - ((point.portfolioValue - minValue) / range) * (height - padding * 2);
+    return { x: roundNumber(x), y: roundNumber(y), label: point.date, value: point.portfolioValue };
+  });
+  const linePoints = points.map((point) => `${point.x},${point.y}`).join(" ");
+  const fillPoints = [`${points[0].x},${height - padding}`, ...points.map((point) => `${point.x},${point.y}`), `${points[points.length - 1].x},${height - padding}`].join(" ");
+
+  elements.historyChart.innerHTML = `
+    <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Portfolio value history">
+      <polygon class="history-chart__fill" points="${fillPoints}"></polygon>
+      <polyline class="history-chart__line" points="${linePoints}"></polyline>
+      ${points
+        .map(
+          (point) => `<circle class="history-chart__point" cx="${point.x}" cy="${point.y}" r="3">
+            <title>${escapeHtml(point.label)}: ${escapeHtml(formatCurrency(point.value))}</title>
+          </circle>`
+        )
+        .join("")}
+    </svg>
+  `;
+}
+
+function exportWorkbook({ context, analytics, summary, historySeries, benchmarkRows }) {
+  const workbookName = `incrementum-dashboard-${(summary.valuationDate || new Date().toISOString().slice(0, 10)).replace(/-/g, "")}.xlsx`;
+  const sheets = [
+    {
+      name: "Dashboard Summary",
+      rows: [
+        ["Metric", "Value"],
+        ["Committed Capital", formatCurrency(summary.committedCapital)],
+        ["Net Contributions", formatCurrency(summary.netContributions)],
+        ["Net Invested Capital", formatCurrency(summary.netInvestedCapital)],
+        ["Cash Balance", formatCurrency(summary.cash)],
+        ["Current Portfolio Value", formatCurrency(summary.portfolioValue)],
+        ["Total P&L", formatCurrency(summary.totalPnL)],
+        ["Realized P&L", formatCurrency(summary.realizedPnL)],
+        ["Unrealized P&L", formatCurrency(summary.unrealizedPnL)],
+        ["Mark-to-Market P&L", formatCurrency(summary.markToMarketPnL)],
+        ["Net Contribution Return", summary.netContributionReturnLabel],
+        ["IRR", summary.irrLabel],
+        ["TWR", summary.twrLabel],
+        ["YTD", summary.ytdLabel],
+        ["ITD", summary.itdLabel],
+        ["Valuation Date", summary.valuationDate || "-"],
+        ["Data Source", context.mode === "snapshot" ? "Imported Snapshot" : "Manual Mode"],
+      ],
+    },
+    {
+      name: "Portfolio Positions",
+      rows: [
+        ["Ticker", "Shares", "Average Cost", "Current Price", "Market Value", "Cost Basis", "Weight (MV)", "Weight (Cost)", "Unrealized P&L", "Return %"],
+        ...analytics.holdings.map((holding) => [
+          getDisplayTicker(holding.ticker),
+          holding.ticker === "CASH" ? "-" : formatNumber(holding.shares),
+          formatCurrency(holding.averageCost),
+          formatCurrency(holding.currentPrice),
+          formatCurrency(holding.marketValue),
+          formatCurrency(holding.totalCostBasis),
+          formatPercent(holding.portfolioWeight),
+          formatPercent(holding.costWeight),
+          formatCurrency(holding.unrealizedPnL),
+          formatPercent(holding.returnPct),
+        ]),
+      ],
+    },
+    {
+      name: "Transactions",
+      rows: [
+        ["Date", "Type", "Ticker", "Quantity", "Price", "Amount", "Currency", "Cash Impact", "Notes"],
+        ...context.transactions.map((transaction) => [
+          transaction.date,
+          transaction.type,
+          transaction.ticker || "-",
+          TRADE_TYPES.has(transaction.type) ? formatNumber(transaction.quantity) : "-",
+          TRADE_TYPES.has(transaction.type) ? formatCurrencyWithCode(transaction.price, transaction.currency) : "-",
+          formatCurrencyWithCode(transaction.amount, transaction.currency),
+          transaction.currency,
+          formatSignedCurrencyWithCode(transaction.cashImpact, transaction.currency),
+          transaction.notes || "-",
+        ]),
+      ],
+    },
+    {
+      name: "Performance by Asset",
+      rows: [
+        ["Ticker", "Realized P&L", "Unrealized P&L", "Total P&L", "Market Value", "Return %"],
+        ...analytics.assetPerformance.map((asset) => [
+          asset.ticker,
+          formatCurrency(asset.realizedPnL),
+          formatCurrency(asset.unrealizedPnL),
+          formatCurrency(asset.totalPnL),
+          formatCurrency(asset.marketValue),
+          formatPercent(asset.returnPct),
+        ]),
+      ],
+    },
+    {
+      name: "Benchmark Comparison",
+      rows: [
+        ["Window", "Portfolio", getBenchmarkDefinition(state.preferences.primaryBenchmark, state.preferences)?.label || "Primary", "Excess", "SOFR", "USD + 8%"],
+        ...benchmarkRows.map((row) => [
+          row.label,
+          formatNullablePercent(row.portfolioReturn),
+          formatNullablePercent(row.primaryReturn),
+          formatNullablePercent(row.excessReturn),
+          formatNullablePercent(row.sofrReturn),
+          formatNullablePercent(row.hurdleReturn),
+        ]),
+      ],
+    },
+    {
+      name: "Snapshot History",
+      rows: [
+        ["Date", "Portfolio Value", "Net Contributions", "Total P&L", "Source"],
+        ...historySeries.map((point) => [
+          point.date,
+          formatCurrency(point.portfolioValue),
+          formatCurrency(point.netContributions),
+          formatCurrency(point.totalPnL),
+          point.source,
+        ]),
+      ],
+    },
+  ];
+
+  const blob = buildXlsxBlob(sheets);
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = workbookName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function buildXlsxBlob(sheets) {
+  const encoder = new TextEncoder();
+  const files = [];
+  const workbookSheets = sheets.map((sheet, index) => ({
+    ...sheet,
+    safeName: sanitizeSheetName(sheet.name, index),
+    path: `xl/worksheets/sheet${index + 1}.xml`,
+    relId: `rId${index + 1}`,
+  }));
+
+  files.push({ path: "[Content_Types].xml", data: encoder.encode(buildContentTypesXml(workbookSheets.length)) });
+  files.push({ path: "_rels/.rels", data: encoder.encode(buildRootRelsXml()) });
+  files.push({ path: "docProps/app.xml", data: encoder.encode(buildAppXml(workbookSheets.map((sheet) => sheet.safeName))) });
+  files.push({ path: "docProps/core.xml", data: encoder.encode(buildCoreXml()) });
+  files.push({ path: "xl/workbook.xml", data: encoder.encode(buildWorkbookXml(workbookSheets)) });
+  files.push({ path: "xl/_rels/workbook.xml.rels", data: encoder.encode(buildWorkbookRelsXml(workbookSheets.length)) });
+  files.push({ path: "xl/styles.xml", data: encoder.encode(buildStylesXml()) });
+  workbookSheets.forEach((sheet) => {
+    files.push({ path: sheet.path, data: encoder.encode(buildWorksheetXml(sheet.rows)) });
+  });
+
+  return buildZipBlob(files);
+}
+
+function sanitizeSheetName(name, index) {
+  const safe = String(name || `Sheet ${index + 1}`).replace(/[\\/*?:[\]]/g, "").slice(0, 31).trim();
+  return safe || `Sheet${index + 1}`;
+}
+
+function buildContentTypesXml(sheetCount) {
+  const worksheetOverrides = Array.from({ length: sheetCount }, (_, index) => `<Override PartName="/xl/worksheets/sheet${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("");
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+  <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
+  ${worksheetOverrides}
+</Types>`;
+}
+
+function buildRootRelsXml() {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
+</Relationships>`;
+}
+
+function buildAppXml(sheetNames) {
+  const titles = sheetNames.map((name) => `<vt:lpstr>${escapeXml(name)}</vt:lpstr>`).join("");
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
+  <Application>Incrementum Dashboard</Application>
+  <TitlesOfParts>
+    <vt:vector size="${sheetNames.length}" baseType="lpstr">${titles}</vt:vector>
+  </TitlesOfParts>
+</Properties>`;
+}
+
+function buildCoreXml() {
+  const now = new Date().toISOString();
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <dc:creator>Incrementum Dashboard</dc:creator>
+  <cp:lastModifiedBy>Incrementum Dashboard</cp:lastModifiedBy>
+  <dcterms:created xsi:type="dcterms:W3CDTF">${now}</dcterms:created>
+  <dcterms:modified xsi:type="dcterms:W3CDTF">${now}</dcterms:modified>
+</cp:coreProperties>`;
+}
+
+function buildWorkbookXml(sheets) {
+  const sheetXml = sheets
+    .map((sheet, index) => `<sheet name="${escapeXml(sheet.safeName)}" sheetId="${index + 1}" r:id="${sheet.relId}"/>`)
+    .join("");
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>${sheetXml}</sheets>
+</workbook>`;
+}
+
+function buildWorkbookRelsXml(sheetCount) {
+  const worksheetRels = Array.from(
+    { length: sheetCount },
+    (_, index) =>
+      `<Relationship Id="rId${index + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${index + 1}.xml"/>`
+  ).join("");
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  ${worksheetRels}
+  <Relationship Id="rId${sheetCount + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`;
+}
+
+function buildStylesXml() {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="2">
+    <font><sz val="11"/><name val="Calibri"/></font>
+    <font><b/><sz val="11"/><name val="Calibri"/></font>
+  </fonts>
+  <fills count="2">
+    <fill><patternFill patternType="none"/></fill>
+    <fill><patternFill patternType="gray125"/></fill>
+  </fills>
+  <borders count="1">
+    <border><left/><right/><top/><bottom/><diagonal/></border>
+  </borders>
+  <cellStyleXfs count="1">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>
+  </cellStyleXfs>
+  <cellXfs count="2">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+    <xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>
+  </cellXfs>
+</styleSheet>`;
+}
+
+function buildWorksheetXml(rows) {
+  const maxColumns = Math.max(...rows.map((row) => row.length), 1);
+  const cols = Array.from({ length: maxColumns }, (_, index) => `<col min="${index + 1}" max="${index + 1}" width="${index === 0 ? 24 : 18}" customWidth="1"/>`).join("");
+  const sheetRows = rows
+    .map((row, rowIndex) => {
+      const cells = row
+        .map((value, columnIndex) => buildCellXml(columnIndex + 1, rowIndex + 1, value, rowIndex === 0 ? 1 : 0))
+        .join("");
+      return `<row r="${rowIndex + 1}">${cells}</row>`;
+    })
+    .join("");
+
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <cols>${cols}</cols>
+  <sheetData>${sheetRows}</sheetData>
+</worksheet>`;
+}
+
+function buildCellXml(columnIndex, rowIndex, value, styleIndex = 0) {
+  const reference = `${columnNumberToName(columnIndex)}${rowIndex}`;
+  const cellValue = escapeXml(String(value ?? ""));
+  return `<c r="${reference}" t="inlineStr" s="${styleIndex}"><is><t>${cellValue}</t></is></c>`;
+}
+
+function columnNumberToName(columnNumber) {
+  let dividend = columnNumber;
+  let columnName = "";
+  while (dividend > 0) {
+    const modulo = (dividend - 1) % 26;
+    columnName = String.fromCharCode(65 + modulo) + columnName;
+    dividend = Math.floor((dividend - modulo) / 26);
+  }
+  return columnName;
+}
+
+function buildZipBlob(files) {
+  const localFileParts = [];
+  const centralDirectoryParts = [];
+  let offset = 0;
+
+  files.forEach((file) => {
+    const fileNameBytes = new TextEncoder().encode(file.path);
+    const data = file.data;
+    const crc = crc32(data);
+    const localHeader = buildZipLocalHeader(fileNameBytes, crc, data.length);
+    localFileParts.push(localHeader, fileNameBytes, data);
+
+    const centralHeader = buildZipCentralHeader(fileNameBytes, crc, data.length, offset);
+    centralDirectoryParts.push(centralHeader, fileNameBytes);
+
+    offset += localHeader.length + fileNameBytes.length + data.length;
+  });
+
+  const centralDirectorySize = centralDirectoryParts.reduce((sum, part) => sum + part.length, 0);
+  const endRecord = buildZipEndRecord(files.length, centralDirectorySize, offset);
+
+  return new Blob([...localFileParts, ...centralDirectoryParts, endRecord], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+}
+
+function buildZipLocalHeader(fileNameBytes, crc, size) {
+  const buffer = new ArrayBuffer(30);
+  const view = new DataView(buffer);
+  view.setUint32(0, 0x04034b50, true);
+  view.setUint16(4, 20, true);
+  view.setUint16(6, 0, true);
+  view.setUint16(8, 0, true);
+  view.setUint16(10, 0, true);
+  view.setUint16(12, 0, true);
+  view.setUint32(14, crc, true);
+  view.setUint32(18, size, true);
+  view.setUint32(22, size, true);
+  view.setUint16(26, fileNameBytes.length, true);
+  view.setUint16(28, 0, true);
+  return new Uint8Array(buffer);
+}
+
+function buildZipCentralHeader(fileNameBytes, crc, size, offset) {
+  const buffer = new ArrayBuffer(46);
+  const view = new DataView(buffer);
+  view.setUint32(0, 0x02014b50, true);
+  view.setUint16(4, 20, true);
+  view.setUint16(6, 20, true);
+  view.setUint16(8, 0, true);
+  view.setUint16(10, 0, true);
+  view.setUint16(12, 0, true);
+  view.setUint16(14, 0, true);
+  view.setUint32(16, crc, true);
+  view.setUint32(20, size, true);
+  view.setUint32(24, size, true);
+  view.setUint16(28, fileNameBytes.length, true);
+  view.setUint16(30, 0, true);
+  view.setUint16(32, 0, true);
+  view.setUint16(34, 0, true);
+  view.setUint16(36, 0, true);
+  view.setUint32(38, 0, true);
+  view.setUint32(42, offset, true);
+  return new Uint8Array(buffer);
+}
+
+function buildZipEndRecord(fileCount, centralDirectorySize, centralDirectoryOffset) {
+  const buffer = new ArrayBuffer(22);
+  const view = new DataView(buffer);
+  view.setUint32(0, 0x06054b50, true);
+  view.setUint16(4, 0, true);
+  view.setUint16(6, 0, true);
+  view.setUint16(8, fileCount, true);
+  view.setUint16(10, fileCount, true);
+  view.setUint32(12, centralDirectorySize, true);
+  view.setUint32(16, centralDirectoryOffset, true);
+  view.setUint16(20, 0, true);
+  return new Uint8Array(buffer);
+}
+
+function crc32(bytes) {
+  let crc = -1;
+  for (let index = 0; index < bytes.length; index += 1) {
+    crc = (crc >>> 8) ^ CRC32_TABLE[(crc ^ bytes[index]) & 0xff];
+  }
+  return (crc ^ -1) >>> 0;
 }
 
 function filterTransactions(transactions) {
@@ -1226,21 +2182,153 @@ function calculateCashBalance(transactions) {
   return roundNumber(transactions.reduce((sum, transaction) => sum + transaction.cashImpact, 0));
 }
 
+function getActiveValuationDate(transactions, statement) {
+  if (statement?.statementInfo?.endDate) {
+    return statement.statementInfo.endDate;
+  }
+
+  const transactionDates = [...transactions]
+    .map((transaction) => transaction.date)
+    .filter(Boolean)
+    .sort();
+  const latestTransactionDate = transactionDates[transactionDates.length - 1];
+
+  return latestTransactionDate || new Date().toISOString().slice(0, 10);
+}
+
+function getPortfolioInceptionDate(transactions) {
+  return [...transactions]
+    .map((transaction) => transaction.date)
+    .filter(Boolean)
+    .sort()[0] || "";
+}
+
+function calculatePointInTimePortfolioState(transactions, cutoffDate) {
+  const assetMap = new Map();
+  let cash = 0;
+  const sortedTransactions = [...transactions]
+    .filter((transaction) => transaction.date && transaction.date < cutoffDate)
+    .sort((left, right) => left.date.localeCompare(right.date));
+
+  for (const transaction of sortedTransactions) {
+    cash += transaction.cashImpact;
+
+    if (!TRADE_TYPES.has(transaction.type) || !transaction.ticker) continue;
+
+    if (!assetMap.has(transaction.ticker)) {
+      assetMap.set(transaction.ticker, {
+        shares: 0,
+        totalCostBasis: 0,
+      });
+    }
+
+    const asset = assetMap.get(transaction.ticker);
+    const tradeCashMagnitude = Math.abs(transaction.cashImpact);
+
+    if (transaction.type === "BUY") {
+      asset.shares += transaction.quantity;
+      asset.totalCostBasis += tradeCashMagnitude;
+      continue;
+    }
+
+    if (asset.shares <= 0) continue;
+    const sharesToRemove = Math.min(transaction.quantity, asset.shares);
+    const averageCost = asset.totalCostBasis / asset.shares;
+    const removedCostBasis = averageCost * sharesToRemove;
+    asset.shares -= sharesToRemove;
+    asset.totalCostBasis -= removedCostBasis;
+  }
+
+  const holdingsValue = [...assetMap.values()]
+    .filter((asset) => asset.shares > 0.0000001)
+    .reduce((sum, asset) => sum + asset.totalCostBasis, 0);
+
+  return {
+    cash: roundNumber(cash),
+    holdingsValue: roundNumber(holdingsValue),
+    portfolioValue: roundNumber(cash + holdingsValue),
+  };
+}
+
+function calculateModifiedDietzReturn({ startDate, endDate, beginningValue, endingValue, cashFlows }) {
+  if (!startDate || !endDate) return null;
+
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
+  const totalDays = (end - start) / (1000 * 60 * 60 * 24);
+
+  if (!Number.isFinite(totalDays) || totalDays <= 0) return null;
+
+  const periodCashFlows = (cashFlows || []).filter((flow) => flow.date && flow.date >= startDate && flow.date <= endDate && flow.amount !== 0);
+  const netCashFlows = periodCashFlows.reduce((sum, flow) => sum + flow.amount, 0);
+  const weightedCashFlows = periodCashFlows.reduce((sum, flow) => {
+    const flowDate = new Date(`${flow.date}T00:00:00`);
+    const elapsedDays = (flowDate - start) / (1000 * 60 * 60 * 24);
+    const weight = 1 - elapsedDays / totalDays;
+    return sum + weight * flow.amount;
+  }, 0);
+
+  const denominator = beginningValue + weightedCashFlows;
+  if (Math.abs(denominator) < 0.0000001) return null;
+
+  const numerator = endingValue - beginningValue - netCashFlows;
+  return roundNumber(numerator / denominator);
+}
+
+function buildExternalReturnCashFlows(transactions) {
+  return transactions
+    .filter((transaction) => ["DEPOSIT", "WITHDRAWAL"].includes(transaction.type) && transaction.date)
+    .map((transaction) => ({
+      date: transaction.date,
+      amount: transaction.type === "DEPOSIT" ? Math.abs(transaction.amount) : -Math.abs(transaction.amount),
+    }));
+}
+
 function calculateSummary(transactions, analytics, statement) {
   const totalDeposits = transactions.filter((transaction) => transaction.type === "DEPOSIT").reduce((sum, transaction) => sum + transaction.amount, 0);
   const totalWithdrawals = transactions.filter((transaction) => transaction.type === "WITHDRAWAL").reduce((sum, transaction) => sum + transaction.amount, 0);
-  const netInvestedCapital = statement?.changeInNav?.depositsWithdrawals ?? totalDeposits - totalWithdrawals;
+  const committedCapital = totalDeposits;
+  const netContributions = statement?.changeInNav?.depositsWithdrawals ?? totalDeposits - totalWithdrawals;
+  const netInvestedCapital = analytics.deployedCapital;
   const realizedPnL = statement?.performanceTotals?.realizedPnL ?? analytics.tradeRealizedPnL;
   const unrealizedPnL = statement?.performanceTotals?.unrealizedPnL ?? analytics.openHoldings.reduce((sum, holding) => sum + holding.unrealizedPnL, 0);
   const totalPnL = statement?.performanceTotals?.totalPnL ?? realizedPnL + unrealizedPnL + analytics.otherReturnPnL;
+  const valuationDate = getActiveValuationDate(transactions, statement);
+  const inceptionDate = getPortfolioInceptionDate(transactions);
   const irrValue = calculatePortfolioXirr(
     transactions,
     analytics.portfolioValue,
-    statement?.statementInfo?.endDate || new Date().toISOString().slice(0, 10)
+    valuationDate
   );
+  const externalCashFlows = buildExternalReturnCashFlows(transactions);
+  const ytdStartDate = valuationDate ? `${valuationDate.slice(0, 4)}-01-01` : "";
+  const ytdOpeningState = ytdStartDate ? calculatePointInTimePortfolioState(transactions, ytdStartDate) : null;
+  // Without a historical NAV series, YTD uses a conservative opening-value proxy based on
+  // carried cash plus remaining cost basis before the period start.
+  const ytdValue =
+    ytdStartDate && valuationDate > ytdStartDate
+      ? calculateModifiedDietzReturn({
+          startDate: ytdStartDate,
+          endDate: valuationDate,
+          beginningValue: ytdOpeningState?.portfolioValue || 0,
+          endingValue: analytics.portfolioValue,
+          cashFlows: externalCashFlows,
+        })
+      : null;
+  const itdValue =
+    inceptionDate && valuationDate > inceptionDate
+      ? calculateModifiedDietzReturn({
+          startDate: inceptionDate,
+          endDate: valuationDate,
+          beginningValue: 0,
+          endingValue: analytics.portfolioValue,
+          cashFlows: externalCashFlows,
+        })
+      : null;
+  const netContributionReturn = netContributions > 0 ? roundNumber(analytics.portfolioValue / netContributions - 1) : null;
   const reconciliationRows = statement
     ? [
-        buildReconciliationRow("Net Invested Capital", netInvestedCapital, statement.changeInNav?.depositsWithdrawals ?? netInvestedCapital),
+        buildReconciliationRow("Net Contributions", netContributions, statement.changeInNav?.depositsWithdrawals ?? netContributions),
         buildReconciliationRow("Cash", analytics.cash, statement.netAssetValue?.cash ?? analytics.cash),
         buildReconciliationRow("Portfolio Value", analytics.portfolioValue, statement.changeInNav?.endingValue ?? analytics.portfolioValue),
         buildReconciliationRow("Realized P&L", realizedPnL, statement.performanceTotals?.realizedPnL ?? realizedPnL),
@@ -1250,8 +2338,10 @@ function calculateSummary(transactions, analytics, statement) {
     : [];
 
   return {
+    committedCapital: roundNumber(committedCapital),
     totalDeposits: roundNumber(totalDeposits),
     totalWithdrawals: roundNumber(totalWithdrawals),
+    netContributions: roundNumber(netContributions),
     netInvestedCapital: roundNumber(netInvestedCapital),
     portfolioValue: analytics.portfolioValue,
     cash: analytics.cash,
@@ -1261,13 +2351,29 @@ function calculateSummary(transactions, analytics, statement) {
     totalPnL: roundNumber(totalPnL),
     markToMarketPnL: roundNumber(statement?.changeInNav?.markToMarket ?? totalPnL),
     unrealizedReturnPct: analytics.deployedCapital > 0 ? roundNumber((unrealizedPnL / analytics.deployedCapital) * 100) : 0,
+    cashShareOfPortfolio: analytics.portfolioValue > 0 ? roundNumber((analytics.cash / analytics.portfolioValue) * 100) : 0,
+    deployedShareOfPortfolio: analytics.portfolioValue > 0 ? roundNumber((analytics.deployedCapital / analytics.portfolioValue) * 100) : 0,
     positionCount: analytics.positionsForAllocation.filter((position) => position.ticker !== "CASH").length + (Math.abs(analytics.cash) > 0.0000001 ? 1 : 0),
     irrLabel: irrValue === null ? "Insufficient Data" : formatPercent(irrValue * 100),
     twrLabel:
       statement?.netAssetValue?.timeWeightedReturn !== undefined && statement?.netAssetValue?.timeWeightedReturn !== null
         ? formatPercent(statement.netAssetValue.timeWeightedReturn)
-        : "Pending",
+        : "Insufficient Data",
+    ytdLabel: ytdValue === null ? "Insufficient Data" : formatPercent(ytdValue * 100),
+    itdLabel: itdValue === null ? "Insufficient Data" : formatPercent(itdValue * 100),
+    netContributionReturnLabel: netContributionReturn === null ? "Insufficient Data" : formatPercent(netContributionReturn * 100),
+    cashShareLabel:
+      analytics.portfolioValue > 0 ? `${formatPercent((analytics.cash / analytics.portfolioValue) * 100)} of portfolio` : "Insufficient Data",
+    deployedShareLabel:
+      analytics.portfolioValue > 0
+        ? `${formatPercent((analytics.deployedCapital / analytics.portfolioValue) * 100)} of portfolio`
+        : "Insufficient Data",
     irrValue,
+    ytdValue,
+    itdValue,
+    netContributionReturn,
+    valuationDate,
+    inceptionDate,
     reconciliationRows,
   };
 }
@@ -2118,7 +3224,7 @@ function buildImportId(date, type, ticker, quantity, price, amount, notes) {
   return ["import", date, type, ticker || "-", quantity || 0, price || 0, amount || 0, notes || ""].join("|");
 }
 
-function setImportStatus(message, tone, details = []) {
+function setImportStatus(message, tone, details = [], meta = "") {
   if (!elements.importStatus) {
     console.warn(`Import status: ${message}`);
     return;
@@ -2128,6 +3234,11 @@ function setImportStatus(message, tone, details = []) {
     elements.importStatusSummary.textContent = message;
   } else {
     elements.importStatus.textContent = message;
+  }
+
+  if (elements.importStatusMeta) {
+    elements.importStatusMeta.textContent = meta;
+    elements.importStatusMeta.classList.toggle("is-hidden", !meta);
   }
 
   if (elements.importStatusDetails && elements.importStatusDetailsBody) {
@@ -2229,6 +3340,10 @@ function formatPercent(value) {
   return `${Number(value || 0).toFixed(2)}%`;
 }
 
+function formatNullablePercent(value) {
+  return value === null || value === undefined ? "Insufficient Data" : formatPercent(value * 100);
+}
+
 function formatNumber(value) {
   return Number(value || 0).toLocaleString("en-US", {
     minimumFractionDigits: 0,
@@ -2255,6 +3370,20 @@ function formatDateTime(value) {
   });
 }
 
+function formatRelativeTime(value) {
+  if (!value) return "just now";
+  const diffMs = Date.now() - new Date(value).getTime();
+  if (!Number.isFinite(diffMs) || diffMs < 0) return "just now";
+  const seconds = Math.round(diffMs / 1000);
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  return `${days}d ago`;
+}
+
 function getDisplayTicker(ticker) {
   return ticker === "CASH" ? "Cash Balance" : ticker;
 }
@@ -2276,6 +3405,15 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+function escapeXml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
 }
 
 function makeId() {
