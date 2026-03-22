@@ -123,6 +123,14 @@ const elements = {
   historyStatus: document.getElementById("history-status"),
   historyChart: document.getElementById("history-chart"),
   historyBody: document.getElementById("history-body"),
+  debugConnectionStatus: document.getElementById("debug-connection-status"),
+  debugLastLoadAt: document.getElementById("debug-last-load-at"),
+  debugLastSaveAt: document.getElementById("debug-last-save-at"),
+  debugLastRestoreAt: document.getElementById("debug-last-restore-at"),
+  debugPortfolioId: document.getElementById("debug-portfolio-id"),
+  debugSnapshotId: document.getElementById("debug-snapshot-id"),
+  debugStateSource: document.getElementById("debug-state-source"),
+  debugPersistenceError: document.getElementById("debug-persistence-error"),
   reconciliationStatus: document.getElementById("reconciliation-status"),
   reconciliationDetails: document.getElementById("reconciliation-details"),
   reconciliationBody: document.getElementById("reconciliation-body"),
@@ -484,7 +492,7 @@ function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   syncUiState.status = "syncing";
   renderSyncStatus();
-  const remoteSave = stateRepository?.saveAppState?.(STORAGE_KEY, state);
+  const remoteSave = stateRepository?.saveAppState?.(STORAGE_KEY, buildPersistedDomainState(state));
   if (remoteSave?.then) {
     remoteSave
       .then(() => {
@@ -522,6 +530,18 @@ function applyRuntimeContext(currentState) {
   }
 
   return nextState;
+}
+
+function buildPersistedDomainState(currentState) {
+  return {
+    manual: currentState.manual,
+    importedSnapshots: currentState.importedSnapshots,
+    marketData: currentState.marketData,
+    preferences: {
+      sofrRate: currentState.preferences?.sofrRate ?? 0.045,
+      hurdleRate: currentState.preferences?.hurdleRate ?? 0.08,
+    },
+  };
 }
 
 function getActiveSnapshot() {
@@ -977,6 +997,25 @@ function renderSyncStatus() {
   }
 }
 
+function renderDebugPanel() {
+  const status = stateRepository?.getStatus?.() || {};
+  const valuation = syncUiState.lastValuation || {};
+  setElementText(elements.debugConnectionStatus, status.connectionLabel || "Using local fallback");
+  setElementText(elements.debugLastLoadAt, status.lastLoadAt ? formatDateTime(status.lastLoadAt) : "-");
+  setElementText(elements.debugLastSaveAt, status.lastSavedAt ? formatDateTime(status.lastSavedAt) : "-");
+  setElementText(elements.debugLastRestoreAt, status.lastLoadAt ? formatDateTime(status.lastLoadAt) : "-");
+  setElementText(elements.debugPortfolioId, status.portfolioId || "Not assigned");
+  setElementText(elements.debugSnapshotId, state.activeSnapshotId || "Manual mode");
+  setElementText(
+    elements.debugStateSource,
+    status.lastLoadSource === "supabase"
+      ? "Rendering from restored remote state"
+      : "Rendering from local fallback"
+  );
+  const errorText = status.lastError || (valuation.missingPrices?.length ? `${valuation.missingPrices.length} missing price fallback(s)` : "None");
+  setElementText(elements.debugPersistenceError, errorText);
+}
+
 function renderApp() {
   const context = getCurrentContext();
   const analytics = calculatePortfolioAnalytics(context.transactions, context.prices, context.statement);
@@ -986,6 +1025,7 @@ function renderApp() {
   const benchmarkRows = buildBenchmarkWindowRows(historySeries, state.preferences);
 
   renderSyncStatus();
+  renderDebugPanel();
   renderTransactions(filteredTransactions, context.mode);
   renderPortfolioPositions(analytics.holdings);
   renderDashboard(analytics.positionsForAllocation, summary, benchmarkRows, historySeries);
@@ -1270,83 +1310,32 @@ function renderSummaryReturns(summary, assetPerformance) {
 }
 
 function buildPortfolioHistorySeries(context) {
-  const sortedTransactions = [...context.transactions]
-    .filter((transaction) => transaction.date)
-    .sort((left, right) => left.date.localeCompare(right.date));
+  const valuationEngine = runtime?.services?.valuationEngine;
+  if (!valuationEngine) {
+    return buildSnapshotCheckpointSeries();
+  }
 
+  const sortedTransactions = [...context.transactions].filter((transaction) => transaction.date);
   if (!sortedTransactions.length) {
     return buildSnapshotCheckpointSeries();
   }
 
-  const valuationDate = getActiveValuationDate(context.transactions, context.statement);
-  const startDate = sortedTransactions[0].date;
-  const snapshotAnchors = buildSnapshotPriceAnchors();
-  const history = [];
-  const holdings = new Map();
-  let cash = 0;
-  let netContributions = 0;
-  let transactionIndex = 0;
+  const valuation = valuationEngine.compute({
+    transactions: context.transactions,
+    valuationDate: getActiveValuationDate(context.transactions, context.statement),
+    currentPrices: context.prices,
+    priceAnchors: buildSnapshotPriceAnchors(),
+  });
 
-  for (let currentDate = startDate; currentDate <= valuationDate; currentDate = shiftDateIso(currentDate, 1)) {
-    while (transactionIndex < sortedTransactions.length && sortedTransactions[transactionIndex].date === currentDate) {
-      const transaction = sortedTransactions[transactionIndex];
-      cash += transaction.cashImpact;
+  syncUiState.lastValuation = valuation;
 
-      if (transaction.type === "DEPOSIT") netContributions += transaction.amount;
-      if (transaction.type === "WITHDRAWAL") netContributions -= transaction.amount;
-
-      if (TRADE_TYPES.has(transaction.type) && transaction.ticker) {
-        if (!holdings.has(transaction.ticker)) {
-          holdings.set(transaction.ticker, {
-            ticker: transaction.ticker,
-            shares: 0,
-            totalCostBasis: 0,
-          });
-        }
-
-        const holding = holdings.get(transaction.ticker);
-        const tradeCashMagnitude = Math.abs(transaction.cashImpact);
-
-        if (transaction.type === "BUY") {
-          holding.shares += transaction.quantity;
-          holding.totalCostBasis += tradeCashMagnitude;
-        } else if (holding.shares > 0) {
-          const sharesToRemove = Math.min(transaction.quantity, holding.shares);
-          const averageCost = holding.totalCostBasis / holding.shares;
-          const removedCostBasis = averageCost * sharesToRemove;
-          holding.shares -= sharesToRemove;
-          holding.totalCostBasis -= removedCostBasis;
-        }
-      }
-
-      transactionIndex += 1;
-    }
-
-    const marketValue = [...holdings.values()]
-      .filter((holding) => holding.shares > 0.0000001)
-      .reduce((sum, holding) => {
-        const price = resolveHistoricalPrice({
-          ticker: holding.ticker,
-          date: currentDate,
-          shares: holding.shares,
-          totalCostBasis: holding.totalCostBasis,
-          snapshotAnchors,
-          prices: context.prices,
-        });
-        return sum + holding.shares * price;
-      }, 0);
-
-    const portfolioValue = roundNumber(cash + marketValue);
-    history.push({
-      date: currentDate,
-      portfolioValue,
-      netContributions: roundNumber(netContributions),
-      totalPnL: roundNumber(portfolioValue - netContributions),
-      source: "Ledger NAV",
-    });
-  }
-
-  return history;
+  return valuation.dailySeries.map((point) => ({
+    date: point.date,
+    portfolioValue: point.nav,
+    netContributions: point.netExternalFlows,
+    totalPnL: point.totalPnL,
+    source: "Ledger NAV",
+  }));
 }
 
 function buildSnapshotCheckpointSeries() {
@@ -1386,22 +1375,6 @@ function buildSnapshotPriceAnchors() {
   return anchorMap;
 }
 
-function resolveHistoricalPrice({ ticker, date, shares, totalCostBasis, snapshotAnchors, prices }) {
-  const cachedSeries = state.marketData?.assetPriceHistory?.[ticker];
-  if (Array.isArray(cachedSeries) && cachedSeries.length) {
-    const cachedPoint = [...cachedSeries].reverse().find((point) => point.date <= date && Number.isFinite(Number(point.price)));
-    if (cachedPoint) return Number(cachedPoint.price);
-  }
-
-  const anchors = snapshotAnchors.get(ticker) || [];
-  const anchor = [...anchors].reverse().find((point) => point.date <= date) || anchors[0];
-  if (anchor?.price) return anchor.price;
-
-  const currentPrice = Number(prices?.[ticker]?.price || 0);
-  if (currentPrice > 0) return currentPrice;
-
-  return shares > 0 ? roundNumber(totalCostBasis / shares) : 0;
-}
 
 function getWindowStartDate(windowId, endDate, inceptionDate) {
   if (!endDate) return "";
@@ -1544,9 +1517,10 @@ function renderBenchmarkComparison(rows) {
 }
 
 function renderHistory(historySeries) {
+  const missingPriceCount = syncUiState.lastValuation?.missingPrices?.length || 0;
   if (elements.historyStatus) {
     elements.historyStatus.textContent = historySeries.length > 1
-      ? "Portfolio NAV reconstructed from the transaction ledger. Statement snapshots are used only as checkpoints and fallback price anchors when needed."
+      ? `Portfolio NAV reconstructed from the transaction ledger. Statement snapshots are used only as checkpoints and fallback price anchors when needed.${missingPriceCount ? ` Missing price fallbacks: ${missingPriceCount}.` : ""}`
       : "Portfolio NAV history needs transaction history to build. Statement snapshots are used only as fallback checkpoints.";
   }
 

@@ -1,5 +1,7 @@
 import { createBackendApiClient } from "../services/backend/api-client.js";
 import { createSupabaseClient } from "../services/backend/supabase-client.js";
+import { createValuationEngine } from "../engines/valuation-engine.js";
+import { createReturnEngine } from "../engines/return-engine.js";
 import { createHybridStateRepository } from "../services/persistence/hybrid-state-repository.js";
 import { createUiContextService } from "../services/persistence/ui-context-service.js";
 import { createMarketDataGateway } from "../services/market-data/market-data-gateway.js";
@@ -12,6 +14,8 @@ export function createIncrementumRuntime({ config, location }) {
   const uiContextService = createUiContextService({ stateRepository, location });
   const marketDataGateway = createMarketDataGateway({ config, apiClient });
   const shareLinkService = createShareLinkService({ config, location, apiClient, uiContextService });
+  const valuationEngine = createValuationEngine();
+  const returnEngine = createReturnEngine();
 
   return {
     config,
@@ -22,6 +26,8 @@ export function createIncrementumRuntime({ config, location }) {
       uiContextService,
       marketDataGateway,
       shareLinkService,
+      valuationEngine,
+      returnEngine,
     },
     async initialize() {
       this.preloadedAppState = await stateRepository.loadAppState("incrementum-dashboard-state-v6").catch(() => null);

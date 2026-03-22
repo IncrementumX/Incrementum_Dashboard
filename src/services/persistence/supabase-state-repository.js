@@ -52,7 +52,7 @@ export function createSupabaseStateRepository({ supabase }) {
         .maybeSingle();
 
       if (error) throw error;
-      return data?.methodology?.appState || null;
+      return data?.methodology?.domainState || data?.methodology?.appState || null;
     },
     async saveAppState(_storageKey, state) {
       const portfolioId = await ensureActivePortfolio();
@@ -83,8 +83,8 @@ export function createSupabaseStateRepository({ supabase }) {
         selected_time_range: uiContext.selectedTimeRange || "ITD",
         selected_currency: uiContext.selectedCurrency || "USD",
         methodology: {
-          appState: state,
-          uiContext,
+          domainState: state,
+          uiState: uiContext,
           lastSavedAt: now,
         },
         updated_at: now,
@@ -180,11 +180,11 @@ export function createSupabaseStateRepository({ supabase }) {
       if (error) throw error;
 
       return {
-        activeTab: data?.methodology?.uiContext?.activeTab || "dashboard-tab",
-        selectedBenchmark: data?.benchmark_primary || data?.methodology?.uiContext?.selectedBenchmark || "SPX",
-        selectedTimeRange: data?.selected_time_range || data?.methodology?.uiContext?.selectedTimeRange || "ITD",
-        selectedCurrency: data?.selected_currency || data?.methodology?.uiContext?.selectedCurrency || "USD",
-        activeSnapshotId: data?.methodology?.uiContext?.activeSnapshotId || null,
+        activeTab: data?.methodology?.uiState?.activeTab || data?.methodology?.uiContext?.activeTab || "dashboard-tab",
+        selectedBenchmark: data?.benchmark_primary || data?.methodology?.uiState?.selectedBenchmark || data?.methodology?.uiContext?.selectedBenchmark || "SPX",
+        selectedTimeRange: data?.selected_time_range || data?.methodology?.uiState?.selectedTimeRange || data?.methodology?.uiContext?.selectedTimeRange || "ITD",
+        selectedCurrency: data?.selected_currency || data?.methodology?.uiState?.selectedCurrency || data?.methodology?.uiContext?.selectedCurrency || "USD",
+        activeSnapshotId: data?.methodology?.uiState?.activeSnapshotId || data?.methodology?.uiContext?.activeSnapshotId || null,
       };
     },
     async saveUiState(_key, value) {
@@ -201,7 +201,7 @@ export function createSupabaseStateRepository({ supabase }) {
 
       const methodology = {
         ...(existing?.methodology || {}),
-        uiContext: value,
+        uiState: value,
       };
 
       const { error } = await supabase.from("portfolio_settings").upsert({
@@ -214,6 +214,11 @@ export function createSupabaseStateRepository({ supabase }) {
       });
 
       if (error) throw error;
+    },
+    getStatus() {
+      return {
+        portfolioId: cachedPortfolioId,
+      };
     },
   };
 }

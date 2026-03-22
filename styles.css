@@ -736,6 +736,45 @@ button:focus-visible,
   font-size: 12px;
 }
 
+.debug-panel summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 13px;
+  list-style: none;
+}
+
+.debug-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.debug-grid {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.debug-grid div {
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.debug-grid span {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.debug-grid strong {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .import-status-meta {
   margin-top: 4px;
   color: var(--text-muted);
@@ -824,6 +863,10 @@ button:focus-visible,
     grid-template-columns: 1fr;
   }
 
+  .debug-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .panel-grid--summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -857,6 +900,10 @@ button:focus-visible,
   }
 
   .dashboard-secondary {
+    grid-template-columns: 1fr;
+  }
+
+  .debug-grid {
     grid-template-columns: 1fr;
   }
 

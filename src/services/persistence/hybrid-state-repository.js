@@ -7,8 +7,10 @@ export function createHybridStateRepository({ supabase }) {
   const status = {
     mode: remoteRepository.isConfigured() ? "supabase" : "local",
     connectionLabel: remoteRepository.isConfigured() ? "Connected to Supabase" : "Using local fallback",
+    portfolioId: null,
     lastLoadSource: "local",
     lastSaveSource: "local",
+    lastLoadAt: null,
     lastSavedAt: null,
     lastError: null,
   };
@@ -20,7 +22,9 @@ export function createHybridStateRepository({ supabase }) {
           const remoteState = await remoteRepository.loadAppState(storageKey);
           if (remoteState) {
             await localRepository.saveAppState(storageKey, remoteState);
+            status.portfolioId = remoteRepository.getStatus?.()?.portfolioId || status.portfolioId;
             status.lastLoadSource = "supabase";
+            status.lastLoadAt = new Date().toISOString();
             status.connectionLabel = "Connected to Supabase";
             status.lastError = null;
             return remoteState;
@@ -32,6 +36,7 @@ export function createHybridStateRepository({ supabase }) {
         }
       }
       status.lastLoadSource = "local";
+      status.lastLoadAt = new Date().toISOString();
       return localRepository.loadAppState(storageKey);
     },
     async saveAppState(storageKey, state) {
@@ -40,6 +45,7 @@ export function createHybridStateRepository({ supabase }) {
       if (remoteRepository.isConfigured()) {
         try {
           await remoteRepository.saveAppState(storageKey, state);
+          status.portfolioId = remoteRepository.getStatus?.()?.portfolioId || status.portfolioId;
           status.lastSaveSource = "supabase";
           status.lastSavedAt = new Date().toISOString();
           status.connectionLabel = "Connected to Supabase";
@@ -60,7 +66,9 @@ export function createHybridStateRepository({ supabase }) {
           const remoteUiState = await remoteRepository.loadUiState(key);
           if (remoteUiState) {
             await localRepository.saveUiState(key, remoteUiState);
+            status.portfolioId = remoteRepository.getStatus?.()?.portfolioId || status.portfolioId;
             status.lastLoadSource = "supabase";
+            status.lastLoadAt = new Date().toISOString();
             status.connectionLabel = "Connected to Supabase";
             status.lastError = null;
             return remoteUiState;
@@ -72,6 +80,7 @@ export function createHybridStateRepository({ supabase }) {
         }
       }
       status.lastLoadSource = "local";
+      status.lastLoadAt = new Date().toISOString();
       return localRepository.loadUiState(key);
     },
     async saveUiState(key, value) {
