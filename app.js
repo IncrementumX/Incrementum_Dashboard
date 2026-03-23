@@ -64,6 +64,9 @@ const syncUiState = {
   status: "idle",
   restored: Boolean(runtime?.preloadedAppState),
   lastSavedAt: stateRepository?.getStatus?.()?.lastSavedAt || null,
+  lastValuation: null,
+  lastImportReport: null,
+  returnTrust: null,
 };
 
 const elements = {
@@ -131,6 +134,10 @@ const elements = {
   debugSnapshotId: document.getElementById("debug-snapshot-id"),
   debugStateSource: document.getElementById("debug-state-source"),
   debugPersistenceError: document.getElementById("debug-persistence-error"),
+  debugImportSummary: document.getElementById("debug-import-summary"),
+  debugHistorySummary: document.getElementById("debug-history-summary"),
+  debugReturnTrust: document.getElementById("debug-return-trust"),
+  debugValuationSummary: document.getElementById("debug-valuation-summary"),
   reconciliationStatus: document.getElementById("reconciliation-status"),
   reconciliationDetails: document.getElementById("reconciliation-details"),
   reconciliationBody: document.getElementById("reconciliation-body"),
@@ -824,13 +831,43 @@ function setupImport() {
       const text = await file.text();
       const result = importIbkrActivityCsv(text);
       if (!result.transactions.length) {
+        syncUiState.lastImportReport = {
+          fileName: file.name,
+          acceptedRows: 0,
+          rejectedRows: result.skippedRows || 0,
+          source: "statement",
+        };
         setImportStatus(result.message, "warning");
+        renderDebugPanel();
+        return;
+      }
+
+      const dedupedTransactions = dedupeTransactions(result.transactions);
+      const duplicateRows = result.transactions.length - dedupedTransactions.length;
+      const existingSnapshot = state.importedSnapshots.find(
+        (snapshot) =>
+          snapshot.fileName === file.name &&
+          snapshot.statementPeriodEndDate === (result.statement?.statementInfo?.endDate || "")
+      );
+
+      if (existingSnapshot) {
+        syncUiState.lastImportReport = {
+          fileName: file.name,
+          acceptedRows: 0,
+          rejectedRows: result.skippedRows + duplicateRows + result.transactions.length,
+          source: "statement",
+        };
+        setImportStatus("This statement file is already present in snapshot history.", "warning", [
+          `Existing snapshot: ${existingSnapshot.fileName}`,
+          `Statement date: ${existingSnapshot.statementPeriodEndDate || "Unknown"}`,
+        ]);
+        renderDebugPanel();
         return;
       }
 
       const importedSnapshot = createImportedSnapshot({
         fileName: file.name,
-        transactions: [...result.transactions].sort((left, right) => left.date.localeCompare(right.date)),
+        transactions: [...dedupedTransactions].sort((left, right) => left.date.localeCompare(right.date)),
         prices: buildImportedPriceMap(result.statement),
         statement: {
           ...result.statement,
@@ -846,6 +883,13 @@ function setupImport() {
       state.importedSnapshots = [importedSnapshot, ...state.importedSnapshots];
       state.activeSnapshotId = importedSnapshot.id;
       uiContextService?.set?.("activeSnapshotId", importedSnapshot.id);
+      syncUiState.lastImportReport = {
+        fileName: file.name,
+        acceptedRows: dedupedTransactions.length,
+        rejectedRows: result.skippedRows + duplicateRows,
+        source: "statement",
+        importedAt: importedSnapshot.importedAt,
+      };
       saveState();
       renderApp();
 
@@ -863,13 +907,41 @@ function setupImport() {
           `Interest rows: ${result.counts.interest}`,
           `Fees: ${result.counts.fees}`,
           `Taxes: ${result.counts.tax}`,
+          `Accepted rows: ${dedupedTransactions.length}`,
+          `Rejected rows: ${result.skippedRows + duplicateRows}`,
           `Rows skipped: ${result.skippedRows}`,
         ],
         `${file.name} · ${result.transactions.length} transactions${importedSnapshot.statementPeriodEndDate ? ` · statement date ${importedSnapshot.statementPeriodEndDate}` : ""}`
       );
     } catch (error) {
+      syncUiState.lastImportReport = {
+        fileName: file?.name || "",
+        acceptedRows: 0,
+        rejectedRows: 0,
+        source: "statement",
+      };
       setImportStatus(`The file could not be imported. ${error instanceof Error ? error.message : "Unknown parsing error."}`, "error");
+      renderDebugPanel();
     }
+  });
+}
+
+function dedupeTransactions(transactions) {
+  const seen = new Set();
+  return transactions.filter((transaction) => {
+    const signature = [
+      transaction.date,
+      transaction.type,
+      transaction.ticker || "-",
+      transaction.quantity || 0,
+      transaction.price || 0,
+      transaction.amount || 0,
+      transaction.cashImpact || 0,
+      transaction.currency || "USD",
+    ].join("|");
+    if (seen.has(signature)) return false;
+    seen.add(signature);
+    return true;
   });
 }
 
@@ -927,13 +999,12 @@ function setupExport() {
     const analytics = calculatePortfolioAnalytics(context.transactions, context.prices, context.statement);
     const summary = calculateSummary(context.transactions, analytics, context.statement);
     const historySeries = buildPortfolioHistorySeries(context);
-    const benchmarkRows = buildBenchmarkWindowRows(historySeries, state.preferences);
     exportWorkbook({
       context,
       analytics,
       summary,
       historySeries,
-      benchmarkRows,
+      benchmarkRows: [],
     });
   });
 }
@@ -1000,6 +1071,12 @@ function renderSyncStatus() {
 function renderDebugPanel() {
   const status = stateRepository?.getStatus?.() || {};
   const valuation = syncUiState.lastValuation || {};
+  const importReport = syncUiState.lastImportReport || {};
+  const returnTrust = syncUiState.returnTrust || {};
+  const historyDays = valuation.dailySeries?.length || 0;
+  const fullyPricedDays = valuation.dailySeries?.filter((point) => point.pricingStatus === "fully-priced").length || 0;
+  const estimatedDays = valuation.dailySeries?.filter((point) => point.pricingStatus === "estimated").length || 0;
+  const missingDays = valuation.dailySeries?.filter((point) => point.pricingStatus === "missing").length || 0;
   setElementText(elements.debugConnectionStatus, status.connectionLabel || "Using local fallback");
   setElementText(elements.debugLastLoadAt, status.lastLoadAt ? formatDateTime(status.lastLoadAt) : "-");
   setElementText(elements.debugLastSaveAt, status.lastSavedAt ? formatDateTime(status.lastSavedAt) : "-");
@@ -1014,6 +1091,30 @@ function renderDebugPanel() {
   );
   const errorText = status.lastError || (valuation.missingPrices?.length ? `${valuation.missingPrices.length} missing price fallback(s)` : "None");
   setElementText(elements.debugPersistenceError, errorText);
+  setElementText(
+    elements.debugImportSummary,
+    importReport.fileName
+      ? `${importReport.fileName} | accepted ${importReport.acceptedRows || 0} | rejected ${importReport.rejectedRows || 0} | source ${importReport.source || "statement"}`
+      : "No import report yet"
+  );
+  setElementText(
+    elements.debugHistorySummary,
+    historyDays
+      ? `Valuation ${valuation.dailySeries[historyDays - 1]?.date || "-"} | positions ${valuation.positions?.length || 0} | priced ${fullyPricedDays} | estimated ${estimatedDays} | missing ${missingDays}`
+      : "No NAV history yet"
+  );
+  setElementText(
+    elements.debugReturnTrust,
+    returnTrust
+      ? `MTD ${returnTrust.mtd || "Unavailable"}${returnTrust.mtd !== "Trusted" && returnTrust.mtdReason ? ` (${returnTrust.mtdReason})` : ""} | YTD ${returnTrust.ytd || "Unavailable"}${returnTrust.ytd !== "Trusted" && returnTrust.ytdReason ? ` (${returnTrust.ytdReason})` : ""} | SI ${returnTrust.itd || "Unavailable"}${returnTrust.itd !== "Trusted" && returnTrust.itdReason ? ` (${returnTrust.itdReason})` : ""}`
+      : "No return trust data"
+  );
+  setElementText(
+    elements.debugValuationSummary,
+    valuation.dailySeries?.length
+      ? `NAV ${formatCurrency(valuation.nav)} | Cash ${formatCurrency(valuation.cashBalance)} | MV ${formatCurrency(valuation.portfolioMarketValue)} | Flows ${formatSignedCurrency(valuation.cumulativeExternalFlows || 0)} | Pricing ${valuation.pricingStatus || "missing"} | Missing prices ${valuation.missingPrices?.length || 0} | Bridge mismatches ${valuation.bridgeMismatches?.length || 0}`
+      : "-"
+  );
 }
 
 function renderApp() {
@@ -1022,13 +1123,12 @@ function renderApp() {
   const summary = calculateSummary(context.transactions, analytics, context.statement);
   const filteredTransactions = filterTransactions(context.transactions);
   const historySeries = buildPortfolioHistorySeries(context);
-  const benchmarkRows = buildBenchmarkWindowRows(historySeries, state.preferences);
 
   renderSyncStatus();
   renderDebugPanel();
   renderTransactions(filteredTransactions, context.mode);
   renderPortfolioPositions(analytics.holdings);
-  renderDashboard(analytics.positionsForAllocation, summary, benchmarkRows, historySeries);
+  renderDashboard(analytics.positionsForAllocation, summary, historySeries);
   renderSummaryReturns(summary, analytics.assetPerformance);
   renderStatementHistory();
   syncTransactionFormMode();
@@ -1173,7 +1273,7 @@ function renderStatementHistory() {
     .join("");
 }
 
-function renderDashboard(positionsForAllocation, summary, benchmarkRows, historySeries) {
+function renderDashboard(positionsForAllocation, summary, historySeries) {
   setElementText(elements.headerPositions, String(summary.positionCount));
   setElementText(elements.headerNetInvested, formatCurrency(summary.netContributions));
   setElementText(elements.headerPortfolioValue, formatCurrency(summary.portfolioValue));
@@ -1193,7 +1293,7 @@ function renderDashboard(positionsForAllocation, summary, benchmarkRows, history
   setElementClassName(elements.summaryUnrealizedPnl, `panel-value ${getValueClass(summary.unrealizedPnL)}`.trim());
   setElementText(elements.summaryMtmPnl, formatCurrency(summary.markToMarketPnL));
   setElementClassName(elements.summaryMtmPnl, `panel-value ${getValueClass(summary.markToMarketPnL)}`.trim());
-  setElementText(elements.summaryIrr, summary.irrLabel);
+  setElementText(elements.summaryIrr, summary.mtdLabel);
   setElementText(elements.summaryTwr, summary.twrLabel);
   setElementText(elements.summaryNetContributionReturn, summary.netContributionReturnLabel);
   setElementText(elements.summaryYtd, summary.ytdLabel);
@@ -1217,7 +1317,6 @@ function renderDashboard(positionsForAllocation, summary, benchmarkRows, history
       .join("");
   }
 
-  renderBenchmarkComparison(benchmarkRows);
   renderHistory(historySeries);
 }
 
@@ -1232,7 +1331,7 @@ function renderSummaryReturns(summary, assetPerformance) {
   elements.returnsTotalPnl.className = `panel-value ${getValueClass(summary.totalPnL)}`;
   elements.returnsMtmPnl.textContent = formatCurrency(summary.markToMarketPnL);
   elements.returnsMtmPnl.className = `panel-value ${getValueClass(summary.markToMarketPnL)}`;
-  elements.returnsIrr.textContent = summary.irrLabel;
+  elements.returnsIrr.textContent = summary.mtdLabel;
   elements.returnsTwr.textContent = summary.twrLabel;
   setElementText(elements.returnsNetContributionReturn, summary.netContributionReturnLabel);
   setElementText(elements.returnsYtd, summary.ytdLabel);
@@ -1311,6 +1410,7 @@ function renderSummaryReturns(summary, assetPerformance) {
 
 function buildPortfolioHistorySeries(context) {
   const valuationEngine = runtime?.services?.valuationEngine;
+  const returnEngine = runtime?.services?.returnEngine;
   if (!valuationEngine) {
     return buildSnapshotCheckpointSeries();
   }
@@ -1324,16 +1424,41 @@ function buildPortfolioHistorySeries(context) {
     transactions: context.transactions,
     valuationDate: getActiveValuationDate(context.transactions, context.statement),
     currentPrices: context.prices,
+    historicalPrices: state.marketData.assetPriceHistory || {},
     priceAnchors: buildSnapshotPriceAnchors(),
   });
 
   syncUiState.lastValuation = valuation;
+  const returnSeries = returnEngine?.computeFromDailySeries?.(valuation.dailySeries)?.dailyReturns || [];
+  const returnsByDate = new Map(returnSeries.map((point) => [point.date, point]));
+  console.debug("[Incrementum][valuation]", {
+    valuationDate: valuation.dailySeries[valuation.dailySeries.length - 1]?.date || null,
+    nav: valuation.nav,
+    cashBalance: valuation.cashBalance,
+    marketValue: valuation.portfolioMarketValue,
+    cumulativeExternalFlows: valuation.cumulativeExternalFlows || 0,
+    bridgeMismatches: valuation.bridgeMismatches || [],
+    positions: valuation.positions?.map((position) => ({
+      ticker: position.ticker,
+      shares: position.shares,
+      price: position.price,
+      priceSource: position.priceSource,
+      marketValue: position.marketValue,
+    })) || [],
+    missingPrices: valuation.missingPrices || [],
+  });
 
   return valuation.dailySeries.map((point) => ({
     date: point.date,
     portfolioValue: point.nav,
-    netContributions: point.netExternalFlows,
+    netContributions: point.cumulativeExternalFlows,
+    externalFlowForDay: point.externalFlowForDay,
+    cashBalance: point.cashBalance,
+    marketValue: point.portfolioMarketValue,
+    pnlForDay: point.pnlForDay,
     totalPnL: point.totalPnL,
+    dailyReturn: returnsByDate.get(point.date)?.dailyReturn ?? null,
+    cumulativeReturn: returnsByDate.get(point.date)?.cumulativeReturn ?? null,
     source: "Ledger NAV",
   }));
 }
@@ -1400,16 +1525,17 @@ function findHistoryWindowPoints(historySeries, startDate, endDate) {
   if (!startDate || !endDate) return { startPoint: null, endPoint: null };
   const series = [...historySeries].sort((left, right) => left.date.localeCompare(right.date));
   const endPoint = [...series].reverse().find((point) => point.date <= endDate) || series[series.length - 1] || null;
-  const startPoint = series.find((point) => point.date >= startDate) || series.find((point) => point.date <= startDate) || null;
+  const startPoint =
+    [...series].reverse().find((point) => point.date <= startDate) ||
+    series.find((point) => point.date >= startDate) ||
+    null;
   return { startPoint, endPoint };
 }
 
 function calculateHistoryWindowReturn(startPoint, endPoint) {
   if (!startPoint || !endPoint || startPoint.date >= endPoint.date) return null;
-  const netFlow = endPoint.netContributions - startPoint.netContributions;
-  const denominator = startPoint.portfolioValue + netFlow * 0.5;
-  if (Math.abs(denominator) < 0.0000001) return null;
-  return roundNumber((endPoint.portfolioValue - startPoint.portfolioValue - netFlow) / denominator);
+  if (startPoint.cumulativeReturn === null || endPoint.cumulativeReturn === null) return null;
+  return roundNumber((1 + endPoint.cumulativeReturn) / (1 + startPoint.cumulativeReturn) - 1);
 }
 
 function getBenchmarkDefinition(benchmarkId, preferences) {
@@ -1434,24 +1560,104 @@ function getBenchmarkDefinition(benchmarkId, preferences) {
 }
 
 function calculateBenchmarkReturn(benchmarkId, startDate, endDate, preferences) {
+  const normalizedSeries = buildNormalizedBenchmarkSeries(benchmarkId, startDate, endDate, preferences);
+  if (!normalizedSeries.points.length) return null;
+  return roundNumber((normalizedSeries.points[normalizedSeries.points.length - 1].normalizedValue || 1) - 1);
+}
+
+function buildNormalizedBenchmarkSeries(benchmarkId, startDate, endDate, preferences) {
   const definition = getBenchmarkDefinition(benchmarkId, preferences);
-  if (!definition || !startDate || !endDate) return null;
+  const expectedPointCount = startDate && endDate ? differenceInDays(startDate, endDate) + 1 : 0;
+  if (!definition || !startDate || !endDate) {
+    return {
+      label: definition?.label || benchmarkId,
+      points: [],
+      baseDate: "",
+      missingPoints: 0,
+    };
+  }
 
   if (definition.type === "annualRate") {
     const days = differenceInDays(startDate, endDate);
-    if (days <= 0) return null;
-    return roundNumber((1 + definition.annualRate) ** (days / 365) - 1);
+    if (days <= 0) {
+      return {
+        label: definition.label,
+        points: [],
+        baseDate: "",
+        missingPoints: 0,
+      };
+    }
+
+    const points = [];
+    for (let index = 0; index <= days; index += 1) {
+      const date = shiftDateIso(startDate, index);
+      points.push({
+        date,
+        normalizedValue: roundNumber((1 + definition.annualRate) ** (index / 365)),
+        source: "annual-rate",
+      });
+    }
+
+    return {
+      label: definition.label,
+      points,
+      baseDate: startDate,
+      missingPoints: 0,
+    };
   }
 
   if (definition.type === "series") {
     const series = Array.isArray(definition.series) ? definition.series : [];
-    const startPoint = series.find((point) => point.date >= startDate) || series.find((point) => point.date <= startDate);
-    const endPoint = [...series].reverse().find((point) => point.date <= endDate) || null;
-    if (!startPoint || !endPoint || !startPoint.value || !endPoint.value || startPoint.date >= endPoint.date) return null;
-    return roundNumber(endPoint.value / startPoint.value - 1);
+    const sortedSeries = [...series]
+      .filter((point) => point?.date && Number(point?.value))
+      .sort((left, right) => left.date.localeCompare(right.date));
+
+    if (!sortedSeries.length) {
+      return {
+        label: definition.label,
+        points: [],
+        baseDate: "",
+        missingPoints: expectedPointCount || 1,
+      };
+    }
+
+    const basePoint =
+      [...sortedSeries].reverse().find((point) => point.date <= startDate) ||
+      sortedSeries.find((point) => point.date >= startDate) ||
+      null;
+    const endPoint = [...sortedSeries].reverse().find((point) => point.date <= endDate) || null;
+
+    if (!basePoint || !endPoint || basePoint.date > endPoint.date || !basePoint.value || !endPoint.value) {
+      return {
+        label: definition.label,
+        points: [],
+        baseDate: basePoint?.date || "",
+        missingPoints: expectedPointCount || 1,
+      };
+    }
+
+    const points = sortedSeries
+      .filter((point) => point.date >= basePoint.date && point.date <= endPoint.date)
+      .map((point) => ({
+        date: point.date,
+        normalizedValue: roundNumber(point.value / basePoint.value),
+        source: "series",
+      }));
+
+    return {
+      label: definition.label,
+      points,
+      baseDate: basePoint.date,
+      missingPoints: Math.max(0, expectedPointCount - points.length),
+    };
   }
 
-  return null;
+  return {
+    label: definition.label,
+    points: [],
+    baseDate: "",
+    missingPoints: 1,
+  };
 }
 
 function differenceInDays(startDate, endDate) {
@@ -1472,13 +1678,16 @@ function buildBenchmarkWindowRows(historySeries, preferences) {
     { id: "ITD", label: "Since Inception" },
   ];
 
-  return windows.map((windowDef) => {
+  const rows = windows.map((windowDef) => {
     const startDate = getWindowStartDate(windowDef.id, endDate, inceptionDate);
     const { startPoint, endPoint } = findHistoryWindowPoints(historySeries, startDate, endDate);
     const portfolioReturn = calculateHistoryWindowReturn(startPoint, endPoint);
-    const primaryReturn = calculateBenchmarkReturn(preferences.primaryBenchmark, startDate, endDate, preferences);
-    const sofrReturn = calculateBenchmarkReturn("SOFR", startDate, endDate, preferences);
-    const hurdleReturn = calculateBenchmarkReturn("HURDLE", startDate, endDate, preferences);
+    const primarySeries = buildNormalizedBenchmarkSeries(preferences.primaryBenchmark, startDate, endDate, preferences);
+    const sofrSeries = buildNormalizedBenchmarkSeries("SOFR", startDate, endDate, preferences);
+    const hurdleSeries = buildNormalizedBenchmarkSeries("HURDLE", startDate, endDate, preferences);
+    const primaryReturn = primarySeries.points.length ? roundNumber(primarySeries.points[primarySeries.points.length - 1].normalizedValue - 1) : null;
+    const sofrReturn = sofrSeries.points.length ? roundNumber(sofrSeries.points[sofrSeries.points.length - 1].normalizedValue - 1) : null;
+    const hurdleReturn = hurdleSeries.points.length ? roundNumber(hurdleSeries.points[hurdleSeries.points.length - 1].normalizedValue - 1) : null;
 
     return {
       windowId: windowDef.id,
@@ -1487,11 +1696,31 @@ function buildBenchmarkWindowRows(historySeries, preferences) {
       endDate,
       portfolioReturn,
       primaryReturn,
+      primaryBaseDate: primarySeries.baseDate,
+      primaryPointCount: primarySeries.points.length,
+      primaryMissingPoints: primarySeries.missingPoints,
       excessReturn: portfolioReturn !== null && primaryReturn !== null ? roundNumber(portfolioReturn - primaryReturn) : null,
       sofrReturn,
       hurdleReturn,
     };
   });
+
+  const itdRow = rows.find((row) => row.windowId === "ITD") || rows[rows.length - 1] || null;
+  syncUiState.lastBenchmarkDiagnostics = {
+    label: getBenchmarkDefinition(preferences.primaryBenchmark, preferences)?.label || preferences.primaryBenchmark,
+    baseDate: itdRow?.primaryBaseDate || "",
+    pointCount: itdRow?.primaryPointCount || 0,
+    missingPoints: itdRow?.primaryMissingPoints || 0,
+  };
+  console.debug("[Incrementum][benchmark]", {
+    benchmark: preferences.primaryBenchmark,
+    baseDate: syncUiState.lastBenchmarkDiagnostics.baseDate,
+    pointCount: syncUiState.lastBenchmarkDiagnostics.pointCount,
+    missingPoints: syncUiState.lastBenchmarkDiagnostics.missingPoints,
+    rows,
+  });
+
+  return rows;
 }
 
 function renderBenchmarkComparison(rows) {
@@ -1518,15 +1747,18 @@ function renderBenchmarkComparison(rows) {
 
 function renderHistory(historySeries) {
   const missingPriceCount = syncUiState.lastValuation?.missingPrices?.length || 0;
+  const pricedDays = syncUiState.lastValuation?.dailySeries?.filter((point) => point.pricingStatus === "fully-priced").length || 0;
+  const estimatedDays = syncUiState.lastValuation?.dailySeries?.filter((point) => point.pricingStatus === "estimated").length || 0;
+  const missingDays = syncUiState.lastValuation?.dailySeries?.filter((point) => point.pricingStatus === "missing").length || 0;
   if (elements.historyStatus) {
     elements.historyStatus.textContent = historySeries.length > 1
-      ? `Portfolio NAV reconstructed from the transaction ledger. Statement snapshots are used only as checkpoints and fallback price anchors when needed.${missingPriceCount ? ` Missing price fallbacks: ${missingPriceCount}.` : ""}`
+      ? `Portfolio NAV reconstructed from the transaction ledger. Fully priced days: ${pricedDays}. Estimated days: ${estimatedDays}. Missing-price days: ${missingDays}.${missingPriceCount ? ` Price fallback events: ${missingPriceCount}.` : ""}`
       : "Portfolio NAV history needs transaction history to build. Statement snapshots are used only as fallback checkpoints.";
   }
 
   if (elements.historyBody) {
     if (!historySeries.length) {
-      elements.historyBody.innerHTML = buildEmptyRow("History will appear once you save statement snapshots or build a manual track record.", 5);
+      elements.historyBody.innerHTML = buildEmptyRow("History will appear once transaction history and at least one valuation input are available.", 5);
     } else {
       elements.historyBody.innerHTML = [...historySeries]
         .reverse()
@@ -1545,7 +1777,7 @@ function renderHistory(historySeries) {
 
   if (!elements.historyChart) return;
   if (historySeries.length < 2) {
-    elements.historyChart.innerHTML = '<div class="history-chart__empty">Add more statement snapshots to draw the equity curve.</div>';
+    elements.historyChart.innerHTML = '<div class="history-chart__empty">Add transaction history and valuation inputs to draw the equity curve.</div>';
     return;
   }
 
@@ -1959,6 +2191,18 @@ function filterTransactions(transactions) {
 }
 
 function calculatePortfolioAnalytics(transactions, prices, statement) {
+  const valuationEngine = runtime?.services?.valuationEngine;
+  const valuation = valuationEngine?.compute?.({
+    transactions,
+    valuationDate: getActiveValuationDate(transactions, statement),
+    currentPrices: prices,
+    historicalPrices: state.marketData.assetPriceHistory || {},
+    priceAnchors: buildSnapshotPriceAnchors(),
+  }) || null;
+  if (valuation) {
+    syncUiState.lastValuation = valuation;
+  }
+
   const assetMap = new Map();
   let tradeRealizedPnL = 0;
   let otherReturnPnL = 0;
@@ -2040,6 +2284,8 @@ function calculatePortfolioAnalytics(transactions, prices, statement) {
       marketValue: roundNumber(marketValue),
       realizedPnL: roundNumber(asset.realizedPnL + asset.incomeExpensePnL),
       tradeRealizedPnL: roundNumber(asset.realizedPnL),
+      incomeExpensePnL: roundNumber(asset.incomeExpensePnL),
+      grossInvested: roundNumber(asset.grossInvested),
       unrealizedPnL: roundNumber(unrealizedPnL),
       totalPnL: roundNumber(totalPnL),
       returnPct: roundNumber(returnPct),
@@ -2050,30 +2296,39 @@ function calculatePortfolioAnalytics(transactions, prices, statement) {
   const statementPerformance = Array.isArray(statement?.performanceByAsset) ? statement.performanceByAsset : [];
   const statementOpenPositionMap = new Map(statementOpenPositions.map((position) => [position.ticker, position]));
   const statementPerformanceMap = new Map(statementPerformance.map((asset) => [asset.ticker, asset]));
-  const openHoldingsSource = statementOpenPositions.length
-    ? statementOpenPositions.map((position) => ({
+  const valuationPositionMap = new Map((valuation?.positions || []).map((position) => [position.ticker, position]));
+  const openHoldingsSource = (valuation?.positions || [])
+    .filter((position) => position.shares > 0.0000001)
+    .map((position) => {
+      const ledgerAsset = ledgerAssetPerformance.find((asset) => asset.ticker === position.ticker);
+      const statementPosition = statementOpenPositionMap.get(position.ticker);
+      const statementAsset = statementPerformanceMap.get(position.ticker);
+      const unrealizedPnL = position.marketValue - position.totalCostBasis;
+      const realizedPnL = statementAsset ? statementAsset.realizedPnL : ledgerAsset?.realizedPnL || 0;
+      const totalPnL = realizedPnL + unrealizedPnL + (ledgerAsset?.incomeExpensePnL || 0);
+
+      return {
         ticker: position.ticker,
         shares: roundNumber(position.shares),
-        averageCost: roundNumber(position.averageCost),
+        averageCost: roundNumber(position.shares > 0 ? position.totalCostBasis / position.shares : 0),
         totalCostBasis: roundNumber(position.totalCostBasis),
-        currentPrice: roundNumber(position.currentPrice),
+        currentPrice: roundNumber(position.price),
         marketValue: roundNumber(position.marketValue),
-        realizedPnL: roundNumber(statementPerformanceMap.get(position.ticker)?.realizedPnL || 0),
-        unrealizedPnL: roundNumber(position.unrealizedPnL),
-        totalPnL: roundNumber((statementPerformanceMap.get(position.ticker)?.realizedPnL || 0) + position.unrealizedPnL),
-        returnPct: roundNumber(
-          position.totalCostBasis > 0
-            ? (((statementPerformanceMap.get(position.ticker)?.totalPnL || position.unrealizedPnL) / position.totalCostBasis) * 100)
-            : 0
-        ),
-        isStatementPrice: true,
-      }))
-    : ledgerAssetPerformance.filter((asset) => asset.shares > 0.0000001).map((asset) => ({ ...asset, isStatementPrice: false }));
+        realizedPnL: roundNumber(realizedPnL),
+        unrealizedPnL: roundNumber(unrealizedPnL),
+        totalPnL: roundNumber(statementAsset ? statementAsset.totalPnL : totalPnL),
+        returnPct: roundNumber(position.totalCostBasis > 0 ? (unrealizedPnL / position.totalCostBasis) * 100 : 0),
+        isStatementPrice: position.priceSource === "snapshot-anchor" || Boolean(statementPosition),
+        priceSource: position.priceSource,
+      };
+    });
 
-  const cash = statement?.netAssetValue?.cash ?? calculateCashBalance(transactions);
-  const stockValue = statement?.netAssetValue?.stockValue ?? openHoldingsSource.reduce((sum, holding) => sum + holding.marketValue, 0);
-  const deployedCapital = statement?.openPositionsTotals?.costBasis ?? openHoldingsSource.reduce((sum, holding) => sum + holding.totalCostBasis, 0);
-  const portfolioValue = statement?.changeInNav?.endingValue ?? statement?.netAssetValue?.endingValue ?? roundNumber(stockValue + cash);
+  const cash = valuation ? valuation.cashBalance : calculateCashBalance(transactions);
+  const stockValue = valuation ? valuation.portfolioMarketValue : openHoldingsSource.reduce((sum, holding) => sum + holding.marketValue, 0);
+  const deployedCapital = valuation
+    ? roundNumber((valuation.positions || []).reduce((sum, holding) => sum + holding.totalCostBasis, 0))
+    : openHoldingsSource.reduce((sum, holding) => sum + holding.totalCostBasis, 0);
+  const portfolioValue = valuation ? valuation.nav : roundNumber(stockValue + cash);
   const allocationBase = roundNumber(openHoldingsSource.reduce((sum, holding) => sum + holding.marketValue, 0) + cash);
   const costBaseForWeights = deployedCapital + Math.max(cash, 0);
 
@@ -2111,6 +2366,7 @@ function calculatePortfolioAnalytics(transactions, prices, statement) {
     ...ledgerAssetPerformance.map((asset) => asset.ticker),
     ...statementPerformance.map((asset) => asset.ticker),
     ...statementOpenPositions.map((position) => position.ticker),
+    ...(valuation?.positions || []).map((position) => position.ticker),
   ]);
 
   const assetPerformance = [...assetTickers]
@@ -2119,13 +2375,14 @@ function calculatePortfolioAnalytics(transactions, prices, statement) {
       const ledgerAsset = ledgerAssetPerformance.find((asset) => asset.ticker === ticker);
       const statementAsset = statementPerformanceMap.get(ticker);
       const statementPosition = statementOpenPositionMap.get(ticker);
+      const valuationPosition = valuationPositionMap.get(ticker);
       const realizedPnL = statementAsset ? statementAsset.realizedPnL : ledgerAsset?.realizedPnL || 0;
       const unrealizedPnL = statementAsset
         ? statementAsset.unrealizedPnL
-        : statementPosition?.unrealizedPnL || ledgerAsset?.unrealizedPnL || 0;
+        : statementPosition?.unrealizedPnL || (valuationPosition ? valuationPosition.marketValue - valuationPosition.totalCostBasis : ledgerAsset?.unrealizedPnL) || 0;
       const totalPnL = statementAsset ? statementAsset.totalPnL : ledgerAsset?.totalPnL || realizedPnL + unrealizedPnL;
-      const marketValue = statementPosition ? statementPosition.marketValue : ledgerAsset?.marketValue || 0;
-      const returnBase = statementPosition?.totalCostBasis || ledgerAsset?.totalCostBasis || ledgerAsset?.grossInvested || 0;
+      const marketValue = valuationPosition?.marketValue ?? statementPosition?.marketValue ?? ledgerAsset?.marketValue ?? 0;
+      const returnBase = valuationPosition?.totalCostBasis ?? statementPosition?.totalCostBasis ?? ledgerAsset?.totalCostBasis ?? ledgerAsset?.grossInvested ?? 0;
 
       return {
         ticker,
@@ -2149,6 +2406,7 @@ function calculatePortfolioAnalytics(transactions, prices, statement) {
     stockValue: roundNumber(stockValue),
     tradeRealizedPnL: roundNumber(tradeRealizedPnL),
     otherReturnPnL: roundNumber(otherReturnPnL),
+    valuation,
   };
 }
 
@@ -2258,6 +2516,62 @@ function buildExternalReturnCashFlows(transactions) {
     }));
 }
 
+function buildReturnHistoryFromValuation(valuation) {
+  const returnEngine = runtime?.services?.returnEngine;
+  const dailySeries = valuation?.dailySeries || [];
+  const dailyReturns = returnEngine?.computeFromDailySeries?.(dailySeries)?.dailyReturns || [];
+  return dailySeries.map((point, index) => ({
+    ...point,
+    dailyReturn: dailyReturns[index]?.dailyReturn ?? null,
+    cumulativeReturn: dailyReturns[index]?.cumulativeReturn ?? null,
+  }));
+}
+
+function calculateTrustedReturnWindow(windowId, valuation) {
+  const history = buildReturnHistoryFromValuation(valuation);
+  if (!history.length) {
+    return { value: null, trust: "Unavailable", reason: "No NAV history." };
+  }
+
+  const latestPoint = history[history.length - 1];
+  const valuationDate = latestPoint.date;
+  if (!valuationDate) {
+    return { value: null, trust: "Unavailable", reason: "No valuation date." };
+  }
+
+  if (windowId === "ITD") {
+    const firstPoint = history[0];
+    const windowPoints = history.slice(1);
+    if (firstPoint.pricingStatus !== "fully-priced") {
+      return { value: null, trust: "Unavailable", reason: "Inception NAV is not fully priced." };
+    }
+    if (windowPoints.some((point) => point.pricingStatus !== "fully-priced" || point.dailyReturn === null)) {
+      return { value: null, trust: "Insufficient clean history", reason: "Inception window contains estimated or missing prices." };
+    }
+    const value = windowPoints.reduce((compound, point) => compound * (1 + point.dailyReturn), 1) - 1;
+    return { value: roundNumber(value), trust: "Trusted", reason: "Ledger-derived from fully priced NAV history." };
+  }
+
+  const periodStart = windowId === "MTD" ? `${valuationDate.slice(0, 7)}-01` : `${valuationDate.slice(0, 4)}-01-01`;
+  const anchorDate = shiftDateIso(periodStart, -1);
+  const anchorPoint = [...history].reverse().find((point) => point.date <= anchorDate) || null;
+  if (!anchorPoint) {
+    return { value: null, trust: "Unavailable", reason: `No completed NAV before ${periodStart}.` };
+  }
+
+  const windowPoints = history.filter((point) => point.date > anchorPoint.date);
+  if (!windowPoints.length) {
+    return { value: null, trust: "Unavailable", reason: "No completed NAV inside the selected window." };
+  }
+
+  if (windowPoints.some((point) => point.pricingStatus !== "fully-priced" || point.dailyReturn === null)) {
+    return { value: null, trust: "Insufficient clean history", reason: `${windowId} contains estimated or missing price days.` };
+  }
+
+  const value = windowPoints.reduce((compound, point) => compound * (1 + point.dailyReturn), 1) - 1;
+  return { value: roundNumber(value), trust: "Trusted", reason: "Ledger-derived from fully priced NAV history." };
+}
+
 function calculateSummary(transactions, analytics, statement) {
   const totalDeposits = transactions.filter((transaction) => transaction.type === "DEPOSIT").reduce((sum, transaction) => sum + transaction.amount, 0);
   const totalWithdrawals = transactions.filter((transaction) => transaction.type === "WITHDRAWAL").reduce((sum, transaction) => sum + transaction.amount, 0);
@@ -2269,37 +2583,18 @@ function calculateSummary(transactions, analytics, statement) {
   const totalPnL = statement?.performanceTotals?.totalPnL ?? realizedPnL + unrealizedPnL + analytics.otherReturnPnL;
   const valuationDate = getActiveValuationDate(transactions, statement);
   const inceptionDate = getPortfolioInceptionDate(transactions);
-  const irrValue = calculatePortfolioXirr(
-    transactions,
-    analytics.portfolioValue,
-    valuationDate
-  );
-  const externalCashFlows = buildExternalReturnCashFlows(transactions);
-  const ytdStartDate = valuationDate ? `${valuationDate.slice(0, 4)}-01-01` : "";
-  const ytdOpeningState = ytdStartDate ? calculatePointInTimePortfolioState(transactions, ytdStartDate) : null;
-  // Without a historical NAV series, YTD uses a conservative opening-value proxy based on
-  // carried cash plus remaining cost basis before the period start.
-  const ytdValue =
-    ytdStartDate && valuationDate > ytdStartDate
-      ? calculateModifiedDietzReturn({
-          startDate: ytdStartDate,
-          endDate: valuationDate,
-          beginningValue: ytdOpeningState?.portfolioValue || 0,
-          endingValue: analytics.portfolioValue,
-          cashFlows: externalCashFlows,
-        })
-      : null;
-  const itdValue =
-    inceptionDate && valuationDate > inceptionDate
-      ? calculateModifiedDietzReturn({
-          startDate: inceptionDate,
-          endDate: valuationDate,
-          beginningValue: 0,
-          endingValue: analytics.portfolioValue,
-          cashFlows: externalCashFlows,
-        })
-      : null;
+  const mtdWindow = calculateTrustedReturnWindow("MTD", analytics.valuation);
+  const ytdWindow = calculateTrustedReturnWindow("YTD", analytics.valuation);
+  const itdWindow = calculateTrustedReturnWindow("ITD", analytics.valuation);
   const netContributionReturn = netContributions > 0 ? roundNumber(analytics.portfolioValue / netContributions - 1) : null;
+  syncUiState.returnTrust = {
+    mtd: mtdWindow.trust,
+    ytd: ytdWindow.trust,
+    itd: itdWindow.trust,
+    mtdReason: mtdWindow.reason,
+    ytdReason: ytdWindow.reason,
+    itdReason: itdWindow.reason,
+  };
   const reconciliationRows = statement
     ? [
         buildReconciliationRow("Net Contributions", netContributions, statement.changeInNav?.depositsWithdrawals ?? netContributions),
@@ -2328,13 +2623,11 @@ function calculateSummary(transactions, analytics, statement) {
     cashShareOfPortfolio: analytics.portfolioValue > 0 ? roundNumber((analytics.cash / analytics.portfolioValue) * 100) : 0,
     deployedShareOfPortfolio: analytics.portfolioValue > 0 ? roundNumber((analytics.deployedCapital / analytics.portfolioValue) * 100) : 0,
     positionCount: analytics.positionsForAllocation.filter((position) => position.ticker !== "CASH").length + (Math.abs(analytics.cash) > 0.0000001 ? 1 : 0),
-    irrLabel: irrValue === null ? "Insufficient Data" : formatPercent(irrValue * 100),
-    twrLabel:
-      statement?.netAssetValue?.timeWeightedReturn !== undefined && statement?.netAssetValue?.timeWeightedReturn !== null
-        ? formatPercent(statement.netAssetValue.timeWeightedReturn)
-        : "Insufficient Data",
-    ytdLabel: ytdValue === null ? "Insufficient Data" : formatPercent(ytdValue * 100),
-    itdLabel: itdValue === null ? "Insufficient Data" : formatPercent(itdValue * 100),
+    irrLabel: "Unavailable",
+    twrLabel: "Unavailable",
+    mtdLabel: mtdWindow.value === null ? mtdWindow.trust : formatPercent(mtdWindow.value * 100),
+    ytdLabel: ytdWindow.value === null ? ytdWindow.trust : formatPercent(ytdWindow.value * 100),
+    itdLabel: itdWindow.value === null ? itdWindow.trust : formatPercent(itdWindow.value * 100),
     netContributionReturnLabel: netContributionReturn === null ? "Insufficient Data" : formatPercent(netContributionReturn * 100),
     cashShareLabel:
       analytics.portfolioValue > 0 ? `${formatPercent((analytics.cash / analytics.portfolioValue) * 100)} of portfolio` : "Insufficient Data",
@@ -2342,9 +2635,16 @@ function calculateSummary(transactions, analytics, statement) {
       analytics.portfolioValue > 0
         ? `${formatPercent((analytics.deployedCapital / analytics.portfolioValue) * 100)} of portfolio`
         : "Insufficient Data",
-    irrValue,
-    ytdValue,
-    itdValue,
+    irrValue: null,
+    mtdValue: mtdWindow.value,
+    ytdValue: ytdWindow.value,
+    itdValue: itdWindow.value,
+    mtdTrust: mtdWindow.trust,
+    ytdTrust: ytdWindow.trust,
+    itdTrust: itdWindow.trust,
+    mtdReason: mtdWindow.reason,
+    ytdReason: ytdWindow.reason,
+    itdReason: itdWindow.reason,
     netContributionReturn,
     valuationDate,
     inceptionDate,

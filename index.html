@@ -71,11 +71,11 @@
               <p class="metric-footnote">Statement-date valuation change of the portfolio based on market prices at the statement date.</p>
             </article>
             <article class="panel stat-panel">
-              <p class="panel-label">IRR</p>
+              <p class="panel-label">Month-to-Date Return</p>
               <strong id="summary-irr" class="panel-value">Pending</strong>
-              <p class="metric-footnote">Money-weighted annualized return based on external cash flows and the ending portfolio value.</p>
+              <p class="metric-footnote">Return from the last completed NAV before the current month, excluding external capital flows from performance.</p>
             </article>
-            <article class="panel stat-panel">
+            <article class="panel stat-panel is-hidden">
               <p class="panel-label">Time-Weighted Return</p>
               <strong id="summary-twr" class="panel-value">Pending</strong>
               <p class="metric-footnote">Return measure that neutralizes deposits and withdrawals to isolate investment performance.</p>
@@ -159,7 +159,7 @@
           </section>
 
           <div class="panel-grid panel-grid--analytics">
-            <section class="panel">
+            <section class="panel is-hidden" aria-hidden="true">
               <div class="panel-header">
                 <div>
                   <h2>Benchmark Comparison</h2>
@@ -228,6 +228,10 @@
               <div><span>Current Snapshot ID</span><strong id="debug-snapshot-id">-</strong></div>
               <div><span>State Source</span><strong id="debug-state-source">-</strong></div>
               <div><span>Persistence Error</span><strong id="debug-persistence-error">-</strong></div>
+              <div><span>Import Summary</span><strong id="debug-import-summary">-</strong></div>
+              <div><span>History Summary</span><strong id="debug-history-summary">-</strong></div>
+              <div><span>Return Trust</span><strong id="debug-return-trust">-</strong></div>
+              <div><span>Valuation Snapshot</span><strong id="debug-valuation-summary">-</strong></div>
             </div>
           </details>
         </section>
@@ -455,11 +459,11 @@
               <p class="metric-footnote">Statement-date valuation change of the portfolio based on market prices at the statement date.</p>
             </article>
             <article class="panel stat-panel">
-              <p class="panel-label">IRR</p>
+              <p class="panel-label">Month-to-Date Return</p>
               <strong id="returns-irr" class="panel-value">Pending</strong>
-              <p class="metric-footnote">Money-weighted annualized return based on external cash flows and the ending portfolio value.</p>
+              <p class="metric-footnote">Return from the last completed NAV before the current month, excluding external capital flows from performance.</p>
             </article>
-            <article class="panel stat-panel">
+            <article class="panel stat-panel is-hidden">
               <p class="panel-label">Time-Weighted Return</p>
               <strong id="returns-twr" class="panel-value">Pending</strong>
               <p class="metric-footnote">Return measure that neutralizes deposits and withdrawals to isolate investment performance.</p>
