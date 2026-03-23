@@ -1122,13 +1122,12 @@ function renderApp() {
   const analytics = calculatePortfolioAnalytics(context.transactions, context.prices, context.statement);
   const summary = calculateSummary(context.transactions, analytics, context.statement);
   const filteredTransactions = filterTransactions(context.transactions);
-  const historySeries = buildPortfolioHistorySeries(context);
 
   renderSyncStatus();
   renderDebugPanel();
   renderTransactions(filteredTransactions, context.mode);
   renderPortfolioPositions(analytics.holdings);
-  renderDashboard(analytics.positionsForAllocation, summary, historySeries);
+  renderDashboard(analytics.positionsForAllocation, summary);
   renderSummaryReturns(summary, analytics.assetPerformance);
   renderStatementHistory();
   syncTransactionFormMode();
@@ -1273,7 +1272,7 @@ function renderStatementHistory() {
     .join("");
 }
 
-function renderDashboard(positionsForAllocation, summary, historySeries) {
+function renderDashboard(positionsForAllocation, summary) {
   setElementText(elements.headerPositions, String(summary.positionCount));
   setElementText(elements.headerNetInvested, formatCurrency(summary.netContributions));
   setElementText(elements.headerPortfolioValue, formatCurrency(summary.portfolioValue));
@@ -1293,7 +1292,7 @@ function renderDashboard(positionsForAllocation, summary, historySeries) {
   setElementClassName(elements.summaryUnrealizedPnl, `panel-value ${getValueClass(summary.unrealizedPnL)}`.trim());
   setElementText(elements.summaryMtmPnl, formatCurrency(summary.markToMarketPnL));
   setElementClassName(elements.summaryMtmPnl, `panel-value ${getValueClass(summary.markToMarketPnL)}`.trim());
-  setElementText(elements.summaryIrr, summary.mtdLabel);
+  setElementText(elements.summaryIrr, summary.irrLabel);
   setElementText(elements.summaryTwr, summary.twrLabel);
   setElementText(elements.summaryNetContributionReturn, summary.netContributionReturnLabel);
   setElementText(elements.summaryYtd, summary.ytdLabel);
@@ -1316,8 +1315,6 @@ function renderDashboard(positionsForAllocation, summary, historySeries) {
       `)
       .join("");
   }
-
-  renderHistory(historySeries);
 }
 
 function renderSummaryReturns(summary, assetPerformance) {
@@ -1331,7 +1328,7 @@ function renderSummaryReturns(summary, assetPerformance) {
   elements.returnsTotalPnl.className = `panel-value ${getValueClass(summary.totalPnL)}`;
   elements.returnsMtmPnl.textContent = formatCurrency(summary.markToMarketPnL);
   elements.returnsMtmPnl.className = `panel-value ${getValueClass(summary.markToMarketPnL)}`;
-  elements.returnsIrr.textContent = summary.mtdLabel;
+  elements.returnsIrr.textContent = summary.irrLabel;
   elements.returnsTwr.textContent = summary.twrLabel;
   setElementText(elements.returnsNetContributionReturn, summary.netContributionReturnLabel);
   setElementText(elements.returnsYtd, summary.ytdLabel);
@@ -2191,18 +2188,6 @@ function filterTransactions(transactions) {
 }
 
 function calculatePortfolioAnalytics(transactions, prices, statement) {
-  const valuationEngine = runtime?.services?.valuationEngine;
-  const valuation = valuationEngine?.compute?.({
-    transactions,
-    valuationDate: getActiveValuationDate(transactions, statement),
-    currentPrices: prices,
-    historicalPrices: state.marketData.assetPriceHistory || {},
-    priceAnchors: buildSnapshotPriceAnchors(),
-  }) || null;
-  if (valuation) {
-    syncUiState.lastValuation = valuation;
-  }
-
   const assetMap = new Map();
   let tradeRealizedPnL = 0;
   let otherReturnPnL = 0;
@@ -2284,8 +2269,6 @@ function calculatePortfolioAnalytics(transactions, prices, statement) {
       marketValue: roundNumber(marketValue),
       realizedPnL: roundNumber(asset.realizedPnL + asset.incomeExpensePnL),
       tradeRealizedPnL: roundNumber(asset.realizedPnL),
-      incomeExpensePnL: roundNumber(asset.incomeExpensePnL),
-      grossInvested: roundNumber(asset.grossInvested),
       unrealizedPnL: roundNumber(unrealizedPnL),
       totalPnL: roundNumber(totalPnL),
       returnPct: roundNumber(returnPct),
@@ -2296,39 +2279,30 @@ function calculatePortfolioAnalytics(transactions, prices, statement) {
   const statementPerformance = Array.isArray(statement?.performanceByAsset) ? statement.performanceByAsset : [];
   const statementOpenPositionMap = new Map(statementOpenPositions.map((position) => [position.ticker, position]));
   const statementPerformanceMap = new Map(statementPerformance.map((asset) => [asset.ticker, asset]));
-  const valuationPositionMap = new Map((valuation?.positions || []).map((position) => [position.ticker, position]));
-  const openHoldingsSource = (valuation?.positions || [])
-    .filter((position) => position.shares > 0.0000001)
-    .map((position) => {
-      const ledgerAsset = ledgerAssetPerformance.find((asset) => asset.ticker === position.ticker);
-      const statementPosition = statementOpenPositionMap.get(position.ticker);
-      const statementAsset = statementPerformanceMap.get(position.ticker);
-      const unrealizedPnL = position.marketValue - position.totalCostBasis;
-      const realizedPnL = statementAsset ? statementAsset.realizedPnL : ledgerAsset?.realizedPnL || 0;
-      const totalPnL = realizedPnL + unrealizedPnL + (ledgerAsset?.incomeExpensePnL || 0);
-
-      return {
+  const openHoldingsSource = statementOpenPositions.length
+    ? statementOpenPositions.map((position) => ({
         ticker: position.ticker,
         shares: roundNumber(position.shares),
-        averageCost: roundNumber(position.shares > 0 ? position.totalCostBasis / position.shares : 0),
+        averageCost: roundNumber(position.averageCost),
         totalCostBasis: roundNumber(position.totalCostBasis),
-        currentPrice: roundNumber(position.price),
+        currentPrice: roundNumber(position.currentPrice),
         marketValue: roundNumber(position.marketValue),
-        realizedPnL: roundNumber(realizedPnL),
-        unrealizedPnL: roundNumber(unrealizedPnL),
-        totalPnL: roundNumber(statementAsset ? statementAsset.totalPnL : totalPnL),
-        returnPct: roundNumber(position.totalCostBasis > 0 ? (unrealizedPnL / position.totalCostBasis) * 100 : 0),
-        isStatementPrice: position.priceSource === "snapshot-anchor" || Boolean(statementPosition),
-        priceSource: position.priceSource,
-      };
-    });
+        realizedPnL: roundNumber(statementPerformanceMap.get(position.ticker)?.realizedPnL || 0),
+        unrealizedPnL: roundNumber(position.unrealizedPnL),
+        totalPnL: roundNumber((statementPerformanceMap.get(position.ticker)?.realizedPnL || 0) + position.unrealizedPnL),
+        returnPct: roundNumber(
+          position.totalCostBasis > 0
+            ? (((statementPerformanceMap.get(position.ticker)?.totalPnL || position.unrealizedPnL) / position.totalCostBasis) * 100)
+            : 0
+        ),
+        isStatementPrice: true,
+      }))
+    : ledgerAssetPerformance.filter((asset) => asset.shares > 0.0000001).map((asset) => ({ ...asset, isStatementPrice: false }));
 
-  const cash = valuation ? valuation.cashBalance : calculateCashBalance(transactions);
-  const stockValue = valuation ? valuation.portfolioMarketValue : openHoldingsSource.reduce((sum, holding) => sum + holding.marketValue, 0);
-  const deployedCapital = valuation
-    ? roundNumber((valuation.positions || []).reduce((sum, holding) => sum + holding.totalCostBasis, 0))
-    : openHoldingsSource.reduce((sum, holding) => sum + holding.totalCostBasis, 0);
-  const portfolioValue = valuation ? valuation.nav : roundNumber(stockValue + cash);
+  const cash = statement?.netAssetValue?.cash ?? calculateCashBalance(transactions);
+  const stockValue = statement?.netAssetValue?.stockValue ?? openHoldingsSource.reduce((sum, holding) => sum + holding.marketValue, 0);
+  const deployedCapital = statement?.openPositionsTotals?.costBasis ?? openHoldingsSource.reduce((sum, holding) => sum + holding.totalCostBasis, 0);
+  const portfolioValue = statement?.changeInNav?.endingValue ?? statement?.netAssetValue?.endingValue ?? roundNumber(stockValue + cash);
   const allocationBase = roundNumber(openHoldingsSource.reduce((sum, holding) => sum + holding.marketValue, 0) + cash);
   const costBaseForWeights = deployedCapital + Math.max(cash, 0);
 
@@ -2366,7 +2340,6 @@ function calculatePortfolioAnalytics(transactions, prices, statement) {
     ...ledgerAssetPerformance.map((asset) => asset.ticker),
     ...statementPerformance.map((asset) => asset.ticker),
     ...statementOpenPositions.map((position) => position.ticker),
-    ...(valuation?.positions || []).map((position) => position.ticker),
   ]);
 
   const assetPerformance = [...assetTickers]
@@ -2375,14 +2348,13 @@ function calculatePortfolioAnalytics(transactions, prices, statement) {
       const ledgerAsset = ledgerAssetPerformance.find((asset) => asset.ticker === ticker);
       const statementAsset = statementPerformanceMap.get(ticker);
       const statementPosition = statementOpenPositionMap.get(ticker);
-      const valuationPosition = valuationPositionMap.get(ticker);
       const realizedPnL = statementAsset ? statementAsset.realizedPnL : ledgerAsset?.realizedPnL || 0;
       const unrealizedPnL = statementAsset
         ? statementAsset.unrealizedPnL
-        : statementPosition?.unrealizedPnL || (valuationPosition ? valuationPosition.marketValue - valuationPosition.totalCostBasis : ledgerAsset?.unrealizedPnL) || 0;
+        : statementPosition?.unrealizedPnL || ledgerAsset?.unrealizedPnL || 0;
       const totalPnL = statementAsset ? statementAsset.totalPnL : ledgerAsset?.totalPnL || realizedPnL + unrealizedPnL;
-      const marketValue = valuationPosition?.marketValue ?? statementPosition?.marketValue ?? ledgerAsset?.marketValue ?? 0;
-      const returnBase = valuationPosition?.totalCostBasis ?? statementPosition?.totalCostBasis ?? ledgerAsset?.totalCostBasis ?? ledgerAsset?.grossInvested ?? 0;
+      const marketValue = statementPosition ? statementPosition.marketValue : ledgerAsset?.marketValue || 0;
+      const returnBase = statementPosition?.totalCostBasis || ledgerAsset?.totalCostBasis || ledgerAsset?.grossInvested || 0;
 
       return {
         ticker,
@@ -2406,7 +2378,6 @@ function calculatePortfolioAnalytics(transactions, prices, statement) {
     stockValue: roundNumber(stockValue),
     tradeRealizedPnL: roundNumber(tradeRealizedPnL),
     otherReturnPnL: roundNumber(otherReturnPnL),
-    valuation,
   };
 }
 
@@ -2516,62 +2487,6 @@ function buildExternalReturnCashFlows(transactions) {
     }));
 }
 
-function buildReturnHistoryFromValuation(valuation) {
-  const returnEngine = runtime?.services?.returnEngine;
-  const dailySeries = valuation?.dailySeries || [];
-  const dailyReturns = returnEngine?.computeFromDailySeries?.(dailySeries)?.dailyReturns || [];
-  return dailySeries.map((point, index) => ({
-    ...point,
-    dailyReturn: dailyReturns[index]?.dailyReturn ?? null,
-    cumulativeReturn: dailyReturns[index]?.cumulativeReturn ?? null,
-  }));
-}
-
-function calculateTrustedReturnWindow(windowId, valuation) {
-  const history = buildReturnHistoryFromValuation(valuation);
-  if (!history.length) {
-    return { value: null, trust: "Unavailable", reason: "No NAV history." };
-  }
-
-  const latestPoint = history[history.length - 1];
-  const valuationDate = latestPoint.date;
-  if (!valuationDate) {
-    return { value: null, trust: "Unavailable", reason: "No valuation date." };
-  }
-
-  if (windowId === "ITD") {
-    const firstPoint = history[0];
-    const windowPoints = history.slice(1);
-    if (firstPoint.pricingStatus !== "fully-priced") {
-      return { value: null, trust: "Unavailable", reason: "Inception NAV is not fully priced." };
-    }
-    if (windowPoints.some((point) => point.pricingStatus !== "fully-priced" || point.dailyReturn === null)) {
-      return { value: null, trust: "Insufficient clean history", reason: "Inception window contains estimated or missing prices." };
-    }
-    const value = windowPoints.reduce((compound, point) => compound * (1 + point.dailyReturn), 1) - 1;
-    return { value: roundNumber(value), trust: "Trusted", reason: "Ledger-derived from fully priced NAV history." };
-  }
-
-  const periodStart = windowId === "MTD" ? `${valuationDate.slice(0, 7)}-01` : `${valuationDate.slice(0, 4)}-01-01`;
-  const anchorDate = shiftDateIso(periodStart, -1);
-  const anchorPoint = [...history].reverse().find((point) => point.date <= anchorDate) || null;
-  if (!anchorPoint) {
-    return { value: null, trust: "Unavailable", reason: `No completed NAV before ${periodStart}.` };
-  }
-
-  const windowPoints = history.filter((point) => point.date > anchorPoint.date);
-  if (!windowPoints.length) {
-    return { value: null, trust: "Unavailable", reason: "No completed NAV inside the selected window." };
-  }
-
-  if (windowPoints.some((point) => point.pricingStatus !== "fully-priced" || point.dailyReturn === null)) {
-    return { value: null, trust: "Insufficient clean history", reason: `${windowId} contains estimated or missing price days.` };
-  }
-
-  const value = windowPoints.reduce((compound, point) => compound * (1 + point.dailyReturn), 1) - 1;
-  return { value: roundNumber(value), trust: "Trusted", reason: "Ledger-derived from fully priced NAV history." };
-}
-
 function calculateSummary(transactions, analytics, statement) {
   const totalDeposits = transactions.filter((transaction) => transaction.type === "DEPOSIT").reduce((sum, transaction) => sum + transaction.amount, 0);
   const totalWithdrawals = transactions.filter((transaction) => transaction.type === "WITHDRAWAL").reduce((sum, transaction) => sum + transaction.amount, 0);
@@ -2583,18 +2498,36 @@ function calculateSummary(transactions, analytics, statement) {
   const totalPnL = statement?.performanceTotals?.totalPnL ?? realizedPnL + unrealizedPnL + analytics.otherReturnPnL;
   const valuationDate = getActiveValuationDate(transactions, statement);
   const inceptionDate = getPortfolioInceptionDate(transactions);
-  const mtdWindow = calculateTrustedReturnWindow("MTD", analytics.valuation);
-  const ytdWindow = calculateTrustedReturnWindow("YTD", analytics.valuation);
-  const itdWindow = calculateTrustedReturnWindow("ITD", analytics.valuation);
+  const irrValue = calculatePortfolioXirr(
+    transactions,
+    analytics.portfolioValue,
+    valuationDate
+  );
+  const externalCashFlows = buildExternalReturnCashFlows(transactions);
+  const ytdStartDate = valuationDate ? `${valuationDate.slice(0, 4)}-01-01` : "";
+  const ytdOpeningState = ytdStartDate ? calculatePointInTimePortfolioState(transactions, ytdStartDate) : null;
+  const ytdValue =
+    ytdStartDate && valuationDate > ytdStartDate
+      ? calculateModifiedDietzReturn({
+          startDate: ytdStartDate,
+          endDate: valuationDate,
+          beginningValue: ytdOpeningState?.portfolioValue || 0,
+          endingValue: analytics.portfolioValue,
+          cashFlows: externalCashFlows,
+        })
+      : null;
+  const itdValue =
+    inceptionDate && valuationDate > inceptionDate
+      ? calculateModifiedDietzReturn({
+          startDate: inceptionDate,
+          endDate: valuationDate,
+          beginningValue: 0,
+          endingValue: analytics.portfolioValue,
+          cashFlows: externalCashFlows,
+        })
+      : null;
   const netContributionReturn = netContributions > 0 ? roundNumber(analytics.portfolioValue / netContributions - 1) : null;
-  syncUiState.returnTrust = {
-    mtd: mtdWindow.trust,
-    ytd: ytdWindow.trust,
-    itd: itdWindow.trust,
-    mtdReason: mtdWindow.reason,
-    ytdReason: ytdWindow.reason,
-    itdReason: itdWindow.reason,
-  };
+  syncUiState.returnTrust = null;
   const reconciliationRows = statement
     ? [
         buildReconciliationRow("Net Contributions", netContributions, statement.changeInNav?.depositsWithdrawals ?? netContributions),
@@ -2623,11 +2556,13 @@ function calculateSummary(transactions, analytics, statement) {
     cashShareOfPortfolio: analytics.portfolioValue > 0 ? roundNumber((analytics.cash / analytics.portfolioValue) * 100) : 0,
     deployedShareOfPortfolio: analytics.portfolioValue > 0 ? roundNumber((analytics.deployedCapital / analytics.portfolioValue) * 100) : 0,
     positionCount: analytics.positionsForAllocation.filter((position) => position.ticker !== "CASH").length + (Math.abs(analytics.cash) > 0.0000001 ? 1 : 0),
-    irrLabel: "Unavailable",
-    twrLabel: "Unavailable",
-    mtdLabel: mtdWindow.value === null ? mtdWindow.trust : formatPercent(mtdWindow.value * 100),
-    ytdLabel: ytdWindow.value === null ? ytdWindow.trust : formatPercent(ytdWindow.value * 100),
-    itdLabel: itdWindow.value === null ? itdWindow.trust : formatPercent(itdWindow.value * 100),
+    irrLabel: irrValue === null ? "Insufficient Data" : formatPercent(irrValue * 100),
+    twrLabel:
+      statement?.netAssetValue?.timeWeightedReturn !== undefined && statement?.netAssetValue?.timeWeightedReturn !== null
+        ? formatPercent(statement.netAssetValue.timeWeightedReturn)
+        : "Insufficient Data",
+    ytdLabel: ytdValue === null ? "Insufficient Data" : formatPercent(ytdValue * 100),
+    itdLabel: itdValue === null ? "Insufficient Data" : formatPercent(itdValue * 100),
     netContributionReturnLabel: netContributionReturn === null ? "Insufficient Data" : formatPercent(netContributionReturn * 100),
     cashShareLabel:
       analytics.portfolioValue > 0 ? `${formatPercent((analytics.cash / analytics.portfolioValue) * 100)} of portfolio` : "Insufficient Data",
@@ -2635,16 +2570,9 @@ function calculateSummary(transactions, analytics, statement) {
       analytics.portfolioValue > 0
         ? `${formatPercent((analytics.deployedCapital / analytics.portfolioValue) * 100)} of portfolio`
         : "Insufficient Data",
-    irrValue: null,
-    mtdValue: mtdWindow.value,
-    ytdValue: ytdWindow.value,
-    itdValue: itdWindow.value,
-    mtdTrust: mtdWindow.trust,
-    ytdTrust: ytdWindow.trust,
-    itdTrust: itdWindow.trust,
-    mtdReason: mtdWindow.reason,
-    ytdReason: ytdWindow.reason,
-    itdReason: itdWindow.reason,
+    irrValue,
+    ytdValue,
+    itdValue,
     netContributionReturn,
     valuationDate,
     inceptionDate,

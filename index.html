@@ -71,9 +71,9 @@
               <p class="metric-footnote">Statement-date valuation change of the portfolio based on market prices at the statement date.</p>
             </article>
             <article class="panel stat-panel">
-              <p class="panel-label">Month-to-Date Return</p>
+              <p class="panel-label">IRR</p>
               <strong id="summary-irr" class="panel-value">Pending</strong>
-              <p class="metric-footnote">Return from the last completed NAV before the current month, excluding external capital flows from performance.</p>
+              <p class="metric-footnote">Money-weighted annualized return based on external cash flows and the ending portfolio value.</p>
             </article>
             <article class="panel stat-panel is-hidden">
               <p class="panel-label">Time-Weighted Return</p>
@@ -191,7 +191,7 @@
               </div>
             </section>
 
-            <section class="panel">
+            <section class="panel is-hidden" aria-hidden="true">
               <div class="panel-header">
                 <div>
                   <h2>Portfolio Value History</h2>
@@ -217,7 +217,7 @@
             </section>
           </div>
 
-          <details class="panel debug-panel">
+          <details class="panel debug-panel is-hidden" aria-hidden="true">
             <summary>Persistence Debug</summary>
             <div class="debug-grid">
               <div><span>Connection</span><strong id="debug-connection-status">-</strong></div>
@@ -459,9 +459,9 @@
               <p class="metric-footnote">Statement-date valuation change of the portfolio based on market prices at the statement date.</p>
             </article>
             <article class="panel stat-panel">
-              <p class="panel-label">Month-to-Date Return</p>
+              <p class="panel-label">IRR</p>
               <strong id="returns-irr" class="panel-value">Pending</strong>
-              <p class="metric-footnote">Return from the last completed NAV before the current month, excluding external capital flows from performance.</p>
+              <p class="metric-footnote">Money-weighted annualized return based on external cash flows and the ending portfolio value.</p>
             </article>
             <article class="panel stat-panel is-hidden">
               <p class="panel-label">Time-Weighted Return</p>
