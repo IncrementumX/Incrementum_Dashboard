@@ -13,17 +13,12 @@ async function bootstrap() {
 
   await runtime.initialize();
   window.IncrementumRuntime = runtime;
-
-  const legacyScript = document.createElement("script");
-  legacyScript.src = "./app.js";
-  legacyScript.defer = true;
-  document.body.appendChild(legacyScript);
+  await import("../app.js");
 }
 
 bootstrap().catch((error) => {
   console.error("Incrementum bootstrap failed", error);
-  const fallbackScript = document.createElement("script");
-  fallbackScript.src = "./app.js";
-  fallbackScript.defer = true;
-  document.body.appendChild(fallbackScript);
+  import("../app.js").catch((secondaryError) => {
+    console.error("Incrementum app fallback import failed", secondaryError);
+  });
 });

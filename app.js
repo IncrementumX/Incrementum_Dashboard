@@ -1,3 +1,5 @@
+import { createScoutEngine } from "./src/scout/engine.js";
+
 const STORAGE_KEY = "incrementum-dashboard-state-v6";
 const ACTIVE_TAB_KEY = "incrementum-dashboard-active-tab";
 const runtime = window.IncrementumRuntime || null;
@@ -5,6 +7,10 @@ const stateRepository = runtime?.services?.stateRepository || null;
 const uiContextService = runtime?.services?.uiContextService || null;
 const shareLinkService = runtime?.services?.shareLinkService || null;
 const repositoryStatus = stateRepository?.getStatus?.() || null;
+const scoutEngine = createScoutEngine({
+  config: runtime?.config || {},
+  marketDataGateway: runtime?.services?.marketDataGateway || null,
+});
 const LEGACY_STORAGE_KEYS = [
   "incrementum-dashboard-state-v5",
   "incrementum-dashboard-state-v3",
@@ -57,6 +63,11 @@ const defaultState = {
     sofrRate: 0.045,
     hurdleRate: 0.08,
   },
+  scout: {
+    watchlist: [],
+    customPairs: [],
+    lastViewedOpportunityId: null,
+  },
 };
 
 let state = applyRuntimeContext(loadState());
@@ -67,6 +78,10 @@ const syncUiState = {
   lastValuation: null,
   lastImportReport: null,
   returnTrust: null,
+  scoutModel: null,
+  scoutLoading: false,
+  scoutError: null,
+  scoutCacheKey: null,
 };
 
 const elements = {
@@ -163,6 +178,7 @@ const elements = {
   filterSearch: document.getElementById("filter-search"),
   filterDateFrom: document.getElementById("filter-date-from"),
   filterDateTo: document.getElementById("filter-date-to"),
+  scoutRoot: document.getElementById("scout-root"),
 };
 
 setupTabs();
@@ -171,6 +187,7 @@ setupImport();
 setupFilters();
 setupPreferences();
 setupExport();
+setupScout();
 renderFilterOptions();
 renderApp();
 triggerInitialBackendMigration();
@@ -224,6 +241,7 @@ function normalizeState(rawState) {
           : null;
     const marketData = normalizeMarketData(rawState?.marketData);
     const preferences = normalizePreferences(rawState?.preferences);
+    const scout = normalizeScoutState(rawState?.scout);
 
     return {
       manual: {
@@ -238,6 +256,7 @@ function normalizeState(rawState) {
       },
       marketData,
       preferences,
+      scout,
     };
   }
 
@@ -269,6 +288,7 @@ function normalizeState(rawState) {
       },
       marketData: normalizeMarketData(rawState?.marketData),
       preferences: normalizePreferences(rawState?.preferences),
+      scout: normalizeScoutState(rawState?.scout),
     };
   }
 
@@ -285,6 +305,7 @@ function normalizeState(rawState) {
     },
     marketData: normalizeMarketData(rawState?.marketData),
     preferences: normalizePreferences(rawState?.preferences),
+    scout: normalizeScoutState(rawState?.scout),
   };
 }
 
@@ -324,6 +345,7 @@ function migrateLegacyState(legacyState) {
     },
     marketData: normalizeMarketData(),
     preferences: normalizePreferences(),
+    scout: normalizeScoutState(),
   };
 }
 
@@ -341,6 +363,35 @@ function normalizePreferences(rawPreferences) {
     primaryBenchmark: ["SPX", "SOFR", "HURDLE"].includes(rawPreferences?.primaryBenchmark) ? rawPreferences.primaryBenchmark : "SPX",
     sofrRate: Number.isFinite(Number(rawPreferences?.sofrRate)) ? Number(rawPreferences.sofrRate) : 0.045,
     hurdleRate: Number.isFinite(Number(rawPreferences?.hurdleRate)) ? Number(rawPreferences.hurdleRate) : 0.08,
+  };
+}
+
+function normalizeScoutState(rawScout) {
+  const watchlist = Array.isArray(rawScout?.watchlist)
+    ? rawScout.watchlist
+        .filter((item) => item?.targetId)
+        .map((item) => ({
+          id: item.id || makeId(),
+          kind: item.kind || "opportunity",
+          targetId: String(item.targetId),
+          label: String(item.label || ""),
+          createdAt: String(item.createdAt || new Date().toISOString()),
+          notes: String(item.notes || ""),
+        }))
+    : [];
+  const customPairs = Array.isArray(rawScout?.customPairs)
+    ? rawScout.customPairs
+        .map((pair) => ({
+          left: String(pair?.left || "").trim().toUpperCase(),
+          right: String(pair?.right || "").trim().toUpperCase(),
+        }))
+        .filter((pair) => pair.left && pair.right)
+    : [];
+
+  return {
+    watchlist,
+    customPairs,
+    lastViewedOpportunityId: rawScout?.lastViewedOpportunityId ? String(rawScout.lastViewedOpportunityId) : null,
   };
 }
 
@@ -548,6 +599,7 @@ function buildPersistedDomainState(currentState) {
       sofrRate: currentState.preferences?.sofrRate ?? 0.045,
       hurdleRate: currentState.preferences?.hurdleRate ?? 0.08,
     },
+    scout: currentState.scout,
   };
 }
 
@@ -1130,6 +1182,7 @@ function renderApp() {
   renderDashboard(analytics.positionsForAllocation, summary);
   renderSummaryReturns(summary, analytics.assetPerformance);
   renderStatementHistory();
+  renderScout(context, analytics, summary);
   syncTransactionFormMode();
 }
 
@@ -1403,6 +1456,641 @@ function renderSummaryReturns(summary, assetPerformance) {
       </tr>
     `)
     .join("");
+}
+
+function setupScout() {
+  if (!elements.scoutRoot) return;
+
+  elements.scoutRoot.addEventListener("click", (event) => {
+    const saveButton = event.target.closest("[data-scout-save-opportunity]");
+    if (saveButton) {
+      upsertScoutWatchlistItem({
+        kind: "opportunity",
+        targetId: saveButton.dataset.scoutSaveOpportunity,
+        label: saveButton.dataset.scoutLabel || "Saved opportunity",
+      });
+      return;
+    }
+
+    const saveStrategyButton = event.target.closest("[data-scout-save-strategy]");
+    if (saveStrategyButton) {
+      upsertScoutWatchlistItem({
+        kind: "strategy",
+        targetId: saveStrategyButton.dataset.scoutSaveStrategy,
+        label: saveStrategyButton.dataset.scoutLabel || "Saved strategy",
+      });
+      return;
+    }
+
+    const removeButton = event.target.closest("[data-scout-remove-watchlist-id]");
+    if (removeButton) {
+      state.scout.watchlist = state.scout.watchlist.filter((item) => item.id !== removeButton.dataset.scoutRemoveWatchlistId);
+      invalidateScoutModel();
+      saveState();
+      renderApp();
+    }
+  });
+
+  elements.scoutRoot.addEventListener("submit", (event) => {
+    const form = event.target.closest("#scout-custom-pair-form");
+    if (!form) return;
+
+    event.preventDefault();
+    const formData = new FormData(form);
+    const left = String(formData.get("left") || "").trim().toUpperCase();
+    const right = String(formData.get("right") || "").trim().toUpperCase();
+    if (!left || !right || left === right) return;
+
+    const alreadyExists = state.scout.customPairs.some((pair) => pair.left === left && pair.right === right);
+    if (!alreadyExists) {
+      state.scout.customPairs = [...state.scout.customPairs, { left, right }];
+      invalidateScoutModel();
+      saveState();
+    }
+
+    form.reset();
+    renderApp();
+  });
+}
+
+function upsertScoutWatchlistItem({ kind, targetId, label }) {
+  const existing = state.scout.watchlist.find((item) => item.targetId === targetId);
+  if (existing) return;
+
+  state.scout.watchlist = [
+    {
+      id: makeId(),
+      kind,
+      targetId,
+      label,
+      createdAt: new Date().toISOString(),
+      notes: "",
+    },
+    ...state.scout.watchlist,
+  ];
+  invalidateScoutModel();
+  saveState();
+  renderApp();
+}
+
+function invalidateScoutModel() {
+  syncUiState.scoutModel = null;
+  syncUiState.scoutCacheKey = null;
+}
+
+function renderScout(context, analytics, summary) {
+  if (!elements.scoutRoot) return;
+
+  const cacheKey = buildScoutCacheKey(context, analytics);
+  if (syncUiState.scoutCacheKey !== cacheKey && !syncUiState.scoutLoading) {
+    void refreshScoutModel({ context, analytics, summary, cacheKey });
+  }
+
+  if (syncUiState.scoutError) {
+    elements.scoutRoot.innerHTML = `
+      <section class="panel scout-empty-state">
+        <div class="panel-header">
+          <div>
+            <h2>Scout Unavailable</h2>
+            <p class="panel-subtitle">${escapeHtml(syncUiState.scoutError)}</p>
+          </div>
+        </div>
+      </section>
+    `;
+    return;
+  }
+
+  if (!syncUiState.scoutModel) {
+    elements.scoutRoot.innerHTML = `
+      <section class="panel scout-empty-state">
+        <div class="panel-header">
+          <div>
+            <h2>Building Scout</h2>
+            <p class="panel-subtitle">Loading strategy coverage, mock or provider-backed histories, backtests, and portfolio overlap.</p>
+          </div>
+          <span class="status-pill status-pill--warning">Preparing research layer</span>
+        </div>
+      </section>
+    `;
+    return;
+  }
+
+  const model = syncUiState.scoutModel;
+  elements.scoutRoot.innerHTML = `
+    ${renderScoutOverview(model, summary)}
+    ${renderScoutMacroSnapshot(model)}
+    ${renderScoutMacroPanels(model)}
+    ${renderScoutRelativeComparisons(model)}
+    ${renderScoutSuggestions(model)}
+    ${renderScoutOpportunityFeed(model)}
+    ${renderScoutStrategyLibrary(model)}
+    ${renderScoutBacktests(model)}
+    ${renderScoutWatchlist(model)}
+  `;
+}
+
+async function refreshScoutModel({ context, analytics, summary, cacheKey }) {
+  syncUiState.scoutLoading = true;
+  syncUiState.scoutError = null;
+
+  try {
+    const model = await scoutEngine.evaluate({
+      context,
+      analytics,
+      scoutState: state.scout,
+      valuationDate: getActiveValuationDate(context.transactions, context.statement),
+      summary,
+    });
+    syncUiState.scoutModel = model;
+    syncUiState.scoutCacheKey = cacheKey;
+  } catch (error) {
+    syncUiState.scoutError = error?.message || "Scout failed to load.";
+  } finally {
+    syncUiState.scoutLoading = false;
+    renderScout(context, analytics, summary);
+  }
+}
+
+function buildScoutCacheKey(context, analytics) {
+  const latestTransaction = [...(context.transactions || [])].sort((left, right) => right.date.localeCompare(left.date))[0];
+  const holdingsKey = (analytics.openHoldings || [])
+    .map((holding) => `${holding.ticker}:${roundNumber(holding.marketValue)}`)
+    .join("|");
+  return [context.mode, latestTransaction?.date || "-", context.transactions?.length || 0, holdingsKey, state.scout.customPairs.length].join("::");
+}
+
+function renderScoutOverview(model, summary) {
+  const macro = model.macroResearch;
+  return `
+    <section class="panel scout-hero">
+      <div class="panel-header scout-hero__header">
+        <div>
+          <h2>Scout Overview</h2>
+          <p class="panel-subtitle">Macro-conditioning and regime-testing engine centered on RING, AGQ, real yields, breakevens, curve shape, and dollar structure.</p>
+        </div>
+        <div class="scout-hero__badges">
+          <span class="status-pill ${getScoutStatusClass(model.dataStatus)}">${escapeHtml(model.dataStatus)}</span>
+          <span class="status-pill status-pill--muted">Freshness: ${escapeHtml(model.freshnessLabel)}</span>
+          <span class="status-pill status-pill--muted">Portfolio value: ${formatCurrency(summary.portfolioValue)}</span>
+        </div>
+      </div>
+      <div class="panel-grid panel-grid--summary scout-overview-grid">
+        <article class="panel stat-panel scout-stat">
+          <p class="panel-label">Active Opportunities</p>
+          <strong class="panel-value">${model.overview.activeOpportunities}</strong>
+          <p class="metric-footnote">Ranked candidates currently under attention.</p>
+        </article>
+        <article class="panel stat-panel scout-stat">
+          <p class="panel-label">Strategies Under Coverage</p>
+          <strong class="panel-value">${model.overview.strategiesUnderCoverage}</strong>
+          <p class="metric-footnote">Catalog breadth anchored to the PDF taxonomy.</p>
+        </article>
+        <article class="panel stat-panel scout-stat">
+          <p class="panel-label">Backtested Now</p>
+          <strong class="panel-value">${model.overview.strategiesBacktested}</strong>
+          <p class="metric-footnote">Strategies with standardized performance and friction assumptions.</p>
+        </article>
+        <article class="panel stat-panel scout-stat">
+          <p class="panel-label">Currently Attractive</p>
+          <strong class="panel-value">${model.overview.strategiesCurrentlyAttractive}</strong>
+          <p class="metric-footnote">Composite Scout Score above the current threshold.</p>
+        </article>
+        <article class="panel stat-panel scout-stat">
+          <p class="panel-label">Macro Observations</p>
+          <strong class="panel-value">${macro?.datasetMeta?.observations || 0}</strong>
+          <p class="metric-footnote">${escapeHtml(describeScoutDataSources(model))}</p>
+        </article>
+      </div>
+      <div class="scout-coverage-strip">
+        ${(macro?.focusAssets || [])
+          .slice(0, 6)
+          .map(
+            (asset) => `
+              <div class="scout-coverage-chip">
+                <strong>${escapeHtml(asset.symbol)}</strong>
+                <span>${escapeHtml(asset.currentRegime.state)} | confidence ${asset.currentRegime.confidence}/100</span>
+                <small>Top driver: ${escapeHtml(asset.rankedDrivers[0]?.driverLabel || "n/a")}</small>
+              </div>
+            `
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderScoutMacroSnapshot(model) {
+  const snapshot = model.macroResearch?.macroSnapshot || [];
+  return `
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <h2>Macro Snapshot</h2>
+          <p class="panel-subtitle">First-class macro inputs: nominal yields, real yields, breakevens, curve shape, forward inflation, and the dollar.</p>
+        </div>
+      </div>
+      <div class="scout-macro-grid">
+        ${snapshot
+          .map(
+            (item) => `
+              <article class="scout-macro-tile">
+                <span>${escapeHtml(item.label)}</span>
+                <strong>${formatMacroValue(item.latest, item.unit)}</strong>
+                <p>${escapeHtml(item.signal)}</p>
+                <small>20D change ${formatMacroDelta(item.change20, item.unit)}</small>
+              </article>
+            `
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderScoutMacroPanels(model) {
+  const assets = model.macroResearch?.focusAssets || [];
+  return `
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <h2>Macro Research Cockpit</h2>
+          <p class="panel-subtitle">RING and AGQ are first-class research objects, with GLD, TIP, TLT, UUP, COPX, and URA extending the same regime engine.</p>
+        </div>
+      </div>
+      <div class="scout-card-grid">
+        ${assets
+          .map(
+            (asset) => `
+              <article class="panel scout-card scout-macro-panel">
+                <div class="scout-card__topline">
+                  <div>
+                    <h3>${escapeHtml(asset.symbol)}</h3>
+                    <p>${escapeHtml(asset.category)} | ${escapeHtml(asset.currentRegime.state)} backdrop</p>
+                  </div>
+                  <div class="scout-card__actions">
+                    <span class="status-pill ${asset.priority === 1 ? "status-pill--success" : "status-pill--muted"}">${asset.priority === 1 ? "Priority" : "Coverage"}</span>
+                    <button type="button" class="button button--secondary button--small" data-scout-save-opportunity="macro-${escapeHtml(asset.symbol)}" data-scout-label="${escapeHtml(asset.symbol)} Macro Regime Map">Save</button>
+                  </div>
+                </div>
+                <div class="scout-card__metrics">
+                  <div><span>Price</span><strong>${formatCurrency(asset.currentPrice)}</strong></div>
+                  <div><span>Regime</span><strong>${escapeHtml(asset.currentRegime.state)}</strong></div>
+                  <div><span>Confidence</span><strong>${asset.currentRegime.confidence}/100</strong></div>
+                  <div><span>Composite</span><strong>${Math.round(asset.scorecard.compositeScoutScore)}/100</strong></div>
+                </div>
+                <p class="scout-card__why">${escapeHtml(asset.interpretation)}</p>
+                <div class="scout-driver-list">
+                  ${asset.keyHypotheses
+                    .map(
+                      (driver) => `
+                        <div class="scout-driver-item">
+                          <strong>${escapeHtml(driver.driverLabel)}</strong>
+                          <span>${escapeHtml(driver.verdict)}</span>
+                          <small>corr ${formatNumber(driver.corr)} | beta ${formatNumber(driver.beta)} | 20D edge ${formatPercent(driver.horizons[20].edge * 100)}</small>
+                        </div>
+                      `
+                    )
+                    .join("")}
+                </div>
+                <div class="scout-score-grid">
+                  ${renderScoutScorePill("Signal", asset.scorecard.signalStrength)}
+                  ${renderScoutScorePill("History", asset.scorecard.historicalEfficacy)}
+                  ${renderScoutScorePill("Robustness", asset.scorecard.robustness)}
+                  ${renderScoutScorePill("Regime", asset.scorecard.regimeFit)}
+                  ${renderScoutScorePill("Portfolio", asset.scorecard.portfolioRelevance)}
+                  ${renderScoutScorePill("Data", asset.scorecard.dataQuality)}
+                </div>
+                <div class="scout-card__footer">
+                  <span>Portfolio linkage: ${escapeHtml(asset.portfolioLinkage.overlap)}</span>
+                  <span>Additivity: ${escapeHtml(asset.portfolioLinkage.additive)}</span>
+                </div>
+              </article>
+            `
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderScoutRelativeComparisons(model) {
+  const relatives = model.macroResearch?.relativeComparisons || [];
+  return `
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <h2>Relative Macro Expressions</h2>
+          <p class="panel-subtitle">Relative-value style tests highlight when one macro expression historically dominated another under current regimes.</p>
+        </div>
+      </div>
+      <div class="scout-relative-grid">
+        ${relatives
+          .slice(0, 6)
+          .map(
+            (item) => `
+              <article class="scout-library-item">
+                <div class="scout-library-item__header">
+                  <div>
+                    <h3>${escapeHtml(item.label)}</h3>
+                    <p>Relative z-score ${formatNumber(item.currentZ)} | Composite ${Math.round(item.composite)}/100</p>
+                  </div>
+                </div>
+                <p>${escapeHtml(item.interpretation)}</p>
+                <p><strong>Real-yield regime edge:</strong> ${formatPercent(item.realYieldEdge.edge * 100)}</p>
+                <p><strong>Dollar regime edge:</strong> ${formatPercent(item.dollarEdge.edge * 100)}</p>
+                <p><strong>Joint regime edge:</strong> ${formatPercent(item.joint.edge * 100)}</p>
+                <p><strong>Portfolio linkage:</strong> ${escapeHtml(item.portfolioLinkage.overlap)}</p>
+              </article>
+            `
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderScoutSuggestions(model) {
+  const suggestions = model.macroResearch?.suggestions || [];
+  return `
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <h2>Current Interpretation</h2>
+          <p class="panel-subtitle">Suggestion layer expresses what the current macro backdrop historically favored, without turning the output into a blind buy/sell command.</p>
+        </div>
+      </div>
+      <div class="scout-suggestion-list">
+        ${suggestions.map((item) => `<div class="scout-suggestion-item">${escapeHtml(item)}</div>`).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderScoutOpportunityFeed(model) {
+  const cards = model.opportunities
+    .slice(0, 8)
+    .map(
+      (opportunity) => `
+        <article class="panel scout-card">
+          <div class="scout-card__topline">
+            <div>
+              <h3>${escapeHtml(opportunity.strategyName)}</h3>
+              <p>${escapeHtml(opportunity.strategyFamily)} | ${escapeHtml(opportunity.instruments.join(" / "))}</p>
+            </div>
+            <div class="scout-card__actions">
+              <span class="status-pill ${getScoutStatusClass(opportunity.dataStatus)}">${escapeHtml(opportunity.dataStatus)}</span>
+              <button type="button" class="button button--secondary button--small" data-scout-save-opportunity="${escapeHtml(opportunity.id)}" data-scout-label="${escapeHtml(opportunity.strategyName)}">Save</button>
+            </div>
+          </div>
+          <div class="scout-card__metrics">
+            <div><span>Signal</span><strong>${escapeHtml(opportunity.signalState)}</strong></div>
+            <div><span>Metric</span><strong>${escapeHtml(opportunity.signalValueLabel)}</strong></div>
+            <div><span>Backtest</span><strong>${Math.round(opportunity.scorecard.backtestScore)}/100</strong></div>
+            <div><span>Composite</span><strong>${Math.round(opportunity.scorecard.compositeScoutScore)}/100</strong></div>
+          </div>
+          <p class="scout-card__spread">${escapeHtml(opportunity.spreadLabel)}</p>
+          <p class="scout-card__why">${escapeHtml(opportunity.whyNow)}</p>
+          <div class="scout-score-grid">
+            ${renderScoutScorePill("Signal", opportunity.scorecard.signalStrength)}
+            ${renderScoutScorePill("History", opportunity.scorecard.historicalEfficacy)}
+            ${renderScoutScorePill("Robustness", opportunity.scorecard.robustness)}
+            ${renderScoutScorePill("Liquidity", opportunity.scorecard.liquidityTradability)}
+            ${renderScoutScorePill("Cost", opportunity.scorecard.costSensitivity)}
+            ${renderScoutScorePill("Regime", opportunity.scorecard.regimeFit)}
+            ${renderScoutScorePill("Data", opportunity.scorecard.dataQuality)}
+            ${renderScoutScorePill("Portfolio", opportunity.scorecard.portfolioRelevance)}
+          </div>
+          <div class="scout-card__footer">
+            <span>Risk flag: ${escapeHtml(opportunity.riskFlag)}</span>
+            <span>Portfolio linkage: ${escapeHtml(opportunity.overlapSummary)}</span>
+            <span>Freshness: ${escapeHtml(opportunity.freshness)}</span>
+          </div>
+        </article>
+      `
+    )
+    .join("");
+
+  return `
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <h2>Opportunity Feed</h2>
+          <p class="panel-subtitle">Transparent ranking with visible component scores, friction-aware backtests, and honest data-status labels.</p>
+        </div>
+      </div>
+      <div class="scout-card-grid">${cards}</div>
+    </section>
+  `;
+}
+
+function renderScoutStrategyLibrary(model) {
+  return `
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <h2>Strategy Library</h2>
+          <p class="panel-subtitle">Structured catalog shaped by the PDF's families, formulas, and naming, but filtered through implementation realism.</p>
+        </div>
+      </div>
+      <div class="scout-library-list">
+        ${model.library
+          .map(
+            (strategy) => `
+              <article class="scout-library-item">
+                <div class="scout-library-item__header">
+                  <div>
+                    <h3>${escapeHtml(strategy.name)}</h3>
+                    <p>${escapeHtml(strategy.family)} | ${escapeHtml(strategy.assetClass)} | ${escapeHtml(strategy.bucket)}</p>
+                  </div>
+                  <button type="button" class="button button--ghost button--small" data-scout-save-strategy="${escapeHtml(strategy.id)}" data-scout-label="${escapeHtml(strategy.name)}">Queue</button>
+                </div>
+                <p>${escapeHtml(strategy.shortDescription)}</p>
+                <p><strong>Relationship:</strong> ${escapeHtml(strategy.relationship)}</p>
+                <p><strong>Required inputs:</strong> ${escapeHtml(strategy.requiredDataInputs.join(", "))}</p>
+                <p><strong>PDF anchors:</strong> ${escapeHtml(strategy.pdfAnchors.join(" | "))}</p>
+                <p><strong>Status:</strong> ${escapeHtml(strategy.implementationStatus)} | Backtest: ${strategy.backtestAvailable ? "available" : "not yet"}</p>
+                <p><strong>Caveats:</strong> ${escapeHtml(strategy.caveats.join(" "))}</p>
+              </article>
+            `
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderScoutBacktests(model) {
+  return `
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <h2>Backtests</h2>
+          <p class="panel-subtitle">Costs and slippage included. Simulated outcomes are labeled honestly and not presented as deployable alpha.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table data-table--compact scout-backtest-table">
+          <thead>
+            <tr>
+              <th>Strategy</th>
+              <th>Test Period</th>
+              <th class="numeric-cell">Gross</th>
+              <th class="numeric-cell">Net</th>
+              <th class="numeric-cell">Sharpe</th>
+              <th class="numeric-cell">Hit Rate</th>
+              <th class="numeric-cell">Max DD</th>
+              <th class="numeric-cell">Turnover</th>
+              <th class="numeric-cell">Trades</th>
+              <th>Rules / Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${
+              model.backtests.length
+                ? model.backtests
+                    .map(
+                      (backtest) => `
+                        <tr>
+                          <td>
+                            <strong>${escapeHtml(backtest.title)}</strong>
+                            <div class="table-subtext">${escapeHtml(backtest.universe)}</div>
+                          </td>
+                          <td>${escapeHtml(backtest.testPeriod)}</td>
+                          <td class="numeric-cell ${getValueClass(backtest.grossReturn)}">${formatPercent(backtest.grossReturn * 100)}</td>
+                          <td class="numeric-cell ${getValueClass(backtest.netReturn)}">${formatPercent(backtest.netReturn * 100)}</td>
+                          <td class="numeric-cell ${getValueClass(backtest.sharpe)}">${formatNumber(backtest.sharpe)}</td>
+                          <td class="numeric-cell">${formatPercent(backtest.hitRate * 100)}</td>
+                          <td class="numeric-cell ${getValueClass(backtest.maxDrawdown)}">${formatPercent(backtest.maxDrawdown * 100)}</td>
+                          <td class="numeric-cell">${formatNumber(backtest.turnover)}</td>
+                          <td class="numeric-cell">${formatNumber(backtest.sampleSize)}</td>
+                          <td>
+                            <div class="table-subtext">${escapeHtml(backtest.signalDefinition)}</div>
+                            <div class="table-subtext">${escapeHtml(backtest.entryRule)} | ${escapeHtml(backtest.exitRule)}</div>
+                            <div class="table-subtext">Holding: ${escapeHtml(backtest.holdingPeriod)} | Regime: ${escapeHtml(backtest.regimeCompatibility)}</div>
+                            <div class="table-subtext">Costs: ${escapeHtml(backtest.transactionCostAssumption)} | Slippage: ${escapeHtml(backtest.slippageAssumption)}</div>
+                            <div class="table-subtext">${escapeHtml(backtest.robustnessNotes)}</div>
+                          </td>
+                        </tr>
+                      `
+                    )
+                    .join("")
+                : buildEmptyRow("Backtests will appear as strategies graduate from research catalog to monitored modules.", 10)
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
+
+function renderScoutWatchlist(model) {
+  return `
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <h2>Watchlist / Research Queue</h2>
+          <p class="panel-subtitle">Persistent shortlist for strategy frameworks and opportunity objects that deserve follow-up.</p>
+        </div>
+      </div>
+      <div class="scout-watchlist-layout">
+        <form id="scout-custom-pair-form" class="transaction-form scout-pair-form">
+          <label>
+            <span>Custom Pair Left</span>
+            <input name="left" type="text" placeholder="MSFT" maxlength="16" />
+          </label>
+          <label>
+            <span>Custom Pair Right</span>
+            <input name="right" type="text" placeholder="AAPL" maxlength="16" />
+          </label>
+          <div class="form-actions">
+            <button type="submit" class="button button--primary">Add Pair</button>
+          </div>
+          <p class="panel-subtitle">User-defined pairs join the discovery universe. Without provider data they fall back to simulated coverage if supported.</p>
+          <div class="scout-custom-pairs">
+            ${(state.scout.customPairs || []).map((pair) => `<span class="status-pill status-pill--muted">${escapeHtml(pair.left)} / ${escapeHtml(pair.right)}</span>`).join("") || '<span class="panel-subtitle">No custom pairs yet.</span>'}
+          </div>
+        </form>
+        <div class="scout-watchlist-list">
+          ${
+            model.watchlist.length
+              ? model.watchlist
+                  .map(
+                    (item) => `
+                      <article class="scout-watchlist-item">
+                        <div>
+                          <strong>${escapeHtml(item.label)}</strong>
+                          <p>${escapeHtml(item.kind)} | ${escapeHtml(item.status)}</p>
+                        </div>
+                        <button type="button" class="button button--danger button--small" data-scout-remove-watchlist-id="${escapeHtml(item.id)}">Remove</button>
+                      </article>
+                    `
+                  )
+                  .join("")
+              : '<div class="panel-subtitle">No saved research items yet. Save opportunities or strategy frameworks from above.</div>'
+          }
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderScoutScorePill(label, value) {
+  return `
+    <div class="scout-score-pill">
+      <span>${escapeHtml(label)}</span>
+      <strong>${Math.round(value)}</strong>
+    </div>
+  `;
+}
+
+function formatMacroValue(value, unit) {
+  if (unit === "%") return `${Number(value || 0).toFixed(2)}%`;
+  if (unit === "bp") return `${Number(value || 0).toFixed(0)} bp`;
+  return formatNumber(value);
+}
+
+function formatMacroDelta(value, unit) {
+  if (unit === "%") return `${value >= 0 ? "+" : ""}${Number(value || 0).toFixed(2)} pts`;
+  if (unit === "bp") return `${value >= 0 ? "+" : ""}${Number(value || 0).toFixed(0)} bp`;
+  return `${value >= 0 ? "+" : ""}${formatNumber(value)}`;
+}
+
+function resolveStrategyName(strategyId) {
+  return syncUiState.scoutModel?.library?.find((item) => item.id === strategyId)?.name || strategyId;
+}
+
+function getScoutStatusClass(status) {
+  if (status === "live") return "status-pill--success";
+  if (status === "delayed") return "status-pill--warning";
+  if (status === "research-only") return "status-pill--error";
+  return "status-pill--muted";
+}
+
+function describeScoutDataSources(model) {
+  const datasetMeta = model?.macroResearch?.datasetMeta || {};
+  const fredSources = Object.values(datasetMeta.fredSeriesSources || {});
+  const yahooLabel = model?.dataStatus === "live" ? "Yahoo Finance prices are live." : "Yahoo Finance prices are not fully live.";
+
+  if (!fredSources.length) {
+    return `${yahooLabel} FRED source metadata is unavailable for this snapshot.`;
+  }
+
+  const allFredApi = fredSources.every((source) => source === "fredapi");
+  const anyFallback = fredSources.some((source) => String(source).startsWith("csv-fallback"));
+
+  if (allFredApi) {
+    return `${yahooLabel} FRED macro series are loading through fredapi.`;
+  }
+
+  if (anyFallback && datasetMeta.fredKeyConfigured) {
+    return `${yahooLabel} FRED key is present, but one or more macro series fell back to public CSV for this snapshot.`;
+  }
+
+  if (anyFallback) {
+    return `${yahooLabel} FRED macro series are using public CSV fallback because no API key was detected at runtime.`;
+  }
+
+  return `${yahooLabel} FRED macro source mix: ${fredSources.join(", ")}.`;
 }
 
 function buildPortfolioHistorySeries(context) {

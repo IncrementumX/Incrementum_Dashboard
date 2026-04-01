@@ -36,6 +36,7 @@
 
       <nav class="tab-nav" aria-label="Main navigation">
         <button class="tab-button is-active" data-tab-target="dashboard-tab">Dashboard</button>
+        <button class="tab-button" data-tab-target="scout-tab">Scout</button>
         <button class="tab-button" data-tab-target="transactions-tab">Transactions</button>
         <button class="tab-button" data-tab-target="summary-returns-tab">Summary Returns</button>
       </nav>
@@ -234,6 +235,10 @@
               <div><span>Valuation Snapshot</span><strong id="debug-valuation-summary">-</strong></div>
             </div>
           </details>
+        </section>
+
+        <section id="scout-tab" class="tab-panel">
+          <div id="scout-root"></div>
         </section>
 
         <section id="transactions-tab" class="tab-panel">
