@@ -400,6 +400,8 @@ function normalizeScoutState(rawScout) {
       maxDays: Number(rawScout?.strategyLab?.gsParams?.maxDays ?? 180),
     },
     activeStrategy: rawScout?.strategyLab?.activeStrategy || "vix",
+    // Multi-timeframe: 5 | 20 | 60 | 120 | 250 (trading days)
+    activeTimeframe: Number(rawScout?.strategyLab?.activeTimeframe ?? 20),
   };
 
   return {
@@ -1574,6 +1576,17 @@ function setupScout() {
       renderApp();
       return;
     }
+
+    // Timeframe selector
+    const tfTab = event.target.closest("[data-timeframe]");
+    if (tfTab) {
+      state.scout.strategyLab.activeTimeframe = Number(tfTab.dataset.timeframe);
+      saveState();
+      // Invalidate cache and re-evaluate
+      syncUiState.scoutCacheKey = null;
+      renderApp();
+      return;
+    }
   });
 
   elements.scoutRoot.addEventListener("submit", (event) => {
@@ -1741,120 +1754,23 @@ function buildScoutCacheKey(context, analytics) {
     .map((holding) => `${holding.ticker}:${roundNumber(holding.marketValue)}`)
     .join("|");
   const labKey = JSON.stringify(state.scout.strategyLab);
-  return [context.mode, latestTransaction?.date || "-", context.transactions?.length || 0, holdingsKey, state.scout.customPairs.length, labKey].join("::");
+  const tf = state.scout.strategyLab?.activeTimeframe ?? 20;
+  return [context.mode, latestTransaction?.date || "-", context.transactions?.length || 0, holdingsKey, state.scout.customPairs.length, labKey, tf].join("::");
 }
 
-// ── SCOUT v2 rendering ──────────────────────────────────────────────────────
-
-function classifyMacroRegimeFromSnapshot(snapshot) {
-  const by = {};
-  for (const item of snapshot) by[item.code] = item;
-
-  const real = by.DFII10 || {};
-  const be = by.T10YIE || {};
-  const curve = by.T10Y2Y || {};
-  const dollar = by.DXY || {};
-
-  const realFalling = (real.change20 || 0) < -0.1;
-  const realRising = (real.change20 || 0) > 0.1;
-  const realHigh = (real.latest || 0) > 2.0;
-
-  const beRising = (be.change20 || 0) > 0.05;
-  const beFalling = (be.change20 || 0) < -0.05;
-
-  const curveInverted = (curve.latest || 0) < 0;
-  const curveSteepening = (curve.change20 || 0) > 5;
-
-  const dollarFalling = (dollar.change20 || 0) < -0.4;
-  const dollarRising = (dollar.change20 || 0) > 0.4;
-  const dollarStrong = (dollar.percentile || 50) > 65;
-
-  if (realFalling && beRising && dollarFalling) {
-    return {
-      name: "Real Rate Suppression + Soft Dollar",
-      theme: "Falling real rates, rising breakevens, weakening dollar — historically the cleanest setup for metals, miners, and inflation protection.",
-      confidence: "high",
-    };
-  }
-  if (realFalling && beRising) {
-    return {
-      name: "Real Rate Compression / Reflation",
-      theme: "Real yields compressing while breakevens rise — supportive for inflation-protection assets and gold miners.",
-      confidence: "high",
-    };
-  }
-  if (realRising && dollarRising && beFalling) {
-    return {
-      name: "Disinflationary Tightening",
-      theme: "Rising real rates, strengthening dollar, falling breakevens — adverse backdrop for metals and inflation assets.",
-      confidence: "high",
-    };
-  }
-  if (realFalling && dollarFalling && !beRising) {
-    return {
-      name: "Dollar Weakness + Easing",
-      theme: "Dollar weakening alongside falling real yields — metals-supportive even without strong breakeven confirmation.",
-      confidence: "medium",
-    };
-  }
-  if (realHigh && curveInverted && !beRising) {
-    return {
-      name: "Late Cycle / Growth Scare",
-      theme: "Elevated real rates with inverted curve — risk-off signals. Metals outcome depends on whether recession fear dominates.",
-      confidence: "medium",
-    };
-  }
-  if (beRising && curveSteepening && !realHigh) {
-    return {
-      name: "Cyclical Reflation",
-      theme: "Steepening curve with rising inflation expectations — commodity complex and real-asset expressions historically favored.",
-      confidence: "medium",
-    };
-  }
-  if (realRising && beRising) {
-    return {
-      name: "Nominal Repricing",
-      theme: "Both real yields and breakevens rising — mixed for metals. TIP may outperform nominal duration; gold less directional.",
-      confidence: "medium",
-    };
-  }
-  if (dollarStrong && !beRising) {
-    return {
-      name: "Dollar Dominance / Risk-Off",
-      theme: "Strong dollar without inflation support — headwind for metals and commodity expressions.",
-      confidence: "medium",
-    };
-  }
-  if (realRising) {
-    return {
-      name: "Rising Real Yields / Tightening Conditions",
-      theme: "Real yields climbing — historically adverse for gold, miners, and inflation assets. Duration punished without breakeven offset.",
-      confidence: "medium",
-    };
-  }
-  if (realFalling) {
-    return {
-      name: "Falling Real Yields / Easing Bias",
-      theme: "Real yields declining — historically supportive for metals and inflation assets, even without strong breakeven confirmation.",
-      confidence: "medium",
-    };
-  }
-
-  return {
-    name: "Transitional / Mixed Signals",
-    theme: "No dominant regime pattern — macro drivers sending mixed signals. Confidence in any single directional thesis is low.",
-    confidence: "low",
-  };
-}
+// ── SCOUT v3 rendering ──────────────────────────────────────────────────────
 
 // ── WHAT TO DO NOW — actionable signals ────────────────────────────────────
 
 function buildActionSignals(model) {
   const assets = model.macroResearch?.focusAssets || [];
   const relatives = model.macroResearch?.relativeComparisons || [];
-  const lab = model.strategyLab;
+  const discreteRegime = model.macroResearch?.discreteRegime;
+  const agqMomentum = model.macroResearch?.agqMomentum;
 
-  // Build action for each priority 1+2 asset
+  // Use regime outlook from discrete regime model when available
+  const regimeOutlook = discreteRegime?.regime?.assetOutlook || {};
+
   const assetSignals = assets
     .filter((a) => a.priority <= 2)
     .map((asset) => {
@@ -1862,46 +1778,79 @@ function buildActionSignals(model) {
       const topDriver = asset.rankedDrivers?.[0];
       const secondDriver = asset.rankedDrivers?.[1];
 
-      // Direction decision
-      let direction, conviction, rationale, drivers;
+      // Primary direction: combine discrete regime outlook with per-asset regime score
+      let direction, conviction, rationale, drivers, extraSignal;
 
-      if (regime.state === "favorable" && regime.confidence >= 55) {
-        direction = "LONG";
-        conviction = regime.confidence >= 75 ? "HIGH" : "MEDIUM";
-      } else if (regime.state === "unfavorable" && regime.confidence >= 55) {
-        direction = "AVOID";
-        conviction = regime.confidence >= 75 ? "HIGH" : "MEDIUM";
-      } else if (regime.state === "mixed") {
-        direction = "MONITOR";
-        conviction = "LOW";
+      const regimeDir = regimeOutlook[asset.symbol]; // LONG / AVOID / MONITOR / NEUTRAL from named regime
+
+      // Score from per-asset backtested regime model
+      const stateFavorable = regime.state === "favorable" && regime.confidence >= 55;
+      const stateUnfavorable = regime.state === "unfavorable" && regime.confidence >= 55;
+      const stateMixed = regime.state === "mixed";
+
+      // Merge: both regime sources agree → high conviction
+      if (regimeDir === "LONG" && stateFavorable) {
+        direction = "LONG"; conviction = regime.confidence >= 72 ? "HIGH" : "MEDIUM";
+      } else if (regimeDir === "AVOID" && stateUnfavorable) {
+        direction = "AVOID"; conviction = regime.confidence >= 72 ? "HIGH" : "MEDIUM";
+      } else if (regimeDir === "LONG" || stateFavorable) {
+        direction = "LONG"; conviction = "MEDIUM";
+      } else if (regimeDir === "AVOID" || stateUnfavorable) {
+        direction = "AVOID"; conviction = "MEDIUM";
+      } else if (regimeDir === "MONITOR" || stateMixed) {
+        direction = "MONITOR"; conviction = "LOW";
       } else {
-        direction = "NEUTRAL";
-        conviction = "LOW";
+        direction = "NEUTRAL"; conviction = "LOW";
       }
 
-      // Build one-line rationale
+      // Build explicit, driver-grounded rationale
       const driverSignals = regime.driverSignals || [];
       const supportive = driverSignals.filter((s) => s.signal > 0.1).map((s) => s.driverLabel);
       const adverse = driverSignals.filter((s) => s.signal < -0.1).map((s) => s.driverLabel);
+      const edge20 = topDriver?.horizons?.[20]?.edge;
+      const edgeStr = Number.isFinite(edge20) && Math.abs(edge20) > 0.002
+        ? ` Hist. 20D regime edge: ${edge20 > 0 ? "+" : ""}${(edge20 * 100).toFixed(1)}%.`
+        : "";
 
       if (direction === "LONG") {
         rationale = supportive.length
-          ? `${supportive.slice(0, 2).join(" + ")} historically supportive. Historical ${formatPercent((topDriver?.horizons?.[20]?.edge || 0) * 100)} 20D regime edge.`
-          : "Macro backdrop aligns with historical bull bucket.";
+          ? `${supportive.slice(0, 2).join(" + ")} in historically supportive territory.${edgeStr}`
+          : `Regime classification: ${discreteRegime?.regime?.name || "supportive"}.${edgeStr}`;
       } else if (direction === "AVOID") {
         rationale = adverse.length
-          ? `${adverse.slice(0, 2).join(" + ")} in adverse territory. Historically this setup has underperformed.`
-          : "Macro conditions map to historically weak bucket.";
+          ? `${adverse.slice(0, 2).join(" + ")} in historically adverse territory.${edgeStr}`
+          : `Regime classification: ${discreteRegime?.regime?.name || "adverse"}.${edgeStr}`;
       } else {
-        rationale = "Mixed signals — no dominant macro direction. Wait for regime to clarify.";
+        rationale = `${discreteRegime?.regime?.name || "Mixed signals"} — no dominant directional edge. Wait for regime clarification.`;
       }
 
-      drivers = [topDriver?.driverLabel, secondDriver?.driverLabel].filter(Boolean).slice(0, 2);
+      drivers = [topDriver?.driverLabel, secondDriver?.driverLabel].filter(Boolean).slice(0, 3);
 
-      return { symbol: asset.symbol, category: asset.category, direction, conviction, rationale, drivers };
+      // AGQ-specific: overlay momentum signal
+      if (asset.symbol === "AGQ" && agqMomentum?.available) {
+        const m = agqMomentum;
+        const align = (direction === "LONG" && m.trend === 1) || (direction === "AVOID" && m.trend === -1);
+        const conflict = (direction === "LONG" && m.trend === -1) || (direction === "AVOID" && m.trend === 1);
+        extraSignal = {
+          label: "AGQ Momentum",
+          trendLabel: m.trendLabel,
+          r20: m.returns.r20,
+          r60: m.returns.r60,
+          rsi14: m.rsi14,
+          overbought: m.overbought,
+          oversold: m.oversold,
+          aligns: align,
+          conflicts: conflict,
+        };
+        // If macro says LONG but momentum is down, downgrade conviction
+        if (conflict && conviction === "HIGH") conviction = "MEDIUM";
+        if (conflict && conviction === "MEDIUM") conviction = "LOW";
+      }
+
+      return { symbol: asset.symbol, category: asset.category, direction, conviction, rationale, drivers, extraSignal };
     });
 
-  // Best relative expression
+  // Best relative expression (strongest macro edge)
   const bestRelative = relatives
     .filter((r) => Math.abs(r.joint?.edge || 0) > 0.003)
     .sort((a, b) => Math.abs(b.joint?.edge || 0) - Math.abs(a.joint?.edge || 0))[0];
@@ -1923,6 +1872,7 @@ function buildActionSignals(model) {
 
 function renderWhatToDoNow(model) {
   const { assetSignals, relativeSignal } = buildActionSignals(model);
+  const discreteRegime = model.macroResearch?.discreteRegime;
 
   const dirClass = (dir) => {
     if (dir === "LONG") return "wtd-badge--long";
@@ -1930,36 +1880,51 @@ function renderWhatToDoNow(model) {
     if (dir === "MONITOR") return "wtd-badge--monitor";
     return "wtd-badge--neutral";
   };
-
   const convClass = (conv) => {
     if (conv === "HIGH") return "wtd-conv--high";
     if (conv === "MEDIUM") return "wtd-conv--medium";
     return "wtd-conv--low";
   };
+  const fmtR = (r) => r !== null && r !== undefined ? `${r > 0 ? "+" : ""}${r.toFixed(1)}%` : "—";
 
-  const cards = assetSignals.map((sig) => `
-    <article class="wtd-card">
-      <div class="wtd-card__head">
-        <div>
-          <span class="wtd-symbol">${escapeHtml(sig.symbol)}</span>
-          <span class="wtd-cat">${escapeHtml(sig.category)}</span>
-        </div>
-        <div class="wtd-badges">
-          <span class="wtd-badge ${dirClass(sig.direction)}">${escapeHtml(sig.direction)}</span>
-          <span class="wtd-conv ${convClass(sig.conviction)}">${escapeHtml(sig.conviction)}</span>
-        </div>
+  const cards = assetSignals.map((sig) => {
+    const mx = sig.extraSignal; // AGQ momentum overlay
+    const momentumHtml = mx ? `
+      <div class="wtd-momentum">
+        <span class="wtd-momentum__label">Momentum</span>
+        <span class="wtd-momentum__trend wtd-momentum__trend--${mx.trendLabel.toLowerCase()}">${escapeHtml(mx.trendLabel)}</span>
+        <span class="wtd-momentum__stat">20D ${escapeHtml(fmtR(mx.r20))}</span>
+        <span class="wtd-momentum__stat">60D ${escapeHtml(fmtR(mx.r60))}</span>
+        <span class="wtd-momentum__stat">RSI ${escapeHtml(String(mx.rsi14))}${mx.overbought ? " OB" : mx.oversold ? " OS" : ""}</span>
+        ${mx.aligns ? `<span class="wtd-momentum__align wtd-momentum__align--yes">Macro + Momentum aligned</span>` : ""}
+        ${mx.conflicts ? `<span class="wtd-momentum__align wtd-momentum__align--no">Momentum conflicts macro</span>` : ""}
       </div>
-      <p class="wtd-rationale">${escapeHtml(sig.rationale)}</p>
-      ${sig.drivers.length ? `<p class="wtd-drivers">Key drivers: ${sig.drivers.map(escapeHtml).join(" · ")}</p>` : ""}
-    </article>
-  `).join("");
+    ` : "";
+    return `
+      <article class="wtd-card">
+        <div class="wtd-card__head">
+          <div>
+            <span class="wtd-symbol">${escapeHtml(sig.symbol)}</span>
+            <span class="wtd-cat">${escapeHtml(sig.category)}</span>
+          </div>
+          <div class="wtd-badges">
+            <span class="wtd-badge ${dirClass(sig.direction)}">${escapeHtml(sig.direction)}</span>
+            <span class="wtd-conv ${convClass(sig.conviction)}">${escapeHtml(sig.conviction)}</span>
+          </div>
+        </div>
+        <p class="wtd-rationale">${escapeHtml(sig.rationale)}</p>
+        ${sig.drivers.length ? `<p class="wtd-drivers">Key drivers: ${sig.drivers.map(escapeHtml).join(" · ")}</p>` : ""}
+        ${momentumHtml}
+      </article>
+    `;
+  }).join("");
 
   const relativeBlock = relativeSignal ? `
     <article class="wtd-card wtd-card--relative">
       <div class="wtd-card__head">
         <div>
           <span class="wtd-symbol">${escapeHtml(relativeSignal.label)}</span>
-          <span class="wtd-cat">Relative expression</span>
+          <span class="wtd-cat">Best relative expression</span>
         </div>
         <div class="wtd-badges">
           <span class="wtd-badge wtd-badge--long">${escapeHtml(relativeSignal.direction)}</span>
@@ -1970,15 +1935,20 @@ function renderWhatToDoNow(model) {
     </article>
   ` : "";
 
+  const regimeNote = discreteRegime?.regime ? `
+    <p class="wtd-regime-note">Regime context: <strong>${escapeHtml(discreteRegime.regime.name)}</strong> — ${escapeHtml(discreteRegime.regime.theme)}</p>
+  ` : "";
+
   return `
     <section class="panel wtd-panel">
       <div class="panel-header">
         <div>
           <p class="scout-section-label">Action Layer</p>
           <h2>What to Do Now</h2>
-          <p class="panel-subtitle">Macro-conditioned signals. Based on historical regime edges — not forecasts. Always apply your own judgment.</p>
+          <p class="panel-subtitle">Macro-conditioned signals + momentum overlay. Based on historical regime edges — not forecasts.</p>
         </div>
       </div>
+      ${regimeNote}
       <div class="wtd-grid">
         ${cards}
         ${relativeBlock}
@@ -1987,7 +1957,21 @@ function renderWhatToDoNow(model) {
   `;
 }
 
-// ── Strategy Lab live signals ──────────────────────────────────────────────
+// ── Strategy signals + timeframe selector ─────────────────────────────────
+
+function renderTimeframeSelector() {
+  const timeframes = [5, 20, 60, 120, 250];
+  const active = state.scout.strategyLab?.activeTimeframe ?? 20;
+  const tabs = timeframes.map((tf) => `
+    <button class="tf-tab ${tf === active ? "tf-tab--active" : ""}" data-timeframe="${tf}">${tf}D</button>
+  `).join("");
+  return `
+    <div class="tf-selector">
+      <span class="tf-selector__label">Backtest horizon</span>
+      <div class="tf-tabs">${tabs}</div>
+    </div>
+  `;
+}
 
 function renderStrategyLabSignals(model) {
   const lab = model.strategyLab;
@@ -1995,6 +1979,7 @@ function renderStrategyLabSignals(model) {
   const gs = lab?.goldSilver;
   const vixParams = state.scout.strategyLab?.vixParams || { threshold: 25, horizon: 20 };
   const gsParams = state.scout.strategyLab?.gsParams || { entryRatio: 75, exitRatio: 50 };
+  const activeTimeframe = lab?.activeTimeframe ?? state.scout.strategyLab?.activeTimeframe ?? 20;
 
   // VIX current signal
   const vixData = model.macroResearch?.strategyLabData?.VIX || [];
@@ -2008,38 +1993,47 @@ function renderStrategyLabSignals(model) {
   const gsActive = latestRatioPoint && latestRatioPoint.value >= gsParams.entryRatio;
   const prevGsTrade = gs?.trades?.length ? gs.trades[gs.trades.length - 1] : null;
 
-  const signalBlock = (label, active, latestValue, valueLabel, threshold, thresholdLabel, lastTrade, statLabel, statValue) => {
-    const statusClass = active ? "lab-signal--active" : "lab-signal--inactive";
-    const statusLabel = active ? "SIGNAL ACTIVE" : "NO SIGNAL";
-    const statusPillClass = active ? "status-pill--success" : "status-pill--muted";
+  const fmtReturn = (v) => v !== null && v !== undefined ? `${v > 0 ? "+" : ""}${v.toFixed(1)}%` : "—";
+  const fmtWin = (v) => v !== null && v !== undefined ? `${v.toFixed(0)}% win rate` : "—";
+
+  const signalCard = (opts) => {
+    const { label, active, currentValue, currentLabel, threshold, thresholdLabel, lastTrade, avgReturn, winRate, tradeCount, appliesTo } = opts;
+    const statusLabel = active ? "ACTIVE TODAY" : "NO SIGNAL";
+    const statusCls = active ? "sig-card--active" : "sig-card--inactive";
+    const pillCls = active ? "status-pill--success" : "status-pill--muted";
     return `
-      <div class="lab-signal-card ${statusClass}">
-        <div class="lab-signal-card__head">
-          <span class="lab-signal-name">${escapeHtml(label)}</span>
-          <span class="status-pill ${statusPillClass}">${statusLabel}</span>
-        </div>
-        <div class="lab-signal-body">
-          <div class="lab-signal-stat">
-            <span>${escapeHtml(valueLabel)}</span>
-            <strong style="color:${active ? "var(--positive)" : "var(--text)"}">${latestValue !== null ? escapeHtml(String(typeof latestValue === "number" ? latestValue.toFixed(1) : latestValue)) : "—"}</strong>
+      <div class="sig-card ${statusCls}">
+        <div class="sig-card__head">
+          <div>
+            <div class="sig-card__name">${escapeHtml(label)}</div>
+            <div class="sig-card__horizon">Horizon: ${escapeHtml(String(activeTimeframe))}D</div>
           </div>
-          <div class="lab-signal-stat">
+          <span class="status-pill ${pillCls}">${statusLabel}</span>
+        </div>
+        <div class="sig-card__stats">
+          <div class="sig-stat">
+            <span>${escapeHtml(currentLabel)}</span>
+            <strong style="color:${active ? "var(--positive)" : "inherit"}">${typeof currentValue === "number" ? currentValue.toFixed(1) : escapeHtml(String(currentValue ?? "—"))}</strong>
+          </div>
+          <div class="sig-stat">
             <span>${escapeHtml(thresholdLabel)}</span>
             <strong>${escapeHtml(String(threshold))}</strong>
           </div>
-          ${lastTrade ? `
-            <div class="lab-signal-stat">
-              <span>Last signal</span>
-              <strong>${escapeHtml(lastTrade.entryDate)}</strong>
-            </div>
-          ` : ""}
-          ${statValue !== null ? `
-            <div class="lab-signal-stat">
-              <span>${escapeHtml(statLabel)}</span>
-              <strong style="color:${typeof statValue === 'number' && statValue > 0 ? 'var(--positive)' : 'var(--text-muted)'}">${typeof statValue === "number" ? `${statValue > 0 ? "+" : ""}${statValue.toFixed(1)}%` : escapeHtml(String(statValue))}</strong>
-            </div>
-          ` : ""}
+          <div class="sig-stat">
+            <span>Avg return</span>
+            <strong style="color:${avgReturn > 0 ? "var(--positive)" : "var(--negative)"}">${escapeHtml(fmtReturn(avgReturn))}</strong>
+          </div>
+          <div class="sig-stat">
+            <span>Win rate</span>
+            <strong>${escapeHtml(fmtWin(winRate))}</strong>
+          </div>
+          <div class="sig-stat">
+            <span>Trades (hist)</span>
+            <strong>${escapeHtml(String(tradeCount ?? "—"))}</strong>
+          </div>
+          ${lastTrade ? `<div class="sig-stat"><span>Last triggered</span><strong>${escapeHtml(lastTrade.entryDate)}</strong></div>` : ""}
         </div>
+        <p class="sig-card__applies">Applies to: <em>${escapeHtml(appliesTo)}</em></p>
       </div>
     `;
   };
@@ -2048,44 +2042,54 @@ function renderStrategyLabSignals(model) {
     <section class="panel">
       <div class="panel-header">
         <div>
-          <p class="scout-section-label">Strategy Signals — Live Status</p>
-          <h2>Is a Signal Active Today?</h2>
+          <p class="scout-section-label">Strategy Signals</p>
+          <h2>Live Signal Status</h2>
+          <p class="panel-subtitle">Are the VIX or Gold/Silver conditions met today? Backtest stats shown for selected horizon.</p>
         </div>
+        ${renderTimeframeSelector()}
       </div>
-      <div class="lab-signals-row">
-        ${signalBlock(
-          `VIX Entry (threshold ≥ ${vixParams.threshold})`,
-          vixActive,
-          latestVix?.value ?? null,
-          "Current VIX",
-          vixParams.threshold,
-          "Entry threshold",
-          prevVixTrigger,
-          "Hist avg return",
-          vix?.avgReturn ?? null
-        )}
-        ${signalBlock(
-          `Gold/Silver Ratio (entry ≥ ${gsParams.entryRatio})`,
-          gsActive,
-          latestRatioPoint?.value ?? null,
-          "Current ratio",
-          gsParams.entryRatio,
-          "Entry threshold",
-          prevGsTrade,
-          "Hist avg return (SIL)",
-          gs?.avgReturn ?? null
-        )}
+      <div class="sig-cards-row">
+        ${signalCard({
+          label: `VIX Entry (VIX ≥ ${vixParams.threshold})`,
+          active: vixActive,
+          currentValue: latestVix?.value ?? null,
+          currentLabel: "Current VIX",
+          threshold: vixParams.threshold,
+          thresholdLabel: "Entry threshold",
+          lastTrade: prevVixTrigger,
+          avgReturn: vix?.avgReturn ?? null,
+          winRate: vix?.winRate ?? null,
+          tradeCount: vix?.tradeCount ?? null,
+          appliesTo: `SPY — ${activeTimeframe}D fixed hold`,
+        })}
+        ${signalCard({
+          label: `Gold/Silver Ratio (ratio ≥ ${gsParams.entryRatio})`,
+          active: gsActive,
+          currentValue: latestRatioPoint?.value ?? null,
+          currentLabel: "Current G/S ratio",
+          threshold: gsParams.entryRatio,
+          thresholdLabel: "Entry threshold",
+          lastTrade: prevGsTrade,
+          avgReturn: gs?.avgReturn ?? null,
+          winRate: gs?.winRate ?? null,
+          tradeCount: gs?.tradeCount ?? null,
+          appliesTo: `SIL — hold until ratio ≤ ${gsParams.exitRatio}`,
+        })}
       </div>
     </section>
   `;
 }
 
+// ── Explicit macro regime panel (Discrete + Markov) ────────────────────────
+
 function renderMacroRegimeHeader(model) {
   const snapshot = model.macroResearch?.macroSnapshot || [];
-  const regime = classifyMacroRegimeFromSnapshot(snapshot);
-  const confidenceClass =
-    regime.confidence === "high" ? "status-pill--success" : regime.confidence === "medium" ? "status-pill--warning" : "status-pill--muted";
+  const discreteRegime = model.macroResearch?.discreteRegime;
+  const regime = discreteRegime?.regime;
+  const states = discreteRegime?.states || {};
+  const markov = discreteRegime?.markov;
 
+  // Macro driver strip from snapshot
   const signalTiles = snapshot
     .map((item) => {
       const threshold = item.unit === "bp" ? 2 : item.unit === "index" ? 0.3 : 0.01;
@@ -2108,48 +2112,94 @@ function renderMacroRegimeHeader(model) {
     })
     .join("");
 
+  // Explicit state dimensions panel
+  const stateDim = (label, valueStr, levelBadge, trendBadge, pctile) => `
+    <div class="regime-dim">
+      <div class="regime-dim__label">${escapeHtml(label)}</div>
+      <div class="regime-dim__value">${escapeHtml(valueStr)}</div>
+      <div class="regime-dim__badges">
+        <span class="regime-dim__badge">${escapeHtml(levelBadge)}</span>
+        <span class="regime-dim__trend">${escapeHtml(trendBadge)}</span>
+      </div>
+      ${pctile !== undefined ? `<div class="regime-dim__pct-bar"><div class="regime-dim__pct-fill" style="width:${pctile}%"></div></div>` : ""}
+    </div>
+  `;
+
+  const s = states;
+  const dimsHtml = s.realYield ? `
+    <div class="regime-dims">
+      ${stateDim("Real Yield (10Y)", `${s.realYield.value.toFixed(2)}%`, s.realYield.label, s.realYield.trend, s.realYield.pctile)}
+      ${stateDim("Yield Curve (10s2s)", `${s.curve.value.toFixed(0)}bp`, s.curve.label, s.curve.trend)}
+      ${stateDim("Dollar (DXY)", `${s.dollar.value.toFixed(1)}`, s.dollar.label, s.dollar.trend, s.dollar.pctile)}
+      ${stateDim("Inflation Exp. (10Y BE)", `${s.inflation.value.toFixed(2)}%`, s.inflation.label, s.inflation.trend, s.inflation.pctile)}
+    </div>
+  ` : "";
+
+  // Markov panel
+  const markovHtml = markov ? `
+    <div class="regime-markov">
+      <span class="regime-markov__label">Regime stability</span>
+      <div class="regime-markov__bars">
+        <div class="regime-markov__bar-item">
+          <span>Stay (${escapeHtml(String(markov.stayProbability))}%)</span>
+          <div class="regime-markov__bar-track"><div class="regime-markov__bar-fill regime-markov__bar-fill--stay" style="width:${markov.stayProbability}%"></div></div>
+        </div>
+        <div class="regime-markov__bar-item">
+          <span>Switch (${escapeHtml(String(markov.switchProbability))}%)</span>
+          <div class="regime-markov__bar-track"><div class="regime-markov__bar-fill regime-markov__bar-fill--switch" style="width:${markov.switchProbability}%"></div></div>
+        </div>
+      </div>
+      <span class="regime-markov__streak">Current streak: ${escapeHtml(String(markov.streak))} days</span>
+      ${markov.mostLikelyNext ? `<span class="regime-markov__next">Most likely next: ${escapeHtml(markov.mostLikelyNext.replace(/-/g, " "))}</span>` : ""}
+    </div>
+  ` : "";
+
+  const regimeName = regime?.name || "Analyzing…";
+  const regimeColor = regime?.color || "#6b7280";
+
   return `
-    <section class="panel">
+    <section class="panel regime-panel" style="border-top: 3px solid ${escapeHtml(regimeColor)}">
       <div class="panel-header">
         <div>
-          <p class="scout-section-label">Macro Regime</p>
-          <h2>${escapeHtml(regime.name)}</h2>
-          <p class="panel-subtitle">${escapeHtml(regime.theme)}</p>
+          <p class="scout-section-label">Current Macro Regime</p>
+          <h2 style="color:${escapeHtml(regimeColor)}">${escapeHtml(regimeName)}</h2>
+          <p class="panel-subtitle">${regime ? escapeHtml(regime.description) : "Loading regime classification..."}</p>
         </div>
         <div style="display:flex;gap:0.5rem;align-items:flex-start;flex-wrap:wrap;flex-shrink:0">
-          <span class="status-pill ${confidenceClass}">${escapeHtml(regime.confidence)} confidence</span>
           <span class="status-pill ${getScoutStatusClass(model.dataStatus)}">${escapeHtml(model.dataStatus)}</span>
           <span class="status-pill status-pill--muted">${escapeHtml(model.freshnessLabel)}</span>
         </div>
       </div>
-      <div class="scout-regime-strip">${signalTiles}</div>
+      ${dimsHtml}
+      ${markovHtml}
+      <div class="scout-regime-strip" style="margin-top:1rem">${signalTiles}</div>
     </section>
   `;
 }
 
 function renderAssetVerdicts(model) {
   const assets = model.macroResearch?.focusAssets || [];
+  const discreteRegime = model.macroResearch?.discreteRegime;
+  const regimeOutlook = discreteRegime?.regime?.assetOutlook || {};
   const priority1 = assets.filter((a) => a.priority === 1);
   const priority2 = assets.filter((a) => a.priority === 2);
   const displayAssets = [...priority1, ...priority2];
+  const activeTimeframe = state.scout.strategyLab?.activeTimeframe ?? 20;
 
   const cards = displayAssets
     .map((asset) => {
       const regime = asset.currentRegime;
       const stateKey = (regime.state || "low-confidence").replace(/\s+/g, "-");
       const badgeLabel =
-        regime.state === "low-confidence"
-          ? "Low Conf"
-          : regime.state === "favorable"
-            ? "Favorable"
-            : regime.state === "unfavorable"
-              ? "Unfavorable"
-              : "Mixed";
+        regime.state === "low-confidence" ? "Low Conf"
+        : regime.state === "favorable" ? "Favorable"
+        : regime.state === "unfavorable" ? "Unfavorable"
+        : "Mixed";
 
       const topDriver = asset.rankedDrivers?.[0];
       const secondDriver = asset.rankedDrivers?.[1];
-      const edge20 = topDriver?.horizons?.[20]?.edge;
-      const edge60 = topDriver?.horizons?.[60]?.edge;
+      const edge = topDriver?.horizons?.[activeTimeframe]?.edge ?? topDriver?.horizons?.[20]?.edge;
+      const regimeOutlookDir = regimeOutlook[asset.symbol];
 
       const driverRows = [topDriver, secondDriver]
         .filter(Boolean)
@@ -2173,10 +2223,11 @@ function renderAssetVerdicts(model) {
         })
         .join("");
 
-      const edgeText =
-        Number.isFinite(edge20) && Number.isFinite(edge60)
-          ? `Regime edge via ${escapeHtml(topDriver?.driverLabel || "top driver")}: ${formatPercent(Math.abs(edge20) * 100)} (20D) · ${formatPercent(Math.abs(edge60) * 100)} (60D)`
-          : "";
+      const edgeText = Number.isFinite(edge)
+        ? `${activeTimeframe}D conditional edge (${escapeHtml(topDriver?.driverLabel || "top driver")}): ${edge >= 0 ? "+" : ""}${(edge * 100).toFixed(1)}%`
+        : "";
+
+      const regimeTag = regimeOutlookDir ? `<span class="verdict-regime-tag verdict-regime-tag--${regimeOutlookDir.toLowerCase()}">${escapeHtml(regimeOutlookDir)}</span>` : "";
 
       return `
         <article class="scout-verdict-card">
@@ -2185,11 +2236,14 @@ function renderAssetVerdicts(model) {
               <div class="scout-verdict-card__symbol">${escapeHtml(asset.symbol)}</div>
               <div class="scout-verdict-card__category">${escapeHtml(asset.category)}</div>
             </div>
-            <span class="scout-verdict-badge scout-verdict-badge--${escapeHtml(stateKey)}">${escapeHtml(badgeLabel)}</span>
+            <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">
+              ${regimeTag}
+              <span class="scout-verdict-badge scout-verdict-badge--${escapeHtml(stateKey)}">${escapeHtml(badgeLabel)}</span>
+            </div>
           </div>
           ${driverRows ? `<div class="scout-verdict-drivers">${driverRows}</div>` : ""}
           <p class="scout-verdict-interp">${escapeHtml(asset.interpretation)}</p>
-          ${edgeText ? `<p class="scout-verdict-edge">${edgeText}</p>` : ""}
+          ${edgeText ? `<p class="scout-verdict-edge">${escapeHtml(edgeText)}</p>` : ""}
         </article>
       `;
     })
@@ -2199,9 +2253,9 @@ function renderAssetVerdicts(model) {
     <section class="panel">
       <div class="panel-header">
         <div>
-          <p class="scout-section-label">Asset Attractiveness</p>
+          <p class="scout-section-label">Regime-Conditioned Verdicts</p>
           <h2>Macro-Conditioned Verdicts</h2>
-          <p class="panel-subtitle">What does the current regime historically imply for each asset?</p>
+          <p class="panel-subtitle">Per-asset regime fit — backtested forward edges shown for ${escapeHtml(String(activeTimeframe))}D horizon.</p>
         </div>
       </div>
       <div class="scout-verdict-grid">${cards}</div>
@@ -2333,7 +2387,8 @@ function renderConditionalReturns(model) {
 
 function renderSynthesisMemo(model) {
   const snapshot = model.macroResearch?.macroSnapshot || [];
-  const regime = classifyMacroRegimeFromSnapshot(snapshot);
+  const discreteRegime = model.macroResearch?.discreteRegime;
+  const regime = discreteRegime?.regime || { name: "Analyzing", theme: "Regime classification in progress." };
   const suggestions = model.macroResearch?.suggestions || [];
   const assets = model.macroResearch?.focusAssets || [];
 
@@ -2357,8 +2412,8 @@ function renderSynthesisMemo(model) {
 
   const macroDesc = descParts.join("; ");
   const thesis = macroDesc
-    ? `${macroDesc}. This configuration maps to the "${regime.name}" regime.`
-    : regime.theme;
+    ? `${macroDesc}. This maps to the "${regime.name}" regime.`
+    : regime.description || regime.theme;
 
   const favorableAssets = assets.filter((a) => a.currentRegime?.state === "favorable" && a.priority <= 2).map((a) => a.symbol);
   const unfavorableAssets = assets.filter((a) => a.currentRegime?.state === "unfavorable" && a.priority <= 2).map((a) => a.symbol);

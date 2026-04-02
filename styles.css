@@ -1944,3 +1944,399 @@ button:focus-visible,
 @media (max-width: 580px) {
   .wtd-grid { grid-template-columns: 1fr; }
 }
+
+/* ── Regime Note (WTD context line) ── */
+.wtd-regime-note {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin: 0 0 0.6rem;
+  padding: 0.4rem 0.7rem;
+  background: var(--bg-softer);
+  border-radius: 5px;
+  border-left: 3px solid var(--accent);
+}
+
+/* ── WTD Momentum Overlay (AGQ) ── */
+.wtd-momentum {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.3rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--border);
+}
+
+.wtd-momentum__label {
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.wtd-momentum__trend {
+  font-size: 0.62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+}
+
+.wtd-momentum__trend--uptrend {
+  background: rgba(61, 214, 140, 0.14);
+  color: var(--positive);
+}
+
+.wtd-momentum__trend--downtrend {
+  background: rgba(255, 107, 122, 0.12);
+  color: var(--negative);
+}
+
+.wtd-momentum__trend--mixed {
+  background: rgba(255, 204, 102, 0.12);
+  color: var(--warning);
+}
+
+.wtd-momentum__stat {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.wtd-momentum__align {
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  width: 100%;
+}
+
+.wtd-momentum__align--yes {
+  background: rgba(61, 214, 140, 0.1);
+  color: var(--positive);
+}
+
+.wtd-momentum__align--no {
+  background: rgba(255, 107, 122, 0.1);
+  color: var(--negative);
+}
+
+/* ── Discrete Regime Panel ── */
+.regime-panel {
+  border-top: 3px solid var(--accent);
+}
+
+.regime-dims {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+  margin: 0.75rem 0 0.5rem;
+}
+
+.regime-dim {
+  background: var(--bg-softer);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.7rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.regime-dim__label {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.regime-dim__value {
+  font-size: 1.2rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.regime-dim__badges {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.regime-dim__badge {
+  font-size: 0.58rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: rgba(var(--accent-rgb, 99, 179, 237), 0.12);
+  color: var(--accent);
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+}
+
+.regime-dim__trend {
+  font-size: 0.55rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.regime-dim__pct-bar {
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  margin-top: 0.3rem;
+  overflow: hidden;
+}
+
+.regime-dim__pct-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+/* ── Markov Transitions ── */
+.regime-markov {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin: 0.5rem 0;
+  padding: 0.6rem 0.9rem;
+  background: var(--bg-softer);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.regime-markov__label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.regime-markov__bars {
+  display: flex;
+  gap: 1rem;
+  flex: 1;
+  min-width: 200px;
+}
+
+.regime-markov__bar-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  flex: 1;
+}
+
+.regime-markov__bar-item > span {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+}
+
+.regime-markov__bar-track {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.regime-markov__bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.regime-markov__bar-fill--stay {
+  background: var(--positive);
+}
+
+.regime-markov__bar-fill--switch {
+  background: var(--negative);
+}
+
+.regime-markov__streak,
+.regime-markov__next {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* ── Timeframe Selector ── */
+.tf-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-shrink: 0;
+}
+
+.tf-selector__label {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.tf-tabs {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-softer);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.tf-tab {
+  background: transparent;
+  border: none;
+  padding: 0.3rem 0.65rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  transition: all 0.15s ease;
+  font-variant-numeric: tabular-nums;
+}
+
+.tf-tab:hover {
+  color: var(--text);
+  background: var(--border);
+}
+
+.tf-tab--active {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ── New Signal Cards (Strategy Signals section) ── */
+.sig-cards-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-top: 0.25rem;
+}
+
+.sig-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+  background: var(--bg-softer);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.sig-card--active {
+  border-color: rgba(61, 214, 140, 0.4);
+  background: rgba(61, 214, 140, 0.03);
+}
+
+.sig-card--inactive {
+  opacity: 0.88;
+}
+
+.sig-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.sig-card__name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.sig-card__horizon {
+  font-size: 0.62rem;
+  color: var(--accent);
+  margin-top: 0.1rem;
+}
+
+.sig-card__stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem 0.75rem;
+}
+
+.sig-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.sig-stat > span {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sig-stat > strong {
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.sig-card__applies {
+  font-size: 0.66rem;
+  color: var(--text-muted);
+  margin: 0;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--border);
+}
+
+/* ── Regime tag on verdict cards ── */
+.verdict-regime-tag {
+  font-size: 0.55rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+}
+
+.verdict-regime-tag--long {
+  background: rgba(61, 214, 140, 0.14);
+  color: var(--positive);
+}
+
+.verdict-regime-tag--avoid {
+  background: rgba(255, 107, 122, 0.12);
+  color: var(--negative);
+}
+
+.verdict-regime-tag--monitor {
+  background: rgba(255, 204, 102, 0.12);
+  color: var(--warning);
+}
+
+.verdict-regime-tag--neutral {
+  background: rgba(149, 163, 184, 0.1);
+  color: var(--text-muted);
+}
+
+/* ── Responsive ── */
+@media (max-width: 1024px) {
+  .regime-dims { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 700px) {
+  .sig-cards-row { grid-template-columns: 1fr; }
+  .regime-dims { grid-template-columns: repeat(2, 1fr); }
+  .regime-markov { flex-direction: column; align-items: flex-start; }
+  .tf-selector { flex-wrap: wrap; }
+}
+
+@media (max-width: 480px) {
+  .regime-dims { grid-template-columns: 1fr; }
+  .sig-card__stats { grid-template-columns: repeat(2, 1fr); }
+}

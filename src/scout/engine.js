@@ -52,24 +52,28 @@ export function createScoutEngine({ config, marketDataGateway }) {
       const strategyLabData = macroResearch.strategyLabData || {};
       const vixParams = scoutState?.strategyLab?.vixParams || {};
       const gsParams = scoutState?.strategyLab?.gsParams || {};
+      const activeTimeframe = scoutState?.strategyLab?.activeTimeframe ?? 20;
 
+      // Use selected timeframe as the VIX strategy holding horizon
       const vixResult = runVixStrategy({
         vixSeries: strategyLabData.VIX || [],
         spySeries: strategyLabData.SPY || [],
         threshold: vixParams.threshold ?? 25,
-        horizon: vixParams.horizon ?? 20,
+        horizon: activeTimeframe,
       });
 
+      // GS ratio maxDays scales with timeframe
+      const gsDays = activeTimeframe >= 120 ? 365 : activeTimeframe >= 60 ? 240 : activeTimeframe >= 20 ? 180 : 90;
       const gsResult = runGoldSilverRatioStrategy({
         gldSeries: strategyLabData.GLD || [],
         slvSeries: strategyLabData.SLV || [],
         silSeries: strategyLabData.SIL || [],
         entryRatio: gsParams.entryRatio ?? 75,
         exitRatio: gsParams.exitRatio ?? 50,
-        maxDays: gsParams.maxDays ?? 180,
+        maxDays: gsDays,
       });
 
-      const strategyLab = { vix: vixResult, goldSilver: gsResult };
+      const strategyLab = { vix: vixResult, goldSilver: gsResult, activeTimeframe };
 
       const opportunities = [
         ...macroResearch.opportunities,

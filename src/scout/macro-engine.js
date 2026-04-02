@@ -66,7 +66,14 @@ export async function createMacroResearchModel({ scoutState, portfolioContext, p
     GLD: dataset.assets?.GLD?.map((p) => ({ date: p.date, value: p.value })) || [],
     SLV: dataset.strategyAssets?.SLV || [],
     SIL: dataset.strategyAssets?.SIL || [],
+    AGQ: dataset.assets?.AGQ?.map((p) => ({ date: p.date, value: p.value })) || [],
   };
+
+  // Discrete regime model + Markov transitions
+  const discreteRegime = buildDiscreteRegimeModel(dataset);
+
+  // AGQ momentum signals
+  const agqMomentum = buildAgqMomentum(dataset.assets?.AGQ || []);
 
   return {
     datasetMeta: dataset.meta,
@@ -77,6 +84,8 @@ export async function createMacroResearchModel({ scoutState, portfolioContext, p
     backtests,
     suggestions,
     strategyLabData,
+    discreteRegime,
+    agqMomentum,
     watchlistSeeds: scoutState?.watchlist || [],
     dataStatus: effectiveDataStatus,
     freshnessLabel: dataset.meta.freshnessLabel || "Simulated fallback series",
@@ -344,6 +353,319 @@ function buildSimulatedStrategyAssets(dates, macro) {
   }
 
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// DISCRETE REGIME MODEL + MARKOV TRANSITIONS
+// ---------------------------------------------------------------------------
+// Classify the current macro backdrop into one of 5 named regimes using
+// explicit, transparent rules — no black-box scoring.
+//
+// Regime dimensions:
+//   - Real Yield: HIGH (>2.0%) / LOW (<1.0%) / MID
+//   - Curve:      INVERTED (<-20bp) / FLAT (-20 to +30bp) / STEEP (>30bp)
+//   - Dollar:     STRONG (>65th pctile) / WEAK (<35th pctile) / NEUTRAL
+//   - Inflation:  RISING (20D chg >0.05%) / FALLING (<-0.05%) / STABLE
+//
+// Named regimes (priority ordered, first match wins):
+//   1. Stagflation Warning   — real high/rising + breakevens rising + dollar weak
+//   2. Tightening Cycle      — real rising + curve flat/inverted + dollar strong
+//   3. Real Rate Suppression — real falling + breakevens rising + dollar weak
+//   4. Reflation             — breakevens rising + curve steepening + real stable/low
+//   5. Deflation Scare       — breakevens falling + curve inverting + real rising
+//   6. Goldilocks            — real low/falling + inflation stable + dollar neutral
+//   7. Neutral               — no dominant theme
+// ---------------------------------------------------------------------------
+
+function classifyRegimeName(realLevel, realChange20, beLevel, beChange20, curveLevel, dollarPctile) {
+  const realHigh = realLevel > 2.0;
+  const realLow = realLevel < 1.0;
+  const realRising = realChange20 > 0.1;
+  const realFalling = realChange20 < -0.1;
+  const beRising = beChange20 > 0.05;
+  const beFalling = beChange20 < -0.05;
+  const curveInverted = curveLevel < -20;
+  const curveSteep = curveLevel > 30;
+  const dollarStrong = dollarPctile > 65;
+  const dollarWeak = dollarPctile < 35;
+
+  if (realHigh && beRising && !dollarStrong) {
+    return {
+      id: "stagflation-warning",
+      name: "Stagflation Warning",
+      description: "Real yields elevated, inflation expectations still rising, dollar under pressure. Historically adverse for equities and long duration. Gold and TIPS can offer partial protection.",
+      theme: "Stagflationary",
+      color: "#b83232",
+      assetOutlook: { RING: "MONITOR", AGQ: "MONITOR", GLD: "LONG", TIP: "LONG", TLT: "AVOID" },
+    };
+  }
+  if ((realRising || realHigh) && curveInverted && dollarStrong) {
+    return {
+      id: "tightening",
+      name: "Tightening Cycle",
+      description: "Real yields rising, curve inverted, dollar strong. Classic late-cycle tightening. Risk assets historically under pressure. Cash, short duration, and defensive positioning preferred.",
+      theme: "Risk-Off",
+      color: "#8a5c1a",
+      assetOutlook: { RING: "AVOID", AGQ: "AVOID", GLD: "NEUTRAL", TIP: "MONITOR", TLT: "AVOID" },
+    };
+  }
+  if (realFalling && beRising && dollarWeak) {
+    return {
+      id: "real-rate-suppression",
+      name: "Real Rate Suppression",
+      description: "Real yields falling while inflation expectations rise and the dollar weakens. Historically the cleanest setup for gold, silver miners, and hard assets.",
+      theme: "Precious Metals Bull",
+      color: "#1e7a45",
+      assetOutlook: { RING: "LONG", AGQ: "LONG", GLD: "LONG", TIP: "LONG", TLT: "MONITOR" },
+    };
+  }
+  if (beRising && curveSteep && !realHigh) {
+    return {
+      id: "reflation",
+      name: "Reflation",
+      description: "Inflation expectations rising, yield curve steepening, real yields contained. Historically positive for cyclicals, commodity-linked equities, and inflation protection assets.",
+      theme: "Reflationary",
+      color: "#2563eb",
+      assetOutlook: { RING: "LONG", AGQ: "LONG", GLD: "MONITOR", TIP: "LONG", TLT: "AVOID" },
+    };
+  }
+  if (beFalling && realRising) {
+    return {
+      id: "deflation-scare",
+      name: "Deflation Scare",
+      description: "Breakeven inflation falling while real yields rise — typically a flight-to-safety episode. Nominal Treasuries often bid, gold mixed, silver underperforms.",
+      theme: "Risk-Off / Deflation",
+      color: "#6b7280",
+      assetOutlook: { RING: "AVOID", AGQ: "AVOID", GLD: "MONITOR", TIP: "AVOID", TLT: "LONG" },
+    };
+  }
+  if (realLow && !beRising && !dollarStrong) {
+    return {
+      id: "goldilocks",
+      name: "Goldilocks",
+      description: "Real yields low and contained, inflation expectations stable, dollar neutral. Supportive backdrop for risk assets broadly. Gold relatively less urgent as a haven.",
+      theme: "Risk-On",
+      color: "#1a5799",
+      assetOutlook: { RING: "MONITOR", AGQ: "LONG", GLD: "NEUTRAL", TIP: "NEUTRAL", TLT: "NEUTRAL" },
+    };
+  }
+  return {
+    id: "neutral",
+    name: "Neutral / Mixed",
+    description: "No dominant macro theme. Signals across real yields, breakevens, curve, and dollar do not converge. Await regime clarification before adding risk.",
+    theme: "Neutral",
+    color: "#9ca3af",
+    assetOutlook: { RING: "NEUTRAL", AGQ: "NEUTRAL", GLD: "NEUTRAL", TIP: "NEUTRAL", TLT: "NEUTRAL" },
+  };
+}
+
+function buildDiscreteRegimeModel(dataset) {
+  const macro = dataset.macro;
+  const realSeries = macro.DFII10 || [];
+  const beSeries = macro.T10YIE || [];
+  const curveSeries = macro.T10Y2Y || [];
+  const dxySeries = macro.DXY || [];
+  const nominalSeries = macro.DGS10 || [];
+
+  if (!realSeries.length) {
+    return { regime: classifyRegimeName(1.5, 0, 2.3, 0, 0, 50), states: {}, markov: null };
+  }
+
+  // Current values
+  const realLatest = realSeries[realSeries.length - 1]?.value ?? 0;
+  const beLatest = beSeries[beSeries.length - 1]?.value ?? 0;
+  const curveLatest = curveSeries[curveSeries.length - 1]?.value ?? 0;
+  const dxyLatest = dxySeries[dxySeries.length - 1]?.value ?? 0;
+  const nominalLatest = nominalSeries[nominalSeries.length - 1]?.value ?? 0;
+
+  const win20 = 20;
+  const real20 = realSeries[Math.max(0, realSeries.length - win20 - 1)]?.value ?? realLatest;
+  const be20 = beSeries[Math.max(0, beSeries.length - win20 - 1)]?.value ?? beLatest;
+  const curve20 = curveSeries[Math.max(0, curveSeries.length - win20 - 1)]?.value ?? curveLatest;
+  const dxy20 = dxySeries[Math.max(0, dxySeries.length - win20 - 1)]?.value ?? dxyLatest;
+
+  const realChange20 = realLatest - real20;
+  const beChange20 = beLatest - be20;
+  const curveChange20 = curveLatest - curve20;
+  const dxyChange20 = dxyLatest - dxy20;
+
+  const dxyValues = dxySeries.map((p) => p.value).filter(Number.isFinite);
+  const dxyPctile = percentileRank(dxyValues, dxyLatest);
+
+  const realValues = realSeries.map((p) => p.value).filter(Number.isFinite);
+  const realPctile = percentileRank(realValues, realLatest);
+
+  const beValues = beSeries.map((p) => p.value).filter(Number.isFinite);
+  const bePctile = percentileRank(beValues, beLatest);
+
+  // Named dimension labels for display
+  const states = {
+    realYield: {
+      value: realLatest,
+      pctile: Math.round(realPctile),
+      change20: realChange20,
+      label: realLatest > 2.0 ? "HIGH" : realLatest < 1.0 ? "LOW" : "MID",
+      trend: realChange20 > 0.1 ? "RISING" : realChange20 < -0.1 ? "FALLING" : "STABLE",
+    },
+    curve: {
+      value: curveLatest,
+      change20: curveChange20,
+      label: curveLatest < -20 ? "INVERTED" : curveLatest > 30 ? "STEEP" : "FLAT",
+      trend: curveChange20 > 5 ? "STEEPENING" : curveChange20 < -5 ? "FLATTENING" : "STABLE",
+    },
+    dollar: {
+      value: dxyLatest,
+      pctile: Math.round(dxyPctile),
+      change20: dxyChange20,
+      label: dxyPctile > 65 ? "STRONG" : dxyPctile < 35 ? "WEAK" : "NEUTRAL",
+      trend: dxyChange20 > 0.4 ? "RISING" : dxyChange20 < -0.4 ? "FALLING" : "STABLE",
+    },
+    inflation: {
+      value: beLatest,
+      pctile: Math.round(bePctile),
+      change20: beChange20,
+      label: bePctile > 65 ? "ELEVATED" : bePctile < 35 ? "SUBDUED" : "MODERATE",
+      trend: beChange20 > 0.05 ? "RISING" : beChange20 < -0.05 ? "FALLING" : "STABLE",
+    },
+    nominal: {
+      value: nominalLatest,
+      change20: nominalLatest - (nominalSeries[Math.max(0, nominalSeries.length - 21)]?.value ?? nominalLatest),
+    },
+  };
+
+  const regime = classifyRegimeName(realLatest, realChange20, beLatest, beChange20, curveLatest, dxyPctile);
+
+  // Markov transitions: classify each day in the last 252 days, count transitions
+  const markov = computeMarkovTransitions(realSeries, beSeries, curveSeries, dxySeries, 252);
+
+  return { regime, states, markov };
+}
+
+function computeMarkovTransitions(realSeries, beSeries, curveSeries, dxySeries, lookback) {
+  const n = Math.min(lookback, realSeries.length, beSeries.length, curveSeries.length, dxySeries.length);
+  if (n < 20) return null;
+
+  const dxyAll = dxySeries.map((p) => p.value).filter(Number.isFinite);
+
+  const regimeIds = [];
+  for (let i = realSeries.length - n; i < realSeries.length; i++) {
+    const rl = realSeries[i]?.value;
+    const be = beSeries[i]?.value;
+    const cv = curveSeries[i]?.value;
+    const dx = dxySeries[i]?.value;
+    if (!Number.isFinite(rl) || !Number.isFinite(be) || !Number.isFinite(cv) || !Number.isFinite(dx)) {
+      regimeIds.push(null);
+      continue;
+    }
+    const rl20 = realSeries[Math.max(0, i - 20)]?.value ?? rl;
+    const be20 = beSeries[Math.max(0, i - 20)]?.value ?? be;
+    const dxPctile = percentileRank(dxyAll.slice(0, i + 1), dx);
+    const r = classifyRegimeName(rl, rl - rl20, be, be - be20, cv, dxPctile);
+    regimeIds.push(r.id);
+  }
+
+  const valid = regimeIds.filter(Boolean);
+  const currentRegimeId = valid[valid.length - 1];
+
+  // Count consecutive days in current regime (streak)
+  let streak = 0;
+  for (let i = valid.length - 1; i >= 0 && valid[i] === currentRegimeId; i--) streak++;
+
+  // Transition matrix for current regime
+  let stayCount = 0;
+  let switchCount = 0;
+  for (let i = 1; i < valid.length; i++) {
+    if (valid[i - 1] === currentRegimeId) {
+      if (valid[i] === currentRegimeId) stayCount++;
+      else switchCount++;
+    }
+  }
+  const total = stayCount + switchCount;
+  const stayProbability = total > 0 ? stayCount / total : 0.7;
+
+  // What regime does it most often switch to?
+  const switchCounts = {};
+  for (let i = 1; i < valid.length; i++) {
+    if (valid[i - 1] === currentRegimeId && valid[i] !== currentRegimeId) {
+      switchCounts[valid[i]] = (switchCounts[valid[i]] || 0) + 1;
+    }
+  }
+  const mostLikelyNext = Object.entries(switchCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+
+  // Regime history (last 60 days) for sparkline
+  const history = valid.slice(-60);
+
+  return {
+    currentRegimeId,
+    streak,
+    stayProbability: Math.round(stayProbability * 100),
+    switchProbability: Math.round((1 - stayProbability) * 100),
+    mostLikelyNext,
+    history,
+    observations: valid.length,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// AGQ MOMENTUM MODULE
+// ---------------------------------------------------------------------------
+// Compute price momentum signals from AGQ series.
+// Outputs signals at multiple timeframes: 5D, 20D, 60D, 120D.
+// ---------------------------------------------------------------------------
+
+function buildAgqMomentum(agqSeries) {
+  if (!agqSeries || agqSeries.length < 60) {
+    return { available: false };
+  }
+
+  const prices = agqSeries.map((p) => p.value);
+  const latest = prices[prices.length - 1];
+  const lastDate = agqSeries[agqSeries.length - 1]?.date;
+
+  const ret = (window) => {
+    const past = prices[Math.max(0, prices.length - 1 - window)];
+    return past ? (latest / past - 1) * 100 : null;
+  };
+
+  const r5 = ret(5);
+  const r20 = ret(20);
+  const r60 = ret(60);
+  const r120 = ret(120);
+
+  // Trend: how many windows are positive?
+  const positiveCount = [r5, r20, r60, r120].filter((r) => r !== null && r > 0).length;
+  const negativeCount = [r5, r20, r60, r120].filter((r) => r !== null && r < 0).length;
+
+  let trend, trendLabel;
+  if (positiveCount >= 3) { trend = 1; trendLabel = "UPTREND"; }
+  else if (negativeCount >= 3) { trend = -1; trendLabel = "DOWNTREND"; }
+  else { trend = 0; trendLabel = "MIXED"; }
+
+  // Momentum score: simple z-score of 20D return vs last 252D
+  const window252 = Math.max(0, prices.length - 252);
+  const returns20 = [];
+  for (let i = window252 + 20; i < prices.length; i++) {
+    returns20.push((prices[i] / prices[i - 20] - 1) * 100);
+  }
+  const momentumZ = returns20.length > 5 ? (r20 - average(returns20)) / (Math.sqrt(average(returns20.map((r) => (r - average(returns20)) ** 2))) || 1) : 0;
+
+  // RSI-like: ratio of up vs down days in last 14 days
+  const upDays = prices.slice(-15).filter((_, i, arr) => i > 0 && arr[i] > arr[i - 1]).length;
+  const downDays = 14 - upDays;
+  const rsi14 = downDays === 0 ? 100 : 100 - 100 / (1 + upDays / Math.max(1, downDays));
+
+  return {
+    available: true,
+    latest,
+    lastDate,
+    returns: { r5, r20, r60, r120 },
+    trend,
+    trendLabel,
+    momentumZ: Math.round(momentumZ * 100) / 100,
+    rsi14: Math.round(rsi14),
+    overbought: rsi14 > 70,
+    oversold: rsi14 < 30,
+  };
 }
 
 function buildMacroSnapshot(dataset) {
