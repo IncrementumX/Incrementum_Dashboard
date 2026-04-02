@@ -1741,8 +1741,9 @@ function renderScout(context, analytics, summary) {
 
   const model = syncUiState.scoutModel;
   elements.scoutRoot.innerHTML = `
-    ${renderSimplifiedRegimePanel(model)}
-    ${renderTradeSignals(model)}
+    ${renderMomentumMatrix(model)}
+    ${renderTradeCards(model)}
+    ${renderMacroRatePanel(model)}
     ${renderStrategyLab(model)}
     ${renderScoutWatchlist(model)}
   `;
@@ -2208,6 +2209,400 @@ function buildScoutCacheKey(context, analytics) {
 }
 
 // ── SCOUT v3 rendering ──────────────────────────────────────────────────────
+
+// ---------------------------------------------------------------------------
+// MOMENTUM MATRIX — top of page, 5 assets, always visible
+// ---------------------------------------------------------------------------
+
+function computeMomentumRow(sym, series) {
+  const N = series.length;
+  if (N < 22) return { sym, daily: "—", dailyCls: "mm-neutral", today: "—", todayCls: "mm-neutral", todayPct: null, alignment: "—", alignCls: "mm-neutral", implication: "Insufficient data" };
+
+  const latest = series[N - 1].value;
+  const prev   = series[N - 2]?.value;
+  const p5     = series[N - 6]?.value;
+  const p20    = series[N - 21]?.value;
+
+  const r5  = p5  ? (latest / p5  - 1) * 100 : null;
+  const r20 = p20 ? (latest / p20 - 1) * 100 : null;
+
+  // Daily momentum: needs both r5 and r20 to agree
+  let daily, dailyCls;
+  if ((r5 ?? 0) > 1.5 && (r20 ?? 0) > 0)   { daily = "Bullish"; dailyCls = "mm-bull"; }
+  else if ((r5 ?? 0) < -1.5 && (r20 ?? 0) < 0) { daily = "Bearish"; dailyCls = "mm-bear"; }
+  else                                          { daily = "Neutral"; dailyCls = "mm-neutral"; }
+
+  // "Today" = last close vs prior close as % move
+  const todayPct = prev ? (latest / prev - 1) * 100 : null;
+  // Average absolute daily move over last 20 days (volatility proxy)
+  let avgMove = 0;
+  for (let i = N - 20; i < N; i++) {
+    if (series[i] && series[i - 1]) avgMove += Math.abs(series[i].value / series[i - 1].value - 1) * 100;
+  }
+  avgMove /= 20;
+  const moveThreshold = Math.max(avgMove * 0.5, 0.5); // at least 0.5%
+
+  let today, todayCls;
+  if (todayPct === null) { today = "—"; todayCls = "mm-neutral"; }
+  else if (todayPct > moveThreshold)  { today = `+${todayPct.toFixed(1)}%`; todayCls = "mm-bull"; }
+  else if (todayPct < -moveThreshold) { today = `${todayPct.toFixed(1)}%`;  todayCls = "mm-bear"; }
+  else { today = `${todayPct >= 0 ? "+" : ""}${todayPct.toFixed(1)}%`; todayCls = "mm-neutral"; }
+
+  // Alignment: do daily and today agree?
+  const dBull = dailyCls === "mm-bull", dBear = dailyCls === "mm-bear";
+  const tBull = todayCls === "mm-bull", tBear = todayCls === "mm-bear";
+
+  let alignment, alignCls, implication;
+  if (dBull && tBull)        { alignment = "Strong ▲"; alignCls = "mm-bull";    implication = "Momentum confirms long"; }
+  else if (dBear && tBear)   { alignment = "Strong ▼"; alignCls = "mm-bear";    implication = "Avoid — downtrend confirmed"; }
+  else if ((dBull && tBear) || (dBear && tBull)) {
+                               alignment = "Conflicted"; alignCls = "mm-neutral"; implication = "Daily/intraday conflict — wait"; }
+  else if (dBull)             { alignment = "Weak ▲"; alignCls = "mm-neutral"; implication = "Trending up, no intraday push"; }
+  else if (dBear)             { alignment = "Weak ▼"; alignCls = "mm-neutral"; implication = "Trending down, no intraday push"; }
+  else                        { alignment = "Flat"; alignCls = "mm-neutral";    implication = "No signal — stand aside"; }
+
+  return { sym, daily, dailyCls, today, todayCls, todayPct, alignment, alignCls, implication, r5, r20 };
+}
+
+function renderMomentumMatrix(model) {
+  const labData = model.macroResearch?.strategyLabData || {};
+  const ASSETS = [
+    { sym: "AGQ",  label: "AGQ — 2× Silver" },
+    { sym: "SLV",  label: "SLV — Silver" },
+    { sym: "GLD",  label: "GLD — Gold" },
+    { sym: "RING", label: "RING — Gold Miners" },
+    { sym: "GDX",  label: "GDX — Gold Miners ETF" },
+  ];
+
+  const rows = ASSETS.map(({ sym, label }) => {
+    const series = labData[sym] || [];
+    const row = computeMomentumRow(sym, series);
+    const noData = series.length < 22;
+    return `
+      <tr>
+        <td class="mm-asset"><strong>${escapeHtml(sym)}</strong><span>${escapeHtml(label.split("—")[1]?.trim() || "")}</span></td>
+        <td class="${noData ? "mm-neutral" : row.dailyCls}">
+          ${escapeHtml(row.daily)}
+          ${!noData && row.r5 !== null ? `<span class="mm-sub">${row.r5 >= 0 ? "+" : ""}${row.r5.toFixed(1)}% 5D / ${row.r20 >= 0 ? "+" : ""}${row.r20.toFixed(1)}% 20D</span>` : ""}
+        </td>
+        <td class="${noData ? "mm-neutral" : row.todayCls}">${escapeHtml(row.today)}</td>
+        <td class="${noData ? "mm-neutral" : row.alignCls}">${escapeHtml(row.alignment)}</td>
+        <td class="mm-impl">${escapeHtml(row.implication)}</td>
+      </tr>
+    `;
+  }).join("");
+
+  const freshness = model.macroResearch?.freshnessLabel || "Simulated data";
+  return `
+    <section class="panel mm-panel">
+      <div class="panel-header">
+        <div>
+          <p class="scout-section-label">Live Signal Matrix</p>
+          <h2>Momentum Matrix</h2>
+          <p class="panel-subtitle">Daily = 5D+20D trend alignment. Today = last close vs prior close vs avg daily range. <span class="val-muted">${escapeHtml(freshness)}</span></p>
+        </div>
+        <span class="status-pill ${getScoutStatusClass(model.dataStatus)}">${escapeHtml(model.dataStatus)}</span>
+      </div>
+      <div class="mm-wrap">
+        <table class="mm-table">
+          <thead>
+            <tr>
+              <th>Asset</th>
+              <th>Daily Momentum</th>
+              <th>Today's Move</th>
+              <th>Alignment</th>
+              <th>Implication</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
+
+// ---------------------------------------------------------------------------
+// TRADE CARDS — 3 strategies, one card each
+// ---------------------------------------------------------------------------
+
+function renderTradeCards(model) {
+  const labData  = model.macroResearch?.strategyLabData || {};
+  const gsResult = model.strategyLab?.goldSilver;
+  const vixResult = model.strategyLab?.vix;
+  const gsParams  = state.scout.strategyLab?.gsParams  || { entryRatio: 75, exitRatio: 50, maxDays: 180 };
+  const vixParams = state.scout.strategyLab?.vixParams || { threshold: 25, horizon: 20 };
+
+  // ── Card A: Gold/Silver Mean Reversion ──────────────────────────────────
+  const ratioHistory = gsResult?.ratioHistory || [];
+  const latestRatio  = ratioHistory.length ? ratioHistory[ratioHistory.length - 1]?.value : null;
+  const gsActive     = latestRatio !== null && latestRatio >= 75;
+  const gsDistPct    = latestRatio !== null ? ((75 - latestRatio) / 75 * 100) : null;
+
+  // Momentum confirmation for GS: is SLV/AGQ bullish?
+  const agqRow = computeMomentumRow("AGQ", labData.AGQ || []);
+  const gsMomConfirm = agqRow.dailyCls === "mm-bull" || agqRow.dailyCls === "mm-neutral";
+
+  // Performance — only show if reliable (≥ 5 trades, positive avg return)
+  const gsPerf = (gsResult?.tradeCount >= 5 && gsResult?.avgReturn > 0) ? {
+    winRate: gsResult.winRate,
+    avgReturn: gsResult.avgReturn,
+    maxDrawdown: gsResult.maxDrawdown,
+    trades: gsResult.tradeCount,
+  } : null;
+
+  const cardA = renderOneTradeCard({
+    name: "Gold/Silver Mean Reversion",
+    vehicle: "Long SIL / AGQ (silver miners or 2× silver)",
+    type: "Mean Reversion — NOT a trend trade",
+    active: gsActive,
+    direction: gsActive ? "LONG SILVER" : null,
+    entryRule: "Gold/Silver ratio > 75 → silver is historically cheap vs gold",
+    exitRule: "Ratio < 45, OR momentum turns bearish on silver, OR 180 days elapsed",
+    currentLabel: "G/S Ratio",
+    currentValue: latestRatio !== null ? latestRatio.toFixed(1) : "—",
+    distanceLabel: latestRatio !== null ? (gsActive ? "AT TRIGGER" : `${Math.abs(gsDistPct).toFixed(1)}% below entry`) : "—",
+    distanceActive: gsActive,
+    momConfirm: gsMomConfirm,
+    momLabel: `AGQ daily: ${agqRow.daily}`,
+    perf: gsPerf,
+  });
+
+  // ── Card B: VIX Spike Entry ──────────────────────────────────────────────
+  const vixSeries = labData.VIX || [];
+  const latestVix = vixSeries.length ? vixSeries[vixSeries.length - 1]?.value : null;
+  const vixActive = latestVix !== null && latestVix >= 30;
+  const vixDist   = latestVix !== null ? (30 - latestVix) : null;
+
+  // Performance — VIX threshold in backtest may differ (user uses 25 in backtest, card says 30)
+  // Show if backtest has ≥5 trades and positive avg return
+  const vixPerf = (vixResult?.tradeCount >= 5 && vixResult?.avgReturn > 0) ? {
+    winRate: vixResult.winRate,
+    avgReturn: vixResult.avgReturn,
+    maxDrawdown: vixResult.maxDrawdown,
+    trades: vixResult.tradeCount,
+    note: `Backtest uses VIX≥${vixParams.threshold} threshold`,
+  } : null;
+
+  const cardB = renderOneTradeCard({
+    name: "VIX Spike Entry",
+    vehicle: "Long SPY (equities, fade fear)",
+    type: "Contrarian — buy fear, not trend",
+    active: vixActive,
+    direction: vixActive ? "LONG SPY" : null,
+    entryRule: "VIX closes above 30 — extreme fear spike",
+    exitRule: "VIX drops below 20, OR 5 trading days after entry",
+    currentLabel: "VIX",
+    currentValue: latestVix !== null ? latestVix.toFixed(1) : "—",
+    distanceLabel: latestVix !== null ? (vixActive ? "AT TRIGGER" : `${Math.abs(vixDist).toFixed(1)} pts below entry`) : "—",
+    distanceActive: vixActive,
+    momConfirm: null, // not applicable for VIX
+    momLabel: null,
+    perf: vixPerf,
+  });
+
+  // ── Card C: AGQ Momentum Bounce ──────────────────────────────────────────
+  const agqSeries = labData.AGQ || [];
+  const agqLatest = agqSeries.length ? agqSeries[agqSeries.length - 1]?.value : null;
+  const agqPrev   = agqSeries.length > 1 ? agqSeries[agqSeries.length - 2]?.value : null;
+  const agqTodayPct = (agqLatest && agqPrev) ? (agqLatest / agqPrev - 1) * 100 : null;
+  const agqBounceActive = agqTodayPct !== null && agqTodayPct <= -3;
+
+  // RSI for oversold confirmation
+  let agqRsi = null;
+  if (agqSeries.length >= 15) {
+    let g = 0, l = 0;
+    for (let i = agqSeries.length - 14; i < agqSeries.length; i++) {
+      const d = agqSeries[i].value - agqSeries[i - 1]?.value;
+      if (d > 0) g += d; else l -= d;
+    }
+    const rs = l === 0 ? 100 : g / l;
+    agqRsi = Math.round(100 - 100 / (1 + rs));
+  }
+  const agqOversold = agqRsi !== null && agqRsi < 40;
+
+  // AGQ bounce performance — use momentumResult if it's AGQ/-3
+  const momResult = model.strategyLab?.momentumResult;
+  const momParams = state.scout.strategyLab?.momentumParams || {};
+  const momIsAgq3 = momParams.asset === "AGQ" && momParams.triggerPct === -3;
+  const agqH1 = momIsAgq3 ? momResult?.horizons?.find((h) => h.horizon === 1) : null;
+  const agqH5 = momIsAgq3 ? momResult?.horizons?.find((h) => h.horizon === 5) : null;
+  const agqPerf = (agqH1 && agqH1.n >= 5 && (agqH1.bounceRate || 0) >= 50) ? {
+    winRate: agqH1.bounceRate,
+    avgReturn: agqH1.avgReturn,
+    maxDrawdown: agqH1.minReturn,
+    trades: agqH1.n,
+    note: "1D bounce rate after ≥−3% drop",
+  } : null;
+
+  const cardC = renderOneTradeCard({
+    name: "AGQ Momentum Bounce",
+    vehicle: "Long AGQ (2× silver) — INTRADAY mean reversion",
+    type: "Mean Reversion — NOT directional. Same-day exit only.",
+    active: agqBounceActive,
+    direction: agqBounceActive ? "LONG AGQ (intraday)" : null,
+    entryRule: "AGQ drops ≥ 3% vs prior close → mean reversion long",
+    exitRule: "+2% gain target, OR end of same trading day",
+    currentLabel: "AGQ today",
+    currentValue: agqTodayPct !== null ? `${agqTodayPct >= 0 ? "+" : ""}${agqTodayPct.toFixed(1)}%` : "—",
+    distanceLabel: agqTodayPct !== null ? (agqBounceActive ? "AT TRIGGER" : `${(Math.abs(agqTodayPct) - 3 < 0 ? (3 - Math.abs(agqTodayPct)).toFixed(1) + "% above" : "AT") + " trigger"}`) : "—",
+    distanceActive: agqBounceActive,
+    momConfirm: agqOversold,
+    momLabel: agqRsi !== null ? `RSI-14: ${agqRsi}${agqOversold ? " — oversold ✓" : ""}` : "RSI loading",
+    perf: agqPerf,
+  });
+
+  return `
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <p class="scout-section-label">Strategy Signals</p>
+          <h2>Trade Cards</h2>
+          <p class="panel-subtitle">Is there a trade right now? What is it? How do I execute it?</p>
+        </div>
+      </div>
+      <div class="trade-cards">${cardA}${cardB}${cardC}</div>
+    </section>
+  `;
+}
+
+function renderOneTradeCard({ name, vehicle, type, active, direction, entryRule, exitRule, currentLabel, currentValue, distanceLabel, distanceActive, momConfirm, momLabel, perf }) {
+  const statusCls = active ? "trade-card--active" : "trade-card--inactive";
+  const statusLabel = active ? "ACTIVE TRADE" : "NO TRADE";
+  const fmtPct = (v) => v !== null && v !== undefined ? `${v >= 0 ? "+" : ""}${Number(v).toFixed(1)}%` : "—";
+
+  const perfBlock = perf ? `
+    <div class="trade-card__perf">
+      <div class="trade-card__perf-row"><span>Win Rate</span><strong style="color:${perf.winRate >= 50 ? "var(--positive)" : "var(--negative)"}">${Number(perf.winRate).toFixed(0)}%</strong></div>
+      <div class="trade-card__perf-row"><span>Avg Return</span><strong style="color:${perf.avgReturn >= 0 ? "var(--positive)" : "var(--negative)"}">${fmtPct(perf.avgReturn)}</strong></div>
+      <div class="trade-card__perf-row"><span>Max Drawdown</span><strong style="color:var(--negative)">${fmtPct(perf.maxDrawdown)}</strong></div>
+      <div class="trade-card__perf-row"><span>Backtest trades</span><strong>${perf.trades}</strong></div>
+      ${perf.note ? `<div class="trade-card__perf-note">${escapeHtml(perf.note)}</div>` : ""}
+    </div>
+  ` : `<div class="trade-card__perf-pending">Backtest pending</div>`;
+
+  const momBlock = momLabel !== null ? `
+    <div class="trade-card__row">
+      <span class="trade-card__label">Momentum</span>
+      <span class="trade-card__val" style="color:${momConfirm === true ? "var(--positive)" : momConfirm === false ? "var(--negative)" : "var(--text-muted)"}">
+        ${momConfirm === true ? "✓ Confirmed" : momConfirm === false ? "✗ Not confirmed" : "—"}
+        ${escapeHtml(momLabel)}
+      </span>
+    </div>
+  ` : "";
+
+  return `
+    <div class="trade-card ${statusCls}">
+      <div class="trade-card__header">
+        <div class="trade-card__name">${escapeHtml(name)}</div>
+        <div class="trade-card__status">${statusLabel}</div>
+      </div>
+      <div class="trade-card__vehicle">${escapeHtml(vehicle)}</div>
+      <div class="trade-card__type">${escapeHtml(type)}</div>
+      ${active && direction ? `<div class="trade-card__direction">Direction: <strong>${escapeHtml(direction)}</strong></div>` : ""}
+      <div class="trade-card__divider"></div>
+      <div class="trade-card__row"><span class="trade-card__label">Entry Rule</span><span class="trade-card__val">${escapeHtml(entryRule)}</span></div>
+      <div class="trade-card__row"><span class="trade-card__label">Exit Rule</span><span class="trade-card__val">${escapeHtml(exitRule)}</span></div>
+      <div class="trade-card__row">
+        <span class="trade-card__label">${escapeHtml(currentLabel)}</span>
+        <span class="trade-card__val trade-card__val--live">${escapeHtml(currentValue)}</span>
+      </div>
+      <div class="trade-card__row">
+        <span class="trade-card__label">Distance</span>
+        <span class="trade-card__val ${distanceActive ? "trade-card__val--trigger" : ""}">${escapeHtml(distanceLabel)}</span>
+      </div>
+      ${momBlock}
+      <div class="trade-card__divider"></div>
+      ${perfBlock}
+    </div>
+  `;
+}
+
+// ---------------------------------------------------------------------------
+// MACRO RATE PANEL — rates with plain-English interpretation
+// ---------------------------------------------------------------------------
+
+function macroInterpretation(code, value, change20, percentile) {
+  // Returns { text, cls } where cls is "macro-tile--bull" | "macro-tile--bear" | "macro-tile--neutral"
+  if (code === "DFII10") {
+    // 10Y Real Yield
+    if (value > 1.5)  return { text: "Positive real rates — headwind for gold/silver", cls: "macro-tile--bear" };
+    if (value > 0)    return { text: "Mildly positive real rates — slight headwind for metals", cls: "macro-tile--neutral" };
+    return { text: "Negative real rates — tailwind for gold/silver", cls: "macro-tile--bull" };
+  }
+  if (code === "T10YIE") {
+    // 10Y Breakeven Inflation
+    if (value > 2.5)  return { text: "Inflation expectations elevated — tailwind for metals", cls: "macro-tile--bull" };
+    if (value >= 2.0) return { text: "Inflation near target — neutral for metals", cls: "macro-tile--neutral" };
+    return { text: "Deflation risk — headwind for metals and commodities", cls: "macro-tile--bear" };
+  }
+  if (code === "T10Y2Y") {
+    // 10s2s Yield Curve (in bp)
+    if (value > 50)    return { text: "Curve steepening — watch for reflation, bullish metals", cls: "macro-tile--bull" };
+    if (value > -10)   return { text: "Flat curve — neutral, no strong regime signal", cls: "macro-tile--neutral" };
+    return { text: "Inverted curve — recession risk, headwind for risk assets", cls: "macro-tile--bear" };
+  }
+  if (code === "T5YIFR") {
+    // 5Y5Y Forward Inflation
+    if (value > 2.5)  return { text: "Long-term inflation elevated — structurally bullish metals", cls: "macro-tile--bull" };
+    if (value >= 2.0) return { text: "Long-term inflation anchored — neutral", cls: "macro-tile--neutral" };
+    return { text: "Low long-term inflation expectations — headwind for metals", cls: "macro-tile--bear" };
+  }
+  if (code === "DGS10") {
+    // 10Y Nominal Yield
+    if (value > 4.5)   return { text: "Yields elevated — high cost of capital, headwind for growth assets", cls: "macro-tile--bear" };
+    if (value >= 3.5)  return { text: "Yields moderate — financial conditions neutral", cls: "macro-tile--neutral" };
+    return { text: "Low yields — easy financial conditions, tailwind for risk", cls: "macro-tile--bull" };
+  }
+  if (code === "DXY" || code === "DTWEXBGS") {
+    // Dollar
+    if (change20 > 1)   return { text: "Dollar strengthening — headwind for gold and commodities", cls: "macro-tile--bear" };
+    if (change20 < -1)  return { text: "Dollar weakening — tailwind for gold/silver and EM", cls: "macro-tile--bull" };
+    return { text: "Dollar stable — neutral for metals", cls: "macro-tile--neutral" };
+  }
+  // Default
+  return { text: "", cls: "macro-tile--neutral" };
+}
+
+function renderMacroRatePanel(model) {
+  const snapshot = model.macroResearch?.macroSnapshot || [];
+  const TARGET_CODES = ["DGS10", "DFII10", "T10YIE", "T10Y2Y", "T5YIFR", "DXY", "DTWEXBGS"];
+  const items = snapshot.filter((s) => TARGET_CODES.includes(s.code));
+  if (!items.length) return "";
+
+  const tiles = items.map((item) => {
+    const interp = macroInterpretation(item.code, item.latest, item.change20, item.percentile);
+    const pct = Math.round(item.percentile || 0);
+    const threshold = item.unit === "bp" ? 2 : item.unit === "index" ? 0.3 : 0.01;
+    const rising = item.change20 > threshold;
+    const falling = item.change20 < -threshold;
+    const arrow = rising ? "↑" : falling ? "↓" : "→";
+    return `
+      <div class="macro-tile ${interp.cls}">
+        <div class="macro-tile__head">
+          <span class="macro-tile__label">${escapeHtml(item.label)}</span>
+          <span class="macro-tile__pct">${pct}th pct</span>
+        </div>
+        <div class="macro-tile__value">${formatMacroValue(item.latest, item.unit)}</div>
+        <div class="macro-tile__change">${arrow} ${escapeHtml(formatMacroDelta(item.change20, item.unit))} / 20 days</div>
+        ${interp.text ? `<div class="macro-tile__interp">${escapeHtml(interp.text)}</div>` : ""}
+        <div class="macro-tile__bar"><div class="macro-tile__bar-fill" style="width:${pct}%"></div></div>
+      </div>
+    `;
+  }).join("");
+
+  return `
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <p class="scout-section-label">Macro Context</p>
+          <h2>Rate &amp; Macro Panel</h2>
+          <p class="panel-subtitle">What rates are doing and what it means for your book. Green = tailwind, Red = headwind, Gray = neutral.</p>
+        </div>
+      </div>
+      <div class="macro-rate-grid">${tiles}</div>
+    </section>
+  `;
+}
 
 // ── WHAT TO DO NOW — actionable signals ────────────────────────────────────
 
