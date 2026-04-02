@@ -1741,13 +1741,8 @@ function renderScout(context, analytics, summary) {
 
   const model = syncUiState.scoutModel;
   elements.scoutRoot.innerHTML = `
-    ${renderMacroRegimeHeader(model)}
-    ${renderWhatToDoNow(model)}
-    ${renderStrategyLabSignals(model)}
-    ${renderAssetVerdicts(model)}
-    ${renderRelativeExpressions(model)}
-    ${renderConditionalReturns(model)}
-    ${renderSynthesisMemo(model)}
+    ${renderSimplifiedRegimePanel(model)}
+    ${renderTradeSignals(model)}
     ${renderStrategyLab(model)}
     ${renderScoutWatchlist(model)}
   `;
@@ -1779,9 +1774,8 @@ function renderScoutCharts(model) {
   } else if (activeStrategy === "gs") {
     renderGsRatioChart(lab.goldSilver, model);
     renderGsEquityChart(lab.goldSilver);
-  } else {
-    renderMomentumChart(lab.momentumResult);
   }
+  // momentum tab uses cards, no canvas chart needed
 }
 
 function makeChartDefaults() {
@@ -2216,6 +2210,329 @@ function buildScoutCacheKey(context, analytics) {
 // ── SCOUT v3 rendering ──────────────────────────────────────────────────────
 
 // ── WHAT TO DO NOW — actionable signals ────────────────────────────────────
+
+// ---------------------------------------------------------------------------
+// Signal builders — answers: Is there a trade? What is it? How confident?
+// ---------------------------------------------------------------------------
+
+function buildSimplifiedRegime(model) {
+  const discreteRegime = model.macroResearch?.discreteRegime;
+  const regime = discreteRegime?.regime;
+  const markov = discreteRegime?.markov;
+  const vixData = model.macroResearch?.strategyLabData?.VIX || [];
+  const latestVix = vixData.length ? vixData[vixData.length - 1]?.value : null;
+
+  // Map to 3 simplified regime types based on named regime + VIX
+  const trendSet = new Set(["goldilocks", "reflation", "tightening-cycle"]);
+  const mrSet    = new Set(["stagflation-warning", "real-rate-suppression"]);
+  const hvSet    = new Set(["deflation-scare"]);
+
+  let type, label, color, interpretation, favorStrategies, cautionStrategies;
+
+  if (latestVix && latestVix > 30) {
+    type = "HIGH_VOL"; color = "#f87171";
+    label = "High Volatility / Risk-Off";
+    interpretation = "Fear elevated. Extreme fear often creates contrarian entry opportunities in equities and silver miners.";
+    favorStrategies = ["VIX Spike Entry (SPY)"];
+    cautionStrategies = ["Gold/Silver Ratio — wait for ratio to stretch"];
+  } else if (regime?.id && trendSet.has(regime.id)) {
+    type = "TREND"; color = "#4ade80";
+    label = "Trend / Growth";
+    interpretation = "Macro supports directional moves. Momentum works better than mean reversion in this environment.";
+    favorStrategies = ["AGQ, RING momentum trades"];
+    cautionStrategies = ["Mean reversion — wait for dislocations"];
+  } else if (regime?.id && mrSet.has(regime.id)) {
+    type = "MEAN_REVERSION"; color = "#fb923c";
+    label = "Mean Reversion / Spread";
+    interpretation = "Spread dislocations are likely. Ratio extremes tend to revert. Silver miners have structural edge.";
+    favorStrategies = ["Gold/Silver Mean Reversion (SIL)"];
+    cautionStrategies = ["Pure momentum — choppy, mean-reverting environment"];
+  } else if (regime?.id && hvSet.has(regime.id)) {
+    type = "HIGH_VOL"; color = "#f87171";
+    label = "Deflation / Risk-Off";
+    interpretation = "Deflation risk elevated. Fear creating oversold conditions.";
+    favorStrategies = ["VIX Spike Entry (if VIX ≥ threshold)"];
+    cautionStrategies = ["Commodity spreads — defer"];
+  } else {
+    type = "NEUTRAL"; color = "#94a3b8";
+    label = regime?.name || "Neutral / Analyzing";
+    interpretation = "No dominant macro theme identified. Reduce position sizing and wait for regime clarification.";
+    favorStrategies = [];
+    cautionStrategies = ["Avoid high-conviction bets"];
+  }
+
+  return {
+    type, label, color, interpretation, favorStrategies, cautionStrategies,
+    stayProb: markov?.stayProbability,
+    switchProb: markov?.switchProbability,
+    streak: markov?.streak,
+    mostLikelyNext: markov?.mostLikelyNext,
+    rawName: regime?.name,
+  };
+}
+
+function buildVixSignal(model) {
+  const params  = state.scout.strategyLab?.vixParams || { threshold: 25, horizon: 20 };
+  const result  = model.strategyLab?.vix;
+  const vixData = model.macroResearch?.strategyLabData?.VIX || [];
+  const latest  = vixData.length ? vixData[vixData.length - 1] : null;
+  const simpleRegime = buildSimplifiedRegime(model);
+  const active  = !!(latest && latest.value >= params.threshold);
+  const regimeAligned = simpleRegime.type === "HIGH_VOL" || (latest?.value > params.threshold * 0.85);
+
+  let conf = result?.winRate ? Math.round(result.winRate) : 55;
+  if (!active) conf = Math.max(30, conf - 15);
+  if (regimeAligned && active) conf = Math.min(85, conf + 10);
+  else if (!regimeAligned) conf = Math.max(25, conf - 8);
+
+  return {
+    strategy: "vix",
+    label: "VIX Spike Entry",
+    active,
+    direction: active ? "LONG SPY" : null,
+    asset: "SPY",
+    confidence: conf,
+    drivers: [
+      latest ? `VIX = ${latest.value.toFixed(1)} (entry threshold: ${params.threshold})` : "VIX data loading",
+      `Current regime: ${simpleRegime.label}`,
+      regimeAligned ? "Regime aligned — fear environment favors contrarian entry" : "Regime not aligned — macro is calm",
+    ].filter(Boolean),
+    entry: `VIX closes ≥ ${params.threshold}`,
+    exit: `VIX drops below ${Math.round(params.threshold * 0.72)}, OR ${params.horizon} trading days elapsed`,
+    regimeAligned,
+    result,
+  };
+}
+
+function buildGoldSilverSignal(model) {
+  const params       = state.scout.strategyLab?.gsParams || { entryRatio: 75, exitRatio: 50, maxDays: 180 };
+  const result       = model.strategyLab?.goldSilver;
+  const ratioHistory = result?.ratioHistory || [];
+  const latest       = ratioHistory.length ? ratioHistory[ratioHistory.length - 1] : null;
+  const simpleRegime = buildSimplifiedRegime(model);
+  const active       = !!(latest && latest.value >= params.entryRatio);
+  const regimeAligned = simpleRegime.type === "MEAN_REVERSION" || simpleRegime.type === "HIGH_VOL";
+
+  let conf = result?.winRate ? Math.round(result.winRate) : 55;
+  if (!active) conf = Math.max(30, conf - 15);
+  if (regimeAligned && active) conf = Math.min(85, conf + 10);
+  else if (!regimeAligned) conf = Math.max(25, conf - 8);
+
+  return {
+    strategy: "gs",
+    label: "Gold/Silver Mean Reversion",
+    active,
+    direction: active ? "LONG SIL" : null,
+    asset: "SIL",
+    confidence: conf,
+    drivers: [
+      latest ? `G/S ratio = ${latest.value.toFixed(1)} (entry: ≥ ${params.entryRatio}, exit target: ≤ ${params.exitRatio})` : "Ratio data loading",
+      `Current regime: ${simpleRegime.label}`,
+      regimeAligned ? "Regime aligned — spread environment favors ratio trades" : "Regime not aligned — trend environment, wait for better entry",
+    ].filter(Boolean),
+    entry: `Gold/Silver ratio ≥ ${params.entryRatio}`,
+    exit: `Ratio compresses to ≤ ${params.exitRatio}, OR ${params.maxDays} calendar days elapsed`,
+    regimeAligned,
+    result,
+  };
+}
+
+function renderSignalBox(signal) {
+  const confColor = signal.confidence >= 65 ? "var(--positive)" : signal.confidence >= 45 ? "#fbbf24" : "var(--negative)";
+  const cls = signal.active ? "signal-box signal-box--active" : "signal-box signal-box--inactive";
+
+  return `
+    <div class="${cls}">
+      <div class="signal-box__header">
+        <div class="signal-box__verdict">
+          ${signal.active
+            ? `<span class="signal-box__trade">TRADE IDEA: ${escapeHtml(signal.direction)}</span>`
+            : `<span class="signal-box__no-trade">NO TRADE — conditions not met</span>`}
+        </div>
+        <div class="signal-box__conf">
+          <span class="signal-box__conf-label">Confidence</span>
+          <strong class="signal-box__conf-val" style="color:${confColor}">${signal.confidence}%</strong>
+        </div>
+      </div>
+      <div class="signal-box__drivers">
+        ${signal.drivers.map((d) => `<div class="signal-box__driver">▸ ${escapeHtml(d)}</div>`).join("")}
+      </div>
+      <div class="signal-box__exec">
+        <div class="signal-box__exec-row"><span class="signal-box__exec-label">Entry:</span><strong>${escapeHtml(signal.entry)}</strong></div>
+        <div class="signal-box__exec-row"><span class="signal-box__exec-label">Exit:</span><strong>${escapeHtml(signal.exit)}</strong></div>
+      </div>
+    </div>
+  `;
+}
+
+function renderHowItWorks(strategy) {
+  const blocks = {
+    vix: {
+      mechanism: "Market fear (VIX) spikes create overreaction. When VIX crosses the threshold, buy SPY and hold for a fixed window. Fear tends to mean-revert; SPY historically produces above-average returns after spikes.",
+      entry: "VIX closes ≥ threshold on day T — no pyramiding, one active trade at a time",
+      exit: "VIX drops 28% from entry level (fear normalized), OR fixed holding period expires",
+      why: "Extreme risk aversion overshoots fundamentals. Risk premium expands → tends to contract. Counter-trend, not trend-following.",
+      type: "Contrarian / Mean Reversion",
+    },
+    gs: {
+      mechanism: "The gold/silver ratio (oz gold ÷ oz silver) oscillates around 60–80x historically. When it stretches above the threshold, silver is cheap relative to gold. Silver miners (SIL) provide leveraged upside when ratio compresses.",
+      entry: "Ratio = (GLD × 10) ÷ SLV ≥ entry threshold — ratio must reach extremes before entry",
+      exit: "Ratio compresses to exit level (silver closes the gap), OR max holding period reached",
+      why: "Structural mean reversion in metals spread. Ratio extremes historically revert. SIL gives leveraged silver exposure.",
+      type: "Relative Value / Mean Reversion",
+    },
+  };
+  const b = blocks[strategy];
+  if (!b) return "";
+  return `
+    <div class="signal-howit">
+      <p class="signal-howit__title">How This Works</p>
+      <div class="signal-howit__grid">
+        <div class="signal-howit__row"><span class="signal-howit__key">Mechanism</span><span>${escapeHtml(b.mechanism)}</span></div>
+        <div class="signal-howit__row"><span class="signal-howit__key">Entry rule</span><strong>${escapeHtml(b.entry)}</strong></div>
+        <div class="signal-howit__row"><span class="signal-howit__key">Exit rule</span><strong>${escapeHtml(b.exit)}</strong></div>
+        <div class="signal-howit__row"><span class="signal-howit__key">Why it works</span><em>${escapeHtml(b.why)}</em></div>
+        <div class="signal-howit__row"><span class="signal-howit__key">Strategy type</span><span>${escapeHtml(b.type)}</span></div>
+      </div>
+    </div>
+  `;
+}
+
+function renderSimplifiedRegimePanel(model) {
+  const sr = buildSimplifiedRegime(model);
+  const snapshot = model.macroResearch?.macroSnapshot || [];
+  const discreteRegime = model.macroResearch?.discreteRegime;
+  const states = discreteRegime?.states || {};
+  const s = states;
+
+  const signalTiles = snapshot.slice(0, 6).map((item) => {
+    const threshold = item.unit === "bp" ? 2 : item.unit === "index" ? 0.3 : 0.01;
+    const rising = item.change20 > threshold;
+    const falling = item.change20 < -threshold;
+    const dirClass = rising ? "scout-regime-signal--rising" : falling ? "scout-regime-signal--falling" : "";
+    const dirArrow = rising ? "↑" : falling ? "↓" : "→";
+    const pct = Math.round(item.percentile || 0);
+    return `
+      <div class="scout-regime-signal ${dirClass}">
+        <span class="scout-regime-signal__label">${escapeHtml(item.label)}</span>
+        <strong class="scout-regime-signal__value">${formatMacroValue(item.latest, item.unit)}</strong>
+        <span class="scout-regime-signal__change">${dirArrow} ${escapeHtml(formatMacroDelta(item.change20, item.unit))} 20D</span>
+        <span class="scout-regime-signal__pct">${pct}th pct</span>
+        <div class="scout-regime-signal__bar-wrap">
+          <div class="scout-regime-signal__bar-fill" style="width:${pct}%"></div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  const markovHtml = sr.stayProb !== undefined ? `
+    <div class="regime-simple__markov">
+      <p class="regime-simple__markov-label">Regime Stability (Markov)</p>
+      <div class="regime-markov__bars">
+        <div class="regime-markov__bar-item">
+          <span>Stay in regime</span>
+          <div class="regime-markov__bar-track"><div class="regime-markov__bar-fill regime-markov__bar-fill--stay" style="width:${sr.stayProb}%"></div></div>
+          <strong>${sr.stayProb}%</strong>
+        </div>
+        <div class="regime-markov__bar-item">
+          <span>Regime shift</span>
+          <div class="regime-markov__bar-track"><div class="regime-markov__bar-fill regime-markov__bar-fill--switch" style="width:${sr.switchProb}%"></div></div>
+          <strong>${sr.switchProb}%</strong>
+        </div>
+      </div>
+      ${sr.streak ? `<p class="regime-markov__streak">Streak: ${sr.streak} consecutive days in this regime</p>` : ""}
+      ${sr.mostLikelyNext ? `<p class="regime-markov__next">Most likely shift: ${escapeHtml(sr.mostLikelyNext.replace(/-/g, " "))}</p>` : ""}
+    </div>
+  ` : "";
+
+  const implHtml = (sr.favorStrategies.length || sr.cautionStrategies.length) ? `
+    <div class="regime-simple__implications">
+      ${sr.favorStrategies.length ? `<div class="regime-implication regime-implication--favor">Favor: ${escapeHtml(sr.favorStrategies.join(", "))}</div>` : ""}
+      ${sr.cautionStrategies.length ? `<div class="regime-implication regime-implication--caution">Caution: ${escapeHtml(sr.cautionStrategies.join(", "))}</div>` : ""}
+    </div>
+  ` : "";
+
+  return `
+    <section class="panel regime-panel" style="border-top: 3px solid ${escapeHtml(sr.color)}">
+      <div class="regime-simple">
+        <div class="regime-simple__main">
+          <p class="scout-section-label">Market Regime</p>
+          <h2 class="regime-simple__name" style="color:${escapeHtml(sr.color)}">${escapeHtml(sr.label)}</h2>
+          <p class="regime-simple__interp">${escapeHtml(sr.interpretation)}</p>
+          ${implHtml}
+        </div>
+        ${markovHtml}
+      </div>
+      <div class="scout-regime-strip" style="margin-top:1.2rem">${signalTiles}</div>
+    </section>
+  `;
+}
+
+function renderTradeSignals(model) {
+  const { assetSignals, relativeSignal } = buildActionSignals(model);
+  const sr = buildSimplifiedRegime(model);
+
+  const dirClass = (dir) => {
+    if (dir === "LONG") return "wtd-badge--long";
+    if (dir === "AVOID") return "wtd-badge--avoid";
+    if (dir === "MONITOR") return "wtd-badge--monitor";
+    return "wtd-badge--neutral";
+  };
+  const convClass = (conv) => {
+    if (conv === "HIGH") return "wtd-conv--high";
+    if (conv === "MEDIUM") return "wtd-conv--medium";
+    return "wtd-conv--low";
+  };
+
+  const cards = assetSignals.map((sig) => `
+    <article class="wtd-card">
+      <div class="wtd-card__head">
+        <div>
+          <span class="wtd-symbol">${escapeHtml(sig.symbol)}</span>
+          <span class="wtd-cat">${escapeHtml(sig.category)}</span>
+        </div>
+        <div class="wtd-badges">
+          <span class="wtd-badge ${dirClass(sig.direction)}">${escapeHtml(sig.direction)}</span>
+          <span class="wtd-conv ${convClass(sig.conviction)}">${escapeHtml(sig.conviction)}</span>
+        </div>
+      </div>
+      <p class="wtd-rationale">${escapeHtml(sig.rationale)}</p>
+      ${sig.drivers.length ? `<p class="wtd-drivers">Drivers: ${sig.drivers.map(escapeHtml).join(" · ")}</p>` : ""}
+    </article>
+  `).join("");
+
+  const relBlock = relativeSignal ? `
+    <article class="wtd-card wtd-card--relative">
+      <div class="wtd-card__head">
+        <div>
+          <span class="wtd-symbol">${escapeHtml(relativeSignal.label)}</span>
+          <span class="wtd-cat">Best relative expression</span>
+        </div>
+        <div class="wtd-badges">
+          <span class="wtd-badge wtd-badge--long">${escapeHtml(relativeSignal.direction)}</span>
+          <span class="wtd-conv ${convClass(relativeSignal.conviction)}">${escapeHtml(relativeSignal.conviction)}</span>
+        </div>
+      </div>
+      <p class="wtd-rationale">${escapeHtml(relativeSignal.rationale)}</p>
+    </article>
+  ` : "";
+
+  return `
+    <section class="panel wtd-panel">
+      <div class="panel-header">
+        <div>
+          <p class="scout-section-label">Action Layer</p>
+          <h2>Trade Signals</h2>
+          <p class="panel-subtitle">Macro-conditioned signals. Regime: <strong style="color:${escapeHtml(sr.color)}">${escapeHtml(sr.label)}</strong></p>
+        </div>
+      </div>
+      <div class="wtd-grid">
+        ${cards}
+        ${relBlock}
+      </div>
+    </section>
+  `;
+}
 
 function buildActionSignals(model) {
   const assets = model.macroResearch?.focusAssets || [];
@@ -2917,28 +3234,28 @@ function renderStrategyLab(model) {
   const momentumParams = state.scout.strategyLab?.momentumParams || { asset: "AGQ", triggerPct: -3 };
 
   const tabVix = activeStrategy === "vix" ? "lab-tab lab-tab--active" : "lab-tab";
-  const tabGs = activeStrategy === "gs" ? "lab-tab lab-tab--active" : "lab-tab";
+  const tabGs  = activeStrategy === "gs"  ? "lab-tab lab-tab--active" : "lab-tab";
   const tabMom = activeStrategy === "momentum" ? "lab-tab lab-tab--active" : "lab-tab";
 
   let content;
   if (activeStrategy === "vix") content = renderVixLabV2(lab?.vix, lab?.vixMultiHorizon, vixParams, model);
   else if (activeStrategy === "gs") content = renderGoldSilverLabV2(lab?.goldSilver, gsParams, model);
-  else content = renderMomentumModule(lab?.momentumResult, momentumParams, model);
+  else content = renderMomentumAnalysis(model);
 
   return `
     <section class="panel">
       <div class="panel-header">
         <div>
-          <p class="scout-section-label">Interactive Backtest Explorer</p>
-          <h2>Strategy Lab</h2>
-          <p class="panel-subtitle">Visual, parametric backtesting. No hidden logic — every rule, every trade, every chart is explicit.</p>
+          <p class="scout-section-label">Strategy Backtest Lab</p>
+          <h2>Strategies</h2>
+          <p class="panel-subtitle">Every rule explicit. Every trade visible. Is there a trade right now?</p>
         </div>
         <span class="status-pill ${getScoutStatusClass(model.dataStatus)}">${escapeHtml(model.dataStatus)}</span>
       </div>
       <div class="lab-tabs">
-        <button type="button" class="${tabVix}" data-lab-strategy="vix">VIX Entry (SPY)</button>
-        <button type="button" class="${tabGs}" data-lab-strategy="gs">Gold/Silver Ratio (SIL)</button>
-        <button type="button" class="${tabMom}" data-lab-strategy="momentum">Drop &amp; Bounce</button>
+        <button type="button" class="${tabVix}" data-lab-strategy="vix">VIX Spike Entry</button>
+        <button type="button" class="${tabGs}" data-lab-strategy="gs">Gold/Silver Mean Reversion</button>
+        <button type="button" class="${tabMom}" data-lab-strategy="momentum">Momentum Analysis</button>
       </div>
       ${content}
     </section>
@@ -2947,13 +3264,15 @@ function renderStrategyLab(model) {
 
 function renderVixLabV2(result, multiHorizon, params, model) {
   const noData = !result || result.tradeCount === 0;
+  const signal = buildVixSignal(model);
+
   const thresholdOptions = [15, 20, 25, 30, 35, 40].map((t) =>
     `<option value="${t}" ${params.threshold === t ? "selected" : ""}>${t}</option>`
   ).join("");
 
   const paramForm = `
     <div class="lab-params">
-      <p class="lab-params__title">Entry Parameters</p>
+      <p class="lab-params__title">Parameters</p>
       <form data-lab-form="vix">
         <div class="lab-field">
           <label for="vix-threshold-sel">VIX entry threshold</label>
@@ -2962,27 +3281,19 @@ function renderVixLabV2(result, multiHorizon, params, model) {
         <button type="submit" class="button button--primary button--small" style="width:100%;margin-top:0.6rem">Run Backtest</button>
       </form>
     </div>
-    <div class="lab-rationale">
-      <strong>How this works</strong><br>
-      Buy SPY when VIX closes ≥ ${params.threshold}. Exit when VIX falls below ${Math.round(params.threshold * 0.72)} OR after the selected holding period. VIX spikes signal peak fear — historically SPY has produced positive forward returns after fear spikes.
-    </div>
-  `;
-
-  // Current signal status
-  const vixData = model.macroResearch?.strategyLabData?.VIX || [];
-  const latestVix = vixData.length ? vixData[vixData.length - 1] : null;
-  const vixActive = latestVix && latestVix.value >= params.threshold;
-
-  const signalBanner = `
-    <div class="lab-signal-banner ${vixActive ? "lab-signal-banner--active" : "lab-signal-banner--inactive"}">
-      <span class="lab-signal-banner__status">${vixActive ? "SIGNAL ACTIVE TODAY" : "No signal today"}</span>
-      <span class="lab-signal-banner__val">VIX = ${latestVix ? latestVix.value.toFixed(1) : "—"} | Threshold = ${params.threshold}</span>
-      ${result?.trades?.length ? `<span class="lab-signal-banner__last">Last triggered: ${result.trades[result.trades.length - 1].entryDate}</span>` : ""}
-    </div>
   `;
 
   if (noData) {
-    return `<div class="lab-layout"><div class="lab-sidebar">${paramForm}</div><div class="lab-empty">${signalBanner}<br>No trades triggered with VIX ≥ ${params.threshold}. Lower the threshold.</div></div>`;
+    return `
+      <div class="lab-layout">
+        <div class="lab-sidebar">${paramForm}</div>
+        <div class="lab-results">
+          ${renderSignalBox(signal)}
+          ${renderHowItWorks("vix")}
+          <div class="lab-empty" style="text-align:left">No trades triggered with VIX ≥ ${params.threshold}. Try lowering the threshold.</div>
+        </div>
+      </div>
+    `;
   }
 
   // Multi-horizon summary table
@@ -3056,16 +3367,17 @@ function renderVixLabV2(result, multiHorizon, params, model) {
     <div class="lab-layout">
       <div class="lab-sidebar">${paramForm}</div>
       <div class="lab-results">
-        ${signalBanner}
+        ${renderSignalBox(signal)}
+        ${renderHowItWorks("vix")}
         ${statsHtml}
         ${multiHorizonTable}
         <div>
-          <p class="lab-block-title">Return Distribution — ${tfLabel(state.scout.strategyLab?.activeTimeframe ?? 20)} hold</p>
+          <p class="lab-block-title">Return Distribution</p>
           <div class="lab-dist-bars">${distBars}</div>
         </div>
         <div class="lab-chart-block">
           <p class="lab-block-title">SPY + VIX — Entry &amp; Exit Markers</p>
-          <p class="lab-block-sub">Green triangles = entries (VIX ≥ ${params.threshold}). Circles = exits. Chart shows last 500 trading days.</p>
+          <p class="lab-block-sub">Green triangles = entries (VIX ≥ ${params.threshold}). Circles = exits (green = win, red = loss). Last 500 trading days.</p>
           <div class="lab-chart-wrap"><canvas id="scout-vix-chart" height="220"></canvas></div>
         </div>
         <div>
@@ -3218,17 +3530,14 @@ function renderVixLab(result, params) {
 
 function renderGoldSilverLabV2(result, params, model) {
   const noData = !result || result.tradeCount === 0;
+  const signal = buildGoldSilverSignal(model);
+
   const entryOptions = [60, 65, 70, 75, 80, 85, 90].map((r) =>
     `<option value="${r}" ${params.entryRatio === r ? "selected" : ""}>${r}</option>`
   ).join("");
   const exitOptions = [40, 45, 50, 55, 60, 65].map((r) =>
     `<option value="${r}" ${params.exitRatio === r ? "selected" : ""}>${r}</option>`
   ).join("");
-
-  // Current ratio
-  const ratioHistory = result?.ratioHistory || [];
-  const latestRatio = ratioHistory.length ? ratioHistory[ratioHistory.length - 1] : null;
-  const gsActive = latestRatio && latestRatio.value >= params.entryRatio;
 
   const paramForm = `
     <div class="lab-params">
@@ -3249,22 +3558,19 @@ function renderGoldSilverLabV2(result, params, model) {
         <button type="submit" class="button button--primary button--small" style="width:100%;margin-top:0.6rem">Run Backtest</button>
       </form>
     </div>
-    <div class="lab-rationale">
-      <strong>The idea</strong><br>
-      Gold/Silver ratio = oz gold ÷ oz silver. When it exceeds ${params.entryRatio}, silver is historically cheap vs gold. When it compresses back to ${params.exitRatio}, silver (and SIL miners) typically outperform gold significantly. Ratio formula: (GLD × 10) ÷ SLV.
-    </div>
-  `;
-
-  const signalBanner = `
-    <div class="lab-signal-banner ${gsActive ? "lab-signal-banner--active" : "lab-signal-banner--inactive"}">
-      <span class="lab-signal-banner__status">${gsActive ? "SIGNAL ACTIVE — RATIO STRETCHED" : "No signal — ratio below threshold"}</span>
-      <span class="lab-signal-banner__val">Current ratio = ${latestRatio ? latestRatio.value.toFixed(1) : "—"} | Entry = ${params.entryRatio} | Exit target = ${params.exitRatio}</span>
-      ${result?.trades?.length ? `<span class="lab-signal-banner__last">Last trade entry: ${result.trades[result.trades.length - 1].entryDate}</span>` : ""}
-    </div>
   `;
 
   if (noData) {
-    return `<div class="lab-layout"><div class="lab-sidebar">${paramForm}</div><div class="lab-empty">${signalBanner}<br>No trades with ratio ≥ ${params.entryRatio} → ≤ ${params.exitRatio}. Try adjusting parameters.</div></div>`;
+    return `
+      <div class="lab-layout">
+        <div class="lab-sidebar">${paramForm}</div>
+        <div class="lab-results">
+          ${renderSignalBox(signal)}
+          ${renderHowItWorks("gs")}
+          <div class="lab-empty" style="text-align:left">No trades with ratio ≥ ${params.entryRatio} → ≤ ${params.exitRatio}. Try adjusting parameters.</div>
+        </div>
+      </div>
+    `;
   }
 
   const statsHtml = `
@@ -3295,15 +3601,17 @@ function renderGoldSilverLabV2(result, params, model) {
     <div class="lab-layout">
       <div class="lab-sidebar">${paramForm}</div>
       <div class="lab-results">
-        ${signalBanner}
+        ${renderSignalBox(signal)}
+        ${renderHowItWorks("gs")}
         ${statsHtml}
         <div class="lab-chart-block">
-          <p class="lab-block-title">Gold/Silver Ratio — Full History with Trade Markers</p>
-          <p class="lab-block-sub">Blue line = ratio. Green triangles = entries (ratio ≥ ${params.entryRatio}). Red circles = exits. Dashed lines = entry/exit thresholds.</p>
+          <p class="lab-block-title">Gold/Silver Ratio — Full History</p>
+          <p class="lab-block-sub">Blue = ratio. Green triangles = entries (≥ ${params.entryRatio}). Red circles = exits. Dashed lines = thresholds.</p>
           <div class="lab-chart-wrap"><canvas id="scout-gs-ratio-chart" height="200"></canvas></div>
         </div>
         <div class="lab-chart-block">
-          <p class="lab-block-title">SIL Equity Curve (hypothetical $100 per trade, not compounded)</p>
+          <p class="lab-block-title">SIL Equity Curve — hypothetical $100 per trade</p>
+          <p class="lab-block-sub">Not compounded. Each dot: green = winning trade, red = losing trade.</p>
           <div class="lab-chart-wrap"><canvas id="scout-gs-equity-chart" height="150"></canvas></div>
         </div>
         <div>
@@ -3314,6 +3622,111 @@ function renderGoldSilverLabV2(result, params, model) {
           </table></div>
         </div>
       </div>
+    </div>
+  `;
+}
+
+// ---------------------------------------------------------------------------
+// Momentum Analysis — replaces Drop & Bounce
+// Shows: Bullish / Bearish / Neutral state per asset, based on 20D return + RSI-14
+// Uses price series from strategyLabData. No intraday. Daily closes only.
+// ---------------------------------------------------------------------------
+
+function renderMomentumAnalysis(model) {
+  const labData = model.macroResearch?.strategyLabData || {};
+  const agqM = model.macroResearch?.agqMomentum;
+  const sr = buildSimplifiedRegime(model);
+
+  const ASSETS = ["AGQ", "RING", "GLD", "SIL", "TIP", "TLT", "COPX", "URA"];
+
+  const signals = ASSETS.map((sym) => {
+    const series = labData[sym] || [];
+    if (series.length < 22) return { sym, state: "NO DATA", stateColor: "#6b7280", r5: null, r20: null, rsi: null };
+
+    const latest = series[series.length - 1].value;
+    const p5  = series[series.length - 6]?.value;
+    const p20 = series[series.length - 21]?.value;
+    const r5  = p5  ? ((latest / p5  - 1) * 100) : null;
+    const r20 = p20 ? ((latest / p20 - 1) * 100) : null;
+
+    // RSI-14 (Wilder smoothing approximation with simple avg for first period)
+    let gains = 0, losses = 0, count = 0;
+    for (let i = series.length - 14; i < series.length; i++) {
+      if (i < 1) continue;
+      const d = series[i].value - series[i - 1].value;
+      if (d > 0) gains += d; else losses -= d;
+      count++;
+    }
+    const avgGain = count > 0 ? gains / count : 0;
+    const avgLoss = count > 0 ? losses / count : 0;
+    const rs  = avgLoss === 0 ? 100 : avgGain / avgLoss;
+    const rsi = Math.round(100 - 100 / (1 + rs));
+
+    let state, stateColor;
+    if ((r20 ?? 0) > 2 && rsi > 55)      { state = "BULLISH";  stateColor = "var(--positive)"; }
+    else if ((r20 ?? 0) < -2 && rsi < 45) { state = "BEARISH";  stateColor = "var(--negative)"; }
+    else                                   { state = "NEUTRAL";  stateColor = "#94a3b8"; }
+
+    // Regime context: is this asset favored by current regime?
+    const regimeFavor = sr.favorStrategies.some((s) => s.includes(sym));
+
+    return {
+      sym, state, stateColor,
+      r5: r5 !== null ? r5.toFixed(1) : null,
+      r20: r20 !== null ? r20.toFixed(1) : null,
+      rsi: String(rsi),
+      regimeFavor,
+    };
+  });
+
+  const cards = signals.map((s) => `
+    <div class="momentum-signal-card">
+      <div class="momentum-signal-card__head">
+        <strong class="momentum-signal-card__sym">${escapeHtml(s.sym)}</strong>
+        <span class="momentum-signal-card__state" style="color:${s.stateColor}">${escapeHtml(s.state)}</span>
+      </div>
+      <div class="momentum-signal-card__stats">
+        ${s.r5  !== null ? `<span class="momentum-signal-card__stat"><em>5D</em>${parseFloat(s.r5)  >= 0 ? "+" : ""}${s.r5}%</span>` : ""}
+        ${s.r20 !== null ? `<span class="momentum-signal-card__stat"><em>20D</em>${parseFloat(s.r20) >= 0 ? "+" : ""}${s.r20}%</span>` : ""}
+        ${s.rsi !== null ? `<span class="momentum-signal-card__stat"><em>RSI</em>${s.rsi}</span>` : ""}
+      </div>
+      ${s.regimeFavor ? `<div class="momentum-signal-card__regime-flag">Regime-favored</div>` : ""}
+    </div>
+  `).join("");
+
+  // AGQ overlay from macro engine (if available)
+  const agqBlockHtml = agqM?.available ? (() => {
+    const m = agqM;
+    const trendCls = m.trend === 1 ? "momentum-signal-card__state" : m.trend === -1 ? "momentum-signal-card__state" : "";
+    const trendColor = m.trend === 1 ? "var(--positive)" : m.trend === -1 ? "var(--negative)" : "#94a3b8";
+    const fmtR = (v) => v !== null && v !== undefined ? `${v > 0 ? "+" : ""}${Number(v).toFixed(1)}%` : "—";
+    return `
+      <div class="momentum-agq-detail">
+        <p class="lab-block-title">AGQ — Detailed Signal</p>
+        <div class="momentum-agq-detail__row">
+          <span>Trend</span><strong style="color:${trendColor}">${escapeHtml(m.trendLabel)}</strong>
+        </div>
+        <div class="momentum-agq-detail__row">
+          <span>5D / 20D / 60D / 120D</span>
+          <strong>${escapeHtml(fmtR(m.returns?.r5))} / ${escapeHtml(fmtR(m.returns?.r20))} / ${escapeHtml(fmtR(m.returns?.r60))} / ${escapeHtml(fmtR(m.returns?.r120))}</strong>
+        </div>
+        <div class="momentum-agq-detail__row">
+          <span>RSI-14</span>
+          <strong style="color:${m.overbought ? "var(--negative)" : m.oversold ? "var(--positive)" : "inherit"}">${m.rsi14}${m.overbought ? " (Overbought)" : m.oversold ? " (Oversold)" : ""}</strong>
+        </div>
+        <div class="momentum-agq-detail__row">
+          <span>Regime alignment</span>
+          <strong style="color:${sr.favorStrategies.some((s) => s.includes("AGQ")) ? "var(--positive)" : "inherit"}">${escapeHtml(sr.label)}</strong>
+        </div>
+      </div>
+    `;
+  })() : "";
+
+  return `
+    <div class="momentum-analysis">
+      <p class="momentum-analysis__note">Daily momentum signals based on 20D returns and RSI-14. No intraday data — daily closes only. "Bullish" = positive momentum + RSI > 55. "Bearish" = negative + RSI < 45.</p>
+      <div class="momentum-signals">${cards}</div>
+      ${agqBlockHtml}
     </div>
   `;
 }
