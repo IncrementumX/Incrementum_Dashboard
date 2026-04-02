@@ -67,6 +67,11 @@ export async function createMacroResearchModel({ scoutState, portfolioContext, p
     SLV: dataset.strategyAssets?.SLV || [],
     SIL: dataset.strategyAssets?.SIL || [],
     AGQ: dataset.assets?.AGQ?.map((p) => ({ date: p.date, value: p.value })) || [],
+    RING: dataset.assets?.RING?.map((p) => ({ date: p.date, value: p.value })) || [],
+    TIP: dataset.assets?.TIP?.map((p) => ({ date: p.date, value: p.value })) || [],
+    TLT: dataset.assets?.TLT?.map((p) => ({ date: p.date, value: p.value })) || [],
+    COPX: dataset.assets?.COPX?.map((p) => ({ date: p.date, value: p.value })) || [],
+    URA: dataset.assets?.URA?.map((p) => ({ date: p.date, value: p.value })) || [],
   };
 
   // Discrete regime model + Markov transitions

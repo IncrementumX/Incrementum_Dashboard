@@ -273,6 +273,99 @@ function buildEmptyGoldSilverResult(entryRatio, exitRatio) {
 }
 
 // ---------------------------------------------------------------------------
+// MULTI-HORIZON VIX STRATEGY
+// ---------------------------------------------------------------------------
+// Run the VIX entry strategy across multiple holding horizons simultaneously.
+// Returns a summary table for comparison: avg return, win rate, n trades per horizon.
+// ---------------------------------------------------------------------------
+
+export function runVixStrategyMultiHorizon({ vixSeries, spySeries, threshold = 25, horizons = [20, 40, 60, 120, 250] }) {
+  return horizons.map((h) => {
+    const result = runVixStrategy({ vixSeries, spySeries, threshold, horizon: h });
+    const label = h === 250 ? "1Y" : `${h}D`;
+    return {
+      horizon: h,
+      label,
+      tradeCount: result.tradeCount,
+      winRate: result.winRate,
+      avgReturn: result.avgReturn,
+      maxReturn: result.maxReturn,
+      minReturn: result.minReturn,
+      maxDrawdown: result.maxDrawdown,
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// MOMENTUM / DROP-THEN-HOLD BACKTEST
+// ---------------------------------------------------------------------------
+// Given a price series, find all days where the close dropped >= triggerPct from
+// the previous close. Then measure forward returns at multiple horizons.
+// Returns bounce rate, continuation rate, avg forward return, and event count.
+//
+// This replicates the AGQ dashboard logic but computed dynamically from real data.
+// "Bounce" = next horizon return > 0. "Continue" = next horizon return < 0.
+// ---------------------------------------------------------------------------
+
+export function runMomentumBacktest({ priceSeries, triggerPct = -3, horizons = [1, 5, 20, 60] }) {
+  if (!priceSeries || priceSeries.length < 65) {
+    return { triggerPct, horizons: horizons.map((h) => ({ horizon: h, label: h === 250 ? "1Y" : `${h}D`, n: 0, bounceRate: null, contRate: null, avgReturn: null })), events: [] };
+  }
+
+  const prices = priceSeries;
+  const threshold = triggerPct / 100; // negative, e.g. -0.03
+
+  // Find trigger days
+  const events = [];
+  for (let i = 1; i < prices.length; i++) {
+    if (!prices[i - 1]?.value || !prices[i]?.value) continue;
+    const dayReturn = prices[i].value / prices[i - 1].value - 1;
+    if (dayReturn <= threshold) {
+      events.push({ idx: i, date: prices[i].date, triggerReturn: dayReturn * 100, entryPrice: prices[i].value });
+    }
+  }
+
+  const horizonResults = horizons.map((h) => {
+    const label = h === 250 ? "1Y" : `${h}D`;
+    if (!events.length) return { horizon: h, label, n: 0, bounceRate: null, contRate: null, avgReturn: null };
+
+    const fwdReturns = events
+      .filter((e) => e.idx + h < prices.length)
+      .map((e) => {
+        const exitPrice = prices[e.idx + h]?.value;
+        if (!exitPrice) return null;
+        return (exitPrice / e.entryPrice - 1) * 100;
+      })
+      .filter((r) => r !== null);
+
+    if (!fwdReturns.length) return { horizon: h, label, n: 0, bounceRate: null, contRate: null, avgReturn: null };
+
+    const bounces = fwdReturns.filter((r) => r > 0).length;
+    const conts = fwdReturns.filter((r) => r < 0).length;
+    const avgReturn = fwdReturns.reduce((s, r) => s + r, 0) / fwdReturns.length;
+
+    return {
+      horizon: h,
+      label,
+      n: fwdReturns.length,
+      bounceRate: roundNum((bounces / fwdReturns.length) * 100),
+      contRate: roundNum((conts / fwdReturns.length) * 100),
+      avgReturn: roundNum(avgReturn),
+      maxReturn: roundNum(Math.max(...fwdReturns)),
+      minReturn: roundNum(Math.min(...fwdReturns)),
+    };
+  });
+
+  return {
+    triggerPct,
+    totalEvents: events.length,
+    horizons: horizonResults,
+    // Last 10 events for display
+    recentEvents: events.slice(-10).reverse().map((e) => ({ date: e.date, triggerReturn: roundNum(e.triggerReturn) })),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Shared utilities
 // ---------------------------------------------------------------------------
 

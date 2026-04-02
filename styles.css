@@ -2340,3 +2340,209 @@ button:focus-visible,
   .regime-dims { grid-template-columns: 1fr; }
   .sig-card__stats { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ── Strategy Lab v3.5 — Signal Banner ── */
+
+.lab-signal-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1.2rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 0.78rem;
+}
+
+.lab-signal-banner--active {
+  background: rgba(74, 222, 128, 0.08);
+  border-color: rgba(74, 222, 128, 0.35);
+}
+
+.lab-signal-banner--inactive {
+  background: var(--bg-softer);
+}
+
+.lab-signal-banner__status {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.7rem;
+}
+
+.lab-signal-banner--active .lab-signal-banner__status { color: var(--positive); }
+.lab-signal-banner--inactive .lab-signal-banner__status { color: var(--text-muted); }
+
+.lab-signal-banner__val { color: var(--text); font-variant-numeric: tabular-nums; }
+.lab-signal-banner__last { color: var(--text-muted); font-size: 0.72rem; }
+
+/* ── Strategy Lab v3.5 — Block titles / chart containers ── */
+
+.lab-block-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text);
+  margin: 0 0 0.2rem;
+}
+
+.lab-block-sub {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin: 0 0 0.6rem;
+  line-height: 1.5;
+}
+
+.lab-chart-block {
+  background: var(--bg-softer);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+}
+
+.lab-chart-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.lab-chart-wrap canvas {
+  display: block;
+  width: 100% !important;
+}
+
+/* ── Strategy Lab v3.5 — Multi-horizon VIX block ── */
+
+.vix-horizon-block {
+  background: var(--bg-softer);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+}
+
+/* ── Strategy Lab v3.5 — Trigger tabs / asset tabs ── */
+
+.trigger-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.3rem;
+}
+
+.trigger-tab {
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.trigger-tab:hover {
+  background: rgba(85, 194, 255, 0.1);
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.trigger-tab--active {
+  background: rgba(85, 194, 255, 0.15);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── Strategy Lab v3.5 — Momentum module ── */
+
+.momentum-module {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.momentum-module__note {
+  background: rgba(85, 194, 255, 0.04);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+  padding: 0.75rem 1rem;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.momentum-module__selectors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.2rem;
+}
+
+.momentum-module__label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin: 0 0 0.2rem;
+}
+
+.momentum-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.momentum-stat {
+  background: var(--bg-softer);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.72rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.momentum-stat span { color: var(--text-muted); font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.momentum-stat strong { font-size: 0.92rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ── Strategy Lab v3.5 — Verdict bar ── */
+
+.verdict-bar {
+  padding: 0.7rem 1rem;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.5;
+  border: 1px solid var(--border);
+}
+
+.verdict-go {
+  background: rgba(248, 113, 113, 0.08);
+  border-color: rgba(248, 113, 113, 0.3);
+  color: var(--negative);
+}
+
+.verdict-no {
+  background: rgba(74, 222, 128, 0.08);
+  border-color: rgba(74, 222, 128, 0.3);
+  color: var(--positive);
+}
+
+.verdict-mixed {
+  background: rgba(251, 191, 36, 0.08);
+  border-color: rgba(251, 191, 36, 0.3);
+  color: #fbbf24;
+}
+
+.verdict-neutral {
+  background: var(--bg-softer);
+  color: var(--text-muted);
+}
+
+@media (max-width: 700px) {
+  .momentum-module__selectors { flex-direction: column; }
+  .trigger-tabs { gap: 0.25rem; }
+}

@@ -9,7 +9,7 @@ import {
   createStrategyStatus,
 } from "./models.js";
 import { createMacroResearchModel } from "./macro-engine.js";
-import { runVixStrategy, runGoldSilverRatioStrategy } from "./strategy-lab.js";
+import { runVixStrategy, runGoldSilverRatioStrategy, runVixStrategyMultiHorizon, runMomentumBacktest } from "./strategy-lab.js";
 
 const DEFAULT_LOOKBACK_DAYS = 260;
 const PAIRS_ENTRY_Z = 1.8;
@@ -53,13 +53,22 @@ export function createScoutEngine({ config, marketDataGateway }) {
       const vixParams = scoutState?.strategyLab?.vixParams || {};
       const gsParams = scoutState?.strategyLab?.gsParams || {};
       const activeTimeframe = scoutState?.strategyLab?.activeTimeframe ?? 20;
+      const momentumParams = scoutState?.strategyLab?.momentumParams || {};
 
-      // Use selected timeframe as the VIX strategy holding horizon
+      // VIX single-horizon (for the live signal card)
       const vixResult = runVixStrategy({
         vixSeries: strategyLabData.VIX || [],
         spySeries: strategyLabData.SPY || [],
         threshold: vixParams.threshold ?? 25,
         horizon: activeTimeframe,
+      });
+
+      // VIX multi-horizon summary table (all horizons at once)
+      const vixMultiHorizon = runVixStrategyMultiHorizon({
+        vixSeries: strategyLabData.VIX || [],
+        spySeries: strategyLabData.SPY || [],
+        threshold: vixParams.threshold ?? 25,
+        horizons: [20, 40, 60, 120, 250],
       });
 
       // GS ratio maxDays scales with timeframe
@@ -73,7 +82,19 @@ export function createScoutEngine({ config, marketDataGateway }) {
         maxDays: gsDays,
       });
 
-      const strategyLab = { vix: vixResult, goldSilver: gsResult, activeTimeframe };
+      // Momentum backtest — selected asset, selected trigger
+      const momentumAsset = momentumParams.asset || "AGQ";
+      const momentumTrigger = momentumParams.triggerPct ?? -3;
+      const momentumSeries = strategyLabData[momentumAsset]
+        || macroResearch.strategyLabData?.[momentumAsset]
+        || [];
+      const momentumResult = runMomentumBacktest({
+        priceSeries: momentumSeries,
+        triggerPct: momentumTrigger,
+        horizons: [1, 5, 20, 60],
+      });
+
+      const strategyLab = { vix: vixResult, vixMultiHorizon, goldSilver: gsResult, momentumResult, activeTimeframe };
 
       const opportunities = [
         ...macroResearch.opportunities,

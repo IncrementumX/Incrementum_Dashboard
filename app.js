@@ -400,8 +400,13 @@ function normalizeScoutState(rawScout) {
       maxDays: Number(rawScout?.strategyLab?.gsParams?.maxDays ?? 180),
     },
     activeStrategy: rawScout?.strategyLab?.activeStrategy || "vix",
-    // Multi-timeframe: 5 | 20 | 60 | 120 | 250 (trading days)
+    // Multi-timeframe: 5 | 20 | 60 | 120 | 250 (trading days, shown as 1Y for 250)
     activeTimeframe: Number(rawScout?.strategyLab?.activeTimeframe ?? 20),
+    // Momentum backtest params
+    momentumParams: {
+      asset: rawScout?.strategyLab?.momentumParams?.asset || "AGQ",
+      triggerPct: Number(rawScout?.strategyLab?.momentumParams?.triggerPct ?? -3),
+    },
   };
 
   return {
@@ -1587,6 +1592,28 @@ function setupScout() {
       renderApp();
       return;
     }
+
+    // Momentum module — asset selector
+    const momentumAssetBtn = event.target.closest("[data-momentum-asset]");
+    if (momentumAssetBtn) {
+      if (!state.scout.strategyLab.momentumParams) state.scout.strategyLab.momentumParams = {};
+      state.scout.strategyLab.momentumParams.asset = momentumAssetBtn.dataset.momentumAsset;
+      saveState();
+      syncUiState.scoutCacheKey = null;
+      renderApp();
+      return;
+    }
+
+    // Momentum module — trigger selector
+    const momentumTriggerBtn = event.target.closest("[data-momentum-trigger]");
+    if (momentumTriggerBtn) {
+      if (!state.scout.strategyLab.momentumParams) state.scout.strategyLab.momentumParams = {};
+      state.scout.strategyLab.momentumParams.triggerPct = Number(momentumTriggerBtn.dataset.momentumTrigger);
+      saveState();
+      syncUiState.scoutCacheKey = null;
+      renderApp();
+      return;
+    }
   });
 
   elements.scoutRoot.addEventListener("submit", (event) => {
@@ -1724,6 +1751,434 @@ function renderScout(context, analytics, summary) {
     ${renderStrategyLab(model)}
     ${renderScoutWatchlist(model)}
   `;
+  // Initialize Chart.js charts after DOM is ready
+  requestAnimationFrame(() => renderScoutCharts(model));
+}
+
+// ---------------------------------------------------------------------------
+// Chart.js chart initialization — called after scoutRoot innerHTML is set
+// ---------------------------------------------------------------------------
+
+// Store chart instances so we can destroy them on re-render
+const _scoutCharts = {};
+
+function destroyScoutChart(id) {
+  if (_scoutCharts[id]) {
+    try { _scoutCharts[id].destroy(); } catch (_) {}
+    delete _scoutCharts[id];
+  }
+}
+
+function renderScoutCharts(model) {
+  const lab = model.strategyLab;
+  if (!lab) return;
+  const activeStrategy = state.scout.strategyLab?.activeStrategy || "vix";
+
+  if (activeStrategy === "vix") {
+    renderVixChart(lab.vix, model);
+  } else if (activeStrategy === "gs") {
+    renderGsRatioChart(lab.goldSilver, model);
+    renderGsEquityChart(lab.goldSilver);
+  } else {
+    renderMomentumChart(lab.momentumResult);
+  }
+}
+
+function makeChartDefaults() {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        mode: "index",
+        intersect: false,
+        backgroundColor: "rgba(15,20,30,0.95)",
+        borderColor: "rgba(85,194,255,0.3)",
+        borderWidth: 1,
+        titleColor: "#94a3b8",
+        bodyColor: "#e2e8f0",
+        titleFont: { size: 10 },
+        bodyFont: { size: 11 },
+      },
+    },
+    scales: {
+      x: {
+        ticks: { color: "#64748b", font: { size: 9 }, maxTicksLimit: 8, maxRotation: 0 },
+        grid: { color: "rgba(255,255,255,0.04)" },
+      },
+      y: {
+        ticks: { color: "#64748b", font: { size: 10 } },
+        grid: { color: "rgba(255,255,255,0.04)" },
+      },
+    },
+  };
+}
+
+function renderVixChart(result, model) {
+  destroyScoutChart("vix");
+  const canvas = document.getElementById("scout-vix-chart");
+  if (!canvas || typeof Chart === "undefined") return;
+
+  const params = state.scout.strategyLab?.vixParams || {};
+  const labData = model.macroResearch?.strategyLabData || {};
+  const spySeries = labData.SPY || [];
+  const vixSeries = labData.VIX || [];
+
+  // Last 500 trading days
+  const N = 500;
+  const spy500 = spySeries.slice(-N);
+  const vixByDate = new Map((vixSeries).map((p) => [p.date, p.value]));
+
+  const labels = spy500.map((p) => p.date.slice(0, 7)); // year-month for x-axis
+  const spyPrices = spy500.map((p) => p.value);
+  const vixPrices = spy500.map((p) => vixByDate.get(p.date) ?? null);
+
+  // Build entry / exit scatter points (only those in last 500D window)
+  const spy500DateSet = new Set(spy500.map((p) => p.date));
+  const spy500ByDate = new Map(spy500.map((p) => [p.date, p.value]));
+  const trades = result?.trades || [];
+  const entriesX = [], exitsX = [];
+  const entriesY = [], exitsY = [];
+
+  for (const t of trades) {
+    if (spy500DateSet.has(t.entryDate)) {
+      const idx = spy500.findIndex((p) => p.date === t.entryDate);
+      if (idx >= 0) { entriesX.push(idx); entriesY.push(spy500[idx].value); }
+    }
+    if (spy500DateSet.has(t.exitDate)) {
+      const idx = spy500.findIndex((p) => p.date === t.exitDate);
+      if (idx >= 0) {
+        const color = t.returnPct >= 0 ? "rgba(74,222,128,0.9)" : "rgba(248,113,113,0.9)";
+        exitsX.push(idx); exitsY.push({ y: spy500[idx].value, color });
+      }
+    }
+  }
+
+  const entryScatter = entriesX.map((x, i) => ({ x, y: entriesY[i] }));
+  const exitScatter = exitsX.map((x, i) => ({ x, y: exitsY[i].y }));
+  const exitColors = exitsX.map((x, i) => exitsY[i].color);
+
+  const cfg = makeChartDefaults();
+  cfg.maintainAspectRatio = false;
+  cfg.scales = {
+    x: {
+      ticks: { color: "#64748b", font: { size: 9 }, maxTicksLimit: 10, maxRotation: 0,
+        callback: (val, idx) => labels[idx] || "" },
+      grid: { color: "rgba(255,255,255,0.04)" },
+    },
+    ySpy: {
+      type: "linear", position: "left",
+      ticks: { color: "#55c2ff", font: { size: 9 }, callback: (v) => "$" + v.toFixed(0) },
+      grid: { color: "rgba(255,255,255,0.04)" },
+    },
+    yVix: {
+      type: "linear", position: "right",
+      ticks: { color: "#fb923c", font: { size: 9 } },
+      grid: { drawOnChartArea: false },
+    },
+  };
+
+  _scoutCharts.vix = new Chart(canvas, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "SPY",
+          data: spyPrices,
+          borderColor: "rgba(85,194,255,0.9)",
+          backgroundColor: "transparent",
+          borderWidth: 1.5,
+          pointRadius: 0,
+          tension: 0.2,
+          yAxisID: "ySpy",
+          order: 3,
+        },
+        {
+          label: "VIX",
+          data: vixPrices,
+          borderColor: "rgba(251,146,60,0.7)",
+          backgroundColor: "rgba(251,146,60,0.05)",
+          borderWidth: 1,
+          pointRadius: 0,
+          tension: 0.1,
+          fill: false,
+          yAxisID: "yVix",
+          order: 4,
+        },
+        {
+          label: "Entry",
+          data: entryScatter,
+          type: "scatter",
+          backgroundColor: "rgba(74,222,128,0.9)",
+          borderColor: "#fff",
+          borderWidth: 1,
+          pointRadius: 5,
+          pointStyle: "triangle",
+          yAxisID: "ySpy",
+          order: 1,
+        },
+        {
+          label: "Exit",
+          data: exitScatter,
+          type: "scatter",
+          backgroundColor: exitColors,
+          borderColor: "#fff",
+          borderWidth: 1,
+          pointRadius: 4,
+          pointStyle: "circle",
+          yAxisID: "ySpy",
+          order: 2,
+        },
+      ],
+    },
+    options: {
+      ...cfg,
+      plugins: {
+        ...cfg.plugins,
+        legend: {
+          display: true,
+          labels: { color: "#94a3b8", font: { size: 10 }, boxWidth: 12,
+            filter: (item) => ["SPY", "VIX", "Entry", "Exit"].includes(item.text) },
+        },
+        annotation: undefined,
+      },
+    },
+  });
+}
+
+function renderGsRatioChart(result, model) {
+  destroyScoutChart("gsRatio");
+  const canvas = document.getElementById("scout-gs-ratio-chart");
+  if (!canvas || typeof Chart === "undefined") return;
+
+  const params = state.scout.strategyLab?.gsParams || {};
+  const ratioHistory = result?.ratioHistory || [];
+  const N = 750; // ~3 years
+  const hist = ratioHistory.slice(-N);
+  if (!hist.length) return;
+
+  const labels = hist.map((p) => p.date.slice(0, 7));
+  const ratios = hist.map((p) => p.value);
+  const histDateSet = new Set(hist.map((p) => p.date));
+
+  // Entry/exit markers on ratio chart
+  const trades = result?.trades || [];
+  const entryPoints = [], exitPoints = [];
+  for (const t of trades) {
+    const ei = hist.findIndex((p) => p.date === t.entryDate);
+    if (ei >= 0) entryPoints.push({ x: ei, y: hist[ei].value });
+    const xi = hist.findIndex((p) => p.date === t.exitDate);
+    if (xi >= 0) exitPoints.push({ x: xi, y: hist[xi].value });
+  }
+
+  const cfg = makeChartDefaults();
+  cfg.maintainAspectRatio = false;
+  cfg.scales.x.ticks.callback = (val, idx) => labels[idx] || "";
+  cfg.scales.x.ticks.maxTicksLimit = 8;
+  cfg.scales.y.ticks.callback = (v) => v.toFixed(0);
+
+  // Threshold annotation lines via plugin
+  const entryLine = params.entryRatio || 75;
+  const exitLine = params.exitRatio || 50;
+
+  _scoutCharts.gsRatio = new Chart(canvas, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Gold/Silver Ratio",
+          data: ratios,
+          borderColor: "rgba(85,194,255,0.85)",
+          backgroundColor: "rgba(85,194,255,0.04)",
+          borderWidth: 1.5,
+          pointRadius: 0,
+          tension: 0.2,
+          fill: true,
+          order: 3,
+        },
+        {
+          label: "Entry",
+          data: entryPoints,
+          type: "scatter",
+          backgroundColor: "rgba(74,222,128,0.9)",
+          borderColor: "#fff",
+          borderWidth: 1,
+          pointRadius: 5,
+          pointStyle: "triangle",
+          order: 1,
+        },
+        {
+          label: "Exit",
+          data: exitPoints,
+          type: "scatter",
+          backgroundColor: "rgba(248,113,113,0.9)",
+          borderColor: "#fff",
+          borderWidth: 1,
+          pointRadius: 4,
+          pointStyle: "circle",
+          order: 2,
+        },
+        // Entry threshold (dashed horizontal)
+        {
+          label: `Entry ≥ ${entryLine}`,
+          data: hist.map(() => entryLine),
+          borderColor: "rgba(74,222,128,0.4)",
+          borderWidth: 1,
+          borderDash: [4, 4],
+          pointRadius: 0,
+          fill: false,
+          order: 5,
+        },
+        // Exit threshold (dashed horizontal)
+        {
+          label: `Exit ≤ ${exitLine}`,
+          data: hist.map(() => exitLine),
+          borderColor: "rgba(248,113,113,0.4)",
+          borderWidth: 1,
+          borderDash: [4, 4],
+          pointRadius: 0,
+          fill: false,
+          order: 5,
+        },
+      ],
+    },
+    options: {
+      ...cfg,
+      plugins: {
+        ...cfg.plugins,
+        legend: {
+          display: true,
+          labels: { color: "#94a3b8", font: { size: 10 }, boxWidth: 12 },
+        },
+      },
+    },
+  });
+}
+
+function renderGsEquityChart(result) {
+  destroyScoutChart("gsEquity");
+  const canvas = document.getElementById("scout-gs-equity-chart");
+  if (!canvas || typeof Chart === "undefined") return;
+
+  const eq = result?.equityCurve || [];
+  if (!eq.length) return;
+
+  const labels = eq.map((p) => p.date.slice(0, 7));
+  const values = eq.map((p) => p.value);
+
+  // Color segments: green if above 100, red if below
+  const segmentColors = values.map((v) => v >= 100 ? "rgba(74,222,128,0.7)" : "rgba(248,113,113,0.7)");
+
+  const cfg = makeChartDefaults();
+  cfg.maintainAspectRatio = false;
+  cfg.scales.x.ticks.maxTicksLimit = 6;
+  cfg.scales.x.ticks.callback = (val, idx) => labels[idx] || "";
+  cfg.scales.y.ticks.callback = (v) => "$" + v.toFixed(0);
+
+  _scoutCharts.gsEquity = new Chart(canvas, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Equity ($100 start)",
+          data: values,
+          borderColor: "rgba(85,194,255,0.85)",
+          backgroundColor: "rgba(85,194,255,0.07)",
+          borderWidth: 2,
+          pointRadius: 3,
+          pointBackgroundColor: segmentColors,
+          tension: 0.3,
+          fill: true,
+        },
+        {
+          label: "$100 baseline",
+          data: values.map(() => 100),
+          borderColor: "rgba(255,255,255,0.15)",
+          borderWidth: 1,
+          borderDash: [4, 4],
+          pointRadius: 0,
+          fill: false,
+        },
+      ],
+    },
+    options: {
+      ...cfg,
+      plugins: {
+        ...cfg.plugins,
+        legend: { display: false },
+      },
+    },
+  });
+}
+
+function renderMomentumChart(result) {
+  destroyScoutChart("momentum");
+  const canvas = document.getElementById("scout-momentum-chart");
+  if (!canvas || typeof Chart === "undefined") return;
+
+  const horizons = (result?.horizons || []).filter((h) => h.n >= 3);
+  if (!horizons.length) return;
+
+  const labels = horizons.map((h) => h.label);
+  const bounceRates = horizons.map((h) => h.bounceRate ?? 0);
+  const contRates = horizons.map((h) => h.contRate ?? 0);
+
+  _scoutCharts.momentum = new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Bounce %",
+          data: bounceRates,
+          backgroundColor: "rgba(74,222,128,0.7)",
+          borderColor: "rgba(74,222,128,0.9)",
+          borderWidth: 1,
+          borderRadius: 4,
+        },
+        {
+          label: "Continue %",
+          data: contRates,
+          backgroundColor: "rgba(248,113,113,0.7)",
+          borderColor: "rgba(248,113,113,0.9)",
+          borderWidth: 1,
+          borderRadius: 4,
+        },
+      ],
+    },
+    options: {
+      ...makeChartDefaults(),
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          labels: { color: "#94a3b8", font: { size: 10 }, boxWidth: 12 },
+        },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ` ${ctx.dataset.label}: ${ctx.raw?.toFixed(0)}%`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: { color: "#64748b", font: { size: 10 }, maxRotation: 0 },
+          grid: { color: "rgba(255,255,255,0.04)" },
+        },
+        y: {
+          min: 0,
+          max: 100,
+          ticks: { color: "#64748b", font: { size: 9 }, callback: (v) => v + "%" },
+          grid: { color: "rgba(255,255,255,0.04)" },
+        },
+      },
+    },
+  });
 }
 
 async function refreshScoutModel({ context, analytics, summary, cacheKey }) {
@@ -1960,17 +2415,21 @@ function renderWhatToDoNow(model) {
 // ── Strategy signals + timeframe selector ─────────────────────────────────
 
 function renderTimeframeSelector() {
-  const timeframes = [5, 20, 60, 120, 250];
+  const timeframes = [{ val: 5, label: "5D" }, { val: 20, label: "20D" }, { val: 60, label: "60D" }, { val: 120, label: "120D" }, { val: 250, label: "1Y" }];
   const active = state.scout.strategyLab?.activeTimeframe ?? 20;
   const tabs = timeframes.map((tf) => `
-    <button class="tf-tab ${tf === active ? "tf-tab--active" : ""}" data-timeframe="${tf}">${tf}D</button>
+    <button class="tf-tab ${tf.val === active ? "tf-tab--active" : ""}" data-timeframe="${tf.val}">${escapeHtml(tf.label)}</button>
   `).join("");
   return `
     <div class="tf-selector">
-      <span class="tf-selector__label">Backtest horizon</span>
+      <span class="tf-selector__label">Signal horizon</span>
       <div class="tf-tabs">${tabs}</div>
     </div>
   `;
+}
+
+function tfLabel(val) {
+  return val === 250 ? "1Y" : `${val}D`;
 }
 
 function renderStrategyLabSignals(model) {
@@ -2448,37 +2907,176 @@ function renderSynthesisMemo(model) {
   `;
 }
 
-// ── Strategy Lab rendering ──────────────────────────────────────────────────
+// ── Strategy Lab rendering (v3 — visual, chart-driven) ─────────────────────
 
 function renderStrategyLab(model) {
   const lab = model.strategyLab;
   const activeStrategy = state.scout.strategyLab?.activeStrategy || "vix";
   const vixParams = state.scout.strategyLab?.vixParams || { threshold: 25, horizon: 20 };
   const gsParams = state.scout.strategyLab?.gsParams || { entryRatio: 75, exitRatio: 50, maxDays: 180 };
+  const momentumParams = state.scout.strategyLab?.momentumParams || { asset: "AGQ", triggerPct: -3 };
 
   const tabVix = activeStrategy === "vix" ? "lab-tab lab-tab--active" : "lab-tab";
   const tabGs = activeStrategy === "gs" ? "lab-tab lab-tab--active" : "lab-tab";
+  const tabMom = activeStrategy === "momentum" ? "lab-tab lab-tab--active" : "lab-tab";
 
-  const content = activeStrategy === "vix"
-    ? renderVixLab(lab?.vix, vixParams)
-    : renderGoldSilverLab(lab?.goldSilver, gsParams);
+  let content;
+  if (activeStrategy === "vix") content = renderVixLabV2(lab?.vix, lab?.vixMultiHorizon, vixParams, model);
+  else if (activeStrategy === "gs") content = renderGoldSilverLabV2(lab?.goldSilver, gsParams, model);
+  else content = renderMomentumModule(lab?.momentumResult, momentumParams, model);
 
   return `
     <section class="panel">
       <div class="panel-header">
         <div>
-          <p class="scout-section-label">Strategy Lab</p>
-          <h2>Interactive Backtest Explorer</h2>
-          <p class="panel-subtitle">Adjust parameters, inspect methodology, and read results. No hidden logic — every assumption is explicit.</p>
+          <p class="scout-section-label">Interactive Backtest Explorer</p>
+          <h2>Strategy Lab</h2>
+          <p class="panel-subtitle">Visual, parametric backtesting. No hidden logic — every rule, every trade, every chart is explicit.</p>
         </div>
         <span class="status-pill ${getScoutStatusClass(model.dataStatus)}">${escapeHtml(model.dataStatus)}</span>
       </div>
       <div class="lab-tabs">
         <button type="button" class="${tabVix}" data-lab-strategy="vix">VIX Entry (SPY)</button>
         <button type="button" class="${tabGs}" data-lab-strategy="gs">Gold/Silver Ratio (SIL)</button>
+        <button type="button" class="${tabMom}" data-lab-strategy="momentum">Drop &amp; Bounce</button>
       </div>
       ${content}
     </section>
+  `;
+}
+
+function renderVixLabV2(result, multiHorizon, params, model) {
+  const noData = !result || result.tradeCount === 0;
+  const thresholdOptions = [15, 20, 25, 30, 35, 40].map((t) =>
+    `<option value="${t}" ${params.threshold === t ? "selected" : ""}>${t}</option>`
+  ).join("");
+
+  const paramForm = `
+    <div class="lab-params">
+      <p class="lab-params__title">Entry Parameters</p>
+      <form data-lab-form="vix">
+        <div class="lab-field">
+          <label for="vix-threshold-sel">VIX entry threshold</label>
+          <select id="vix-threshold-sel" name="vix-threshold">${thresholdOptions}</select>
+        </div>
+        <button type="submit" class="button button--primary button--small" style="width:100%;margin-top:0.6rem">Run Backtest</button>
+      </form>
+    </div>
+    <div class="lab-rationale">
+      <strong>How this works</strong><br>
+      Buy SPY when VIX closes ≥ ${params.threshold}. Exit when VIX falls below ${Math.round(params.threshold * 0.72)} OR after the selected holding period. VIX spikes signal peak fear — historically SPY has produced positive forward returns after fear spikes.
+    </div>
+  `;
+
+  // Current signal status
+  const vixData = model.macroResearch?.strategyLabData?.VIX || [];
+  const latestVix = vixData.length ? vixData[vixData.length - 1] : null;
+  const vixActive = latestVix && latestVix.value >= params.threshold;
+
+  const signalBanner = `
+    <div class="lab-signal-banner ${vixActive ? "lab-signal-banner--active" : "lab-signal-banner--inactive"}">
+      <span class="lab-signal-banner__status">${vixActive ? "SIGNAL ACTIVE TODAY" : "No signal today"}</span>
+      <span class="lab-signal-banner__val">VIX = ${latestVix ? latestVix.value.toFixed(1) : "—"} | Threshold = ${params.threshold}</span>
+      ${result?.trades?.length ? `<span class="lab-signal-banner__last">Last triggered: ${result.trades[result.trades.length - 1].entryDate}</span>` : ""}
+    </div>
+  `;
+
+  if (noData) {
+    return `<div class="lab-layout"><div class="lab-sidebar">${paramForm}</div><div class="lab-empty">${signalBanner}<br>No trades triggered with VIX ≥ ${params.threshold}. Lower the threshold.</div></div>`;
+  }
+
+  // Multi-horizon summary table
+  const horizonRows = (multiHorizon || []).map((h) => {
+    if (!h || h.tradeCount === 0) return `<tr><td>${escapeHtml(h?.label || "—")}</td><td colspan="4" class="val-muted">No data</td></tr>`;
+    const retClass = h.avgReturn >= 0 ? "pos" : "neg";
+    const wrClass = h.winRate >= 50 ? "pos" : "neg";
+    return `
+      <tr>
+        <td><strong>${escapeHtml(h.label)}</strong></td>
+        <td class="${retClass}">${h.avgReturn >= 0 ? "+" : ""}${h.avgReturn?.toFixed(1)}%</td>
+        <td class="${wrClass}">${h.winRate?.toFixed(0)}%</td>
+        <td>${h.tradeCount}</td>
+        <td class="pos">+${h.maxReturn?.toFixed(1)}%</td>
+        <td class="neg">${h.minReturn?.toFixed(1)}%</td>
+      </tr>
+    `;
+  }).join("");
+
+  const multiHorizonTable = `
+    <div class="vix-horizon-block">
+      <p class="lab-block-title">Forward Returns by Holding Period — VIX ≥ ${params.threshold}</p>
+      <p class="lab-block-sub">Each row: buy on VIX spike, hold for that period. Same entry rules, different exit timing.</p>
+      <div class="table-wrap">
+        <table class="lab-trade-table">
+          <thead><tr><th>Hold</th><th>Avg return</th><th>Win rate</th><th>Trades</th><th>Best</th><th>Worst</th></tr></thead>
+          <tbody>${horizonRows}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  // Return distribution (text bar chart, no canvas needed)
+  const maxCount = Math.max(...(result.buckets || []).map((b) => b.count), 1);
+  const distBars = (result.buckets || []).map((b) => {
+    const pct = Math.round((b.count / maxCount) * 100);
+    const isPos = b.label.startsWith("0") || b.label.startsWith("5") || b.label.startsWith("> ");
+    return `
+      <div class="lab-dist-bar-wrap">
+        <div class="lab-dist-bar ${isPos ? "lab-dist-bar--pos" : ""}" style="height:${Math.max(pct, 2)}%"></div>
+        <span>${escapeHtml(b.label)}</span>
+      </div>
+    `;
+  }).join("");
+
+  // Stats strip
+  const statsHtml = `
+    <div class="lab-stats-row">
+      <div class="lab-stat"><span class="lab-stat__label">Trades</span><span class="lab-stat__value lab-stat__value--muted">${result.tradeCount}</span></div>
+      <div class="lab-stat"><span class="lab-stat__label">Win Rate</span><span class="lab-stat__value ${result.winRate >= 50 ? "lab-stat__value--positive" : "lab-stat__value--negative"}">${result.winRate?.toFixed(0)}%</span></div>
+      <div class="lab-stat"><span class="lab-stat__label">Avg Return</span><span class="lab-stat__value ${result.avgReturn >= 0 ? "lab-stat__value--positive" : "lab-stat__value--negative"}">${result.avgReturn >= 0 ? "+" : ""}${result.avgReturn?.toFixed(1)}%</span></div>
+      <div class="lab-stat"><span class="lab-stat__label">Best</span><span class="lab-stat__value lab-stat__value--positive">+${result.maxReturn?.toFixed(1)}%</span></div>
+      <div class="lab-stat"><span class="lab-stat__label">Worst</span><span class="lab-stat__value lab-stat__value--negative">${result.minReturn?.toFixed(1)}%</span></div>
+    </div>
+  `;
+
+  // Trade table (last 12)
+  const tradeRows = (result.trades || []).slice(-12).reverse().map((t) => {
+    const rc = t.returnPct >= 0 ? "pos" : "neg";
+    return `<tr>
+      <td>${escapeHtml(t.entryDate)}</td>
+      <td>${escapeHtml(t.exitDate)}</td>
+      <td class="right">${t.entryVix?.toFixed(1)}</td>
+      <td class="right ${rc}">${t.returnPct >= 0 ? "+" : ""}${t.returnPct?.toFixed(1)}%</td>
+      <td class="val-muted">${t.daysHeld}D</td>
+      <td class="val-muted" style="font-size:0.65rem">${escapeHtml(t.exitReason || "")}</td>
+    </tr>`;
+  }).join("");
+
+  return `
+    <div class="lab-layout">
+      <div class="lab-sidebar">${paramForm}</div>
+      <div class="lab-results">
+        ${signalBanner}
+        ${statsHtml}
+        ${multiHorizonTable}
+        <div>
+          <p class="lab-block-title">Return Distribution — ${tfLabel(state.scout.strategyLab?.activeTimeframe ?? 20)} hold</p>
+          <div class="lab-dist-bars">${distBars}</div>
+        </div>
+        <div class="lab-chart-block">
+          <p class="lab-block-title">SPY + VIX — Entry &amp; Exit Markers</p>
+          <p class="lab-block-sub">Green triangles = entries (VIX ≥ ${params.threshold}). Circles = exits. Chart shows last 500 trading days.</p>
+          <div class="lab-chart-wrap"><canvas id="scout-vix-chart" height="220"></canvas></div>
+        </div>
+        <div>
+          <p class="lab-block-title">Last 12 Trades</p>
+          <div class="table-wrap"><table class="lab-trade-table">
+            <thead><tr><th>Entry</th><th>Exit</th><th class="right">VIX in</th><th class="right">Return</th><th>Held</th><th>Exit reason</th></tr></thead>
+            <tbody>${tradeRows}</tbody>
+          </table></div>
+        </div>
+      </div>
+    </div>
   `;
 }
 
@@ -2618,145 +3216,191 @@ function renderVixLab(result, params) {
   `;
 }
 
-function renderGoldSilverLab(result, params) {
+function renderGoldSilverLabV2(result, params, model) {
   const noData = !result || result.tradeCount === 0;
-  const entryOptions = [65, 70, 75, 80, 85, 90].map((r) =>
+  const entryOptions = [60, 65, 70, 75, 80, 85, 90].map((r) =>
     `<option value="${r}" ${params.entryRatio === r ? "selected" : ""}>${r}</option>`
   ).join("");
   const exitOptions = [40, 45, 50, 55, 60, 65].map((r) =>
     `<option value="${r}" ${params.exitRatio === r ? "selected" : ""}>${r}</option>`
   ).join("");
 
-  const methodology = `
-    <div class="lab-methodology">
-      <p class="lab-methodology__title">Methodology — Gold/Silver Ratio Compression (SIL)</p>
-      <div class="lab-methodology__grid">
-        <div class="lab-methodology__row"><span class="lab-methodology__key">What:</span><span class="lab-methodology__val">Long SIL (silver miners ETF) when the gold/silver ratio is historically elevated.</span></div>
-        <div class="lab-methodology__row"><span class="lab-methodology__key">Why:</span><span class="lab-methodology__val">High ratio = silver is cheap relative to gold. Ratio compression = silver outperforms, miners get leveraged upside via SIL.</span></div>
-        <div class="lab-methodology__row"><span class="lab-methodology__key">Ratio:</span><span class="lab-methodology__val">(GLD price × 10) ÷ SLV price — approximates ounces of silver per ounce of gold.</span></div>
-        <div class="lab-methodology__row"><span class="lab-methodology__key">Entry:</span><span class="lab-methodology__val">Ratio ≥ ${params.entryRatio}. One trade active at a time. 1-day cooldown after exit.</span></div>
-        <div class="lab-methodology__row"><span class="lab-methodology__key">Exit:</span><span class="lab-methodology__val">Ratio ≤ ${params.exitRatio} (target compression) OR after ${params.maxDays} days (time-based stop).</span></div>
-        <div class="lab-methodology__row"><span class="lab-methodology__key">Returns:</span><span class="lab-methodology__val">SIL exit / SIL entry − 1. No leverage modeled. No transaction cost assumption.</span></div>
-        <div class="lab-methodology__row"><span class="lab-methodology__key">Data:</span><span class="lab-methodology__val">GLD, SLV, SIL daily close (Yahoo Finance). ${result?.dataRange ? `${result.dataRange.start} – ${result.dataRange.end}` : "Simulated series"}</span></div>
-      </div>
-    </div>
-  `;
+  // Current ratio
+  const ratioHistory = result?.ratioHistory || [];
+  const latestRatio = ratioHistory.length ? ratioHistory[ratioHistory.length - 1] : null;
+  const gsActive = latestRatio && latestRatio.value >= params.entryRatio;
 
   const paramForm = `
     <div class="lab-params">
       <p class="lab-params__title">Parameters</p>
       <form data-lab-form="gs">
         <div class="lab-field">
-          <label for="gs-entry-sel">Entry ratio (≥)</label>
+          <label for="gs-entry-sel">Entry: ratio ≥</label>
           <select id="gs-entry-sel" name="gs-entry-ratio">${entryOptions}</select>
         </div>
         <div class="lab-field">
-          <label for="gs-exit-sel">Exit ratio (≤)</label>
+          <label for="gs-exit-sel">Exit: ratio ≤</label>
           <select id="gs-exit-sel" name="gs-exit-ratio">${exitOptions}</select>
         </div>
         <div class="lab-field">
-          <label for="gs-maxdays">Max holding (days)</label>
+          <label for="gs-maxdays">Max hold (days)</label>
           <input id="gs-maxdays" name="gs-max-days" type="number" value="${params.maxDays}" min="30" max="500" />
         </div>
         <button type="submit" class="button button--primary button--small" style="width:100%;margin-top:0.6rem">Run Backtest</button>
       </form>
     </div>
     <div class="lab-rationale">
-      <strong>Why this works (when it does)</strong>
-      The gold/silver ratio above ${params.entryRatio} historically signals extreme underperformance of silver vs gold. When the ratio mean-reverts, silver outperforms gold — and SIL (silver miners) amplifies that move due to operational leverage. Risk: the ratio can stay elevated for long periods; the time-based stop limits the drawdown exposure.
+      <strong>The idea</strong><br>
+      Gold/Silver ratio = oz gold ÷ oz silver. When it exceeds ${params.entryRatio}, silver is historically cheap vs gold. When it compresses back to ${params.exitRatio}, silver (and SIL miners) typically outperform gold significantly. Ratio formula: (GLD × 10) ÷ SLV.
+    </div>
+  `;
+
+  const signalBanner = `
+    <div class="lab-signal-banner ${gsActive ? "lab-signal-banner--active" : "lab-signal-banner--inactive"}">
+      <span class="lab-signal-banner__status">${gsActive ? "SIGNAL ACTIVE — RATIO STRETCHED" : "No signal — ratio below threshold"}</span>
+      <span class="lab-signal-banner__val">Current ratio = ${latestRatio ? latestRatio.value.toFixed(1) : "—"} | Entry = ${params.entryRatio} | Exit target = ${params.exitRatio}</span>
+      ${result?.trades?.length ? `<span class="lab-signal-banner__last">Last trade entry: ${result.trades[result.trades.length - 1].entryDate}</span>` : ""}
     </div>
   `;
 
   if (noData) {
-    return `
-      <div class="lab-layout">
-        <div class="lab-sidebar">${paramForm}</div>
-        <div class="lab-empty">No trades triggered with ratio ≥ ${params.entryRatio} and exit ≤ ${params.exitRatio} in available data. Try adjusting parameters.</div>
-      </div>
-    `;
+    return `<div class="lab-layout"><div class="lab-sidebar">${paramForm}</div><div class="lab-empty">${signalBanner}<br>No trades with ratio ≥ ${params.entryRatio} → ≤ ${params.exitRatio}. Try adjusting parameters.</div></div>`;
   }
 
-  const avgClass = result.avgReturn > 0 ? "lab-stat__value--positive" : "lab-stat__value--negative";
-  const minClass = result.minReturn < 0 ? "lab-stat__value--negative" : "lab-stat__value--positive";
-
-  const stats = `
+  const statsHtml = `
     <div class="lab-stats-row">
-      <div class="lab-stat">
-        <span class="lab-stat__label">Trades</span>
-        <span class="lab-stat__value lab-stat__value--muted">${result.tradeCount}</span>
-      </div>
-      <div class="lab-stat">
-        <span class="lab-stat__label">Win Rate</span>
-        <span class="lab-stat__value ${result.winRate >= 50 ? "lab-stat__value--positive" : "lab-stat__value--negative"}">${result.winRate?.toFixed(1)}%</span>
-      </div>
-      <div class="lab-stat">
-        <span class="lab-stat__label">Avg Return</span>
-        <span class="lab-stat__value ${avgClass}">${result.avgReturn >= 0 ? "+" : ""}${result.avgReturn?.toFixed(2)}%</span>
-      </div>
-      <div class="lab-stat">
-        <span class="lab-stat__label">Best Trade</span>
-        <span class="lab-stat__value lab-stat__value--positive">+${result.maxReturn?.toFixed(2)}%</span>
-      </div>
-      <div class="lab-stat">
-        <span class="lab-stat__label">Worst Trade</span>
-        <span class="lab-stat__value ${minClass}">${result.minReturn?.toFixed(2)}%</span>
-      </div>
+      <div class="lab-stat"><span class="lab-stat__label">Trades</span><span class="lab-stat__value lab-stat__value--muted">${result.tradeCount}</span></div>
+      <div class="lab-stat"><span class="lab-stat__label">Win Rate</span><span class="lab-stat__value ${result.winRate >= 50 ? "lab-stat__value--positive" : "lab-stat__value--negative"}">${result.winRate?.toFixed(0)}%</span></div>
+      <div class="lab-stat"><span class="lab-stat__label">Avg Return (SIL)</span><span class="lab-stat__value ${result.avgReturn >= 0 ? "lab-stat__value--positive" : "lab-stat__value--negative"}">${result.avgReturn >= 0 ? "+" : ""}${result.avgReturn?.toFixed(1)}%</span></div>
+      <div class="lab-stat"><span class="lab-stat__label">Best</span><span class="lab-stat__value lab-stat__value--positive">+${result.maxReturn?.toFixed(1)}%</span></div>
+      <div class="lab-stat"><span class="lab-stat__label">Worst</span><span class="lab-stat__value lab-stat__value--negative">${result.minReturn?.toFixed(1)}%</span></div>
     </div>
   `;
 
-  const maxCount = Math.max(...result.buckets.map((b) => b.count), 1);
-  const distBars = result.buckets.map((b) => {
-    const heightPct = Math.round((b.count / maxCount) * 100);
-    return `
-      <div class="lab-dist-bar-wrap">
-        <div class="lab-dist-bar" style="height:${Math.max(heightPct, 2)}%"></div>
-        <span>${escapeHtml(b.label)}</span>
-      </div>
-    `;
-  }).join("");
-
-  const tradeRows = result.trades.slice(-15).reverse().map((t) => {
-    const retClass = t.returnPct >= 0 ? "pos" : "neg";
-    const ratioClass = t.ratioChange < 0 ? "pos" : "neg";
-    return `
-      <tr>
-        <td>${escapeHtml(t.entryDate)}</td>
-        <td>${escapeHtml(t.exitDate)}</td>
-        <td class="right">${t.entryRatio?.toFixed(1)}</td>
-        <td class="right">${t.exitRatio?.toFixed(1)}</td>
-        <td class="right ${ratioClass}">${t.ratioChange >= 0 ? "+" : ""}${t.ratioChange?.toFixed(1)}</td>
-        <td class="right ${retClass}">${t.returnPct >= 0 ? "+" : ""}${t.returnPct?.toFixed(2)}%</td>
-        <td>${t.daysHeld}D</td>
-      </tr>
-    `;
+  const tradeRows = (result.trades || []).slice(-12).reverse().map((t) => {
+    const rc = t.returnPct >= 0 ? "pos" : "neg";
+    const ratioC = t.ratioChange < 0 ? "pos" : "neg";
+    return `<tr>
+      <td>${escapeHtml(t.entryDate)}</td>
+      <td>${escapeHtml(t.exitDate)}</td>
+      <td class="right">${t.entryRatio?.toFixed(1)}</td>
+      <td class="right">${t.exitRatio?.toFixed(1)}</td>
+      <td class="right ${ratioC}">${t.ratioChange >= 0 ? "+" : ""}${t.ratioChange?.toFixed(1)}</td>
+      <td class="right ${rc}">${t.returnPct >= 0 ? "+" : ""}${t.returnPct?.toFixed(1)}%</td>
+      <td class="val-muted">${t.daysHeld}D</td>
+    </tr>`;
   }).join("");
 
   return `
     <div class="lab-layout">
-      <div class="lab-sidebar">
-        ${paramForm}
-      </div>
+      <div class="lab-sidebar">${paramForm}</div>
       <div class="lab-results">
-        ${methodology}
-        ${stats}
-        <div>
-          <p class="scout-section-label" style="margin-bottom:0.4rem">Return Distribution (${result.tradeCount} trades)</p>
-          <div class="lab-dist-bars">${distBars}</div>
+        ${signalBanner}
+        ${statsHtml}
+        <div class="lab-chart-block">
+          <p class="lab-block-title">Gold/Silver Ratio — Full History with Trade Markers</p>
+          <p class="lab-block-sub">Blue line = ratio. Green triangles = entries (ratio ≥ ${params.entryRatio}). Red circles = exits. Dashed lines = entry/exit thresholds.</p>
+          <div class="lab-chart-wrap"><canvas id="scout-gs-ratio-chart" height="200"></canvas></div>
+        </div>
+        <div class="lab-chart-block">
+          <p class="lab-block-title">SIL Equity Curve (hypothetical $100 per trade, not compounded)</p>
+          <div class="lab-chart-wrap"><canvas id="scout-gs-equity-chart" height="150"></canvas></div>
         </div>
         <div>
-          <p class="scout-section-label" style="margin-bottom:0.5rem">Last 15 Trades (most recent first)</p>
-          <div class="table-wrap">
-            <table class="lab-trade-table">
-              <thead>
-                <tr>
-                  <th>Entry</th><th>Exit</th><th class="right">Entry ratio</th><th class="right">Exit ratio</th><th class="right">Ratio Δ</th><th class="right">SIL return</th><th>Held</th>
-                </tr>
-              </thead>
-              <tbody>${tradeRows}</tbody>
-            </table>
-          </div>
+          <p class="lab-block-title">Last 12 Trades</p>
+          <div class="table-wrap"><table class="lab-trade-table">
+            <thead><tr><th>Entry</th><th>Exit</th><th class="right">Entry ratio</th><th class="right">Exit ratio</th><th class="right">Ratio Δ</th><th class="right">SIL return</th><th>Held</th></tr></thead>
+            <tbody>${tradeRows}</tbody>
+          </table></div>
         </div>
       </div>
+    </div>
+  `;
+}
+
+function renderMomentumModule(result, params, model) {
+  const assets = ["AGQ", "RING", "GLD", "SIL", "TIP", "TLT", "COPX", "URA"];
+  const triggers = [-1, -2, -3, -4, -5];
+  const activeAsset = params.asset || "AGQ";
+  const activeTrigger = params.triggerPct ?? -3;
+
+  const assetTabs = assets.map((a) => `
+    <button class="trigger-tab ${a === activeAsset ? "trigger-tab--active" : ""}" data-momentum-asset="${escapeHtml(a)}">${escapeHtml(a)}</button>
+  `).join("");
+
+  const triggerTabs = triggers.map((t) => `
+    <button class="trigger-tab ${t === activeTrigger ? "trigger-tab--active" : ""}" data-momentum-trigger="${t}">${t}%</button>
+  `).join("");
+
+  const noData = !result || !result.horizons || result.totalEvents === 0;
+
+  const verdictHtml = noData ? `
+    <div class="verdict-bar verdict-neutral">Not enough data for ${activeAsset} at ${activeTrigger}% trigger.</div>
+  ` : (() => {
+    // Look at 5D horizon
+    const h5 = result.horizons.find((h) => h.horizon === 5);
+    if (!h5 || h5.n < 5) return `<div class="verdict-bar verdict-neutral">Insufficient sample (n < 5).</div>`;
+    const edge = (h5.bounceRate || 0) - (h5.contRate || 0);
+    let cls, text;
+    if (edge > 10) { cls = "verdict-no"; text = `Bounce dominates at 5D (${h5.bounceRate?.toFixed(0)}% vs ${h5.contRate?.toFixed(0)}%) — mean reversion is the dominant regime after ${activeTrigger}% drops. n=${h5.n}.`; }
+    else if (edge < -10) { cls = "verdict-go"; text = `Continuation dominates at 5D (${h5.contRate?.toFixed(0)}% vs ${h5.bounceRate?.toFixed(0)}%) — downtrend tends to persist. n=${h5.n}.`; }
+    else { cls = "verdict-mixed"; text = `Near coin-flip at 5D (bounce ${h5.bounceRate?.toFixed(0)}% vs cont ${h5.contRate?.toFixed(0)}%). No clean edge. n=${h5.n}.`; }
+    return `<div class="verdict-bar ${cls}">${escapeHtml(text)}</div>`;
+  })();
+
+  const tableRows = noData ? "" : result.horizons.map((h) => {
+    if (!h.n || h.n < 3) return `<tr><td>${escapeHtml(h.label)}</td><td colspan="5" class="val-muted">—</td></tr>`;
+    const bounceClass = (h.bounceRate || 0) > (h.contRate || 0) ? "pos" : "neg";
+    const contClass = (h.contRate || 0) > (h.bounceRate || 0) ? "neg" : "";
+    const retClass = (h.avgReturn || 0) >= 0 ? "pos" : "neg";
+    return `<tr>
+      <td><strong>${escapeHtml(h.label)}</strong></td>
+      <td class="right val-muted">${h.n}</td>
+      <td class="right ${bounceClass}">${h.bounceRate?.toFixed(0)}%</td>
+      <td class="right ${contClass}">${h.contRate?.toFixed(0)}%</td>
+      <td class="right ${retClass}">${h.avgReturn >= 0 ? "+" : ""}${h.avgReturn?.toFixed(1)}%</td>
+      <td class="right">${h.maxReturn >= 0 ? "+" : ""}${h.maxReturn?.toFixed(1)}%</td>
+      <td class="right neg">${h.minReturn?.toFixed(1)}%</td>
+    </tr>`;
+  }).join("");
+
+  return `
+    <div class="momentum-module">
+      <div class="momentum-module__note">
+        <strong>What is this?</strong> After ${activeAsset} drops ${activeTrigger}% in a single day, what typically happens next? "Bounce" = next-period return &gt; 0. "Continue" = return &lt; 0. Based on daily closes since ${result?.recentEvents?.[result.recentEvents.length-1]?.date || "available history"}.
+      </div>
+      <div class="momentum-module__selectors">
+        <div>
+          <p class="momentum-module__label">Asset</p>
+          <div class="trigger-tabs">${assetTabs}</div>
+        </div>
+        <div>
+          <p class="momentum-module__label">Daily drop trigger</p>
+          <div class="trigger-tabs">${triggerTabs}</div>
+        </div>
+      </div>
+      ${verdictHtml}
+      ${noData ? "" : `
+        <div class="momentum-stats">
+          <div class="momentum-stat"><span>Total events</span><strong>${result.totalEvents}</strong></div>
+          ${result.horizons.filter((h) => h.n > 0).map((h) => `
+            <div class="momentum-stat">
+              <span>${escapeHtml(h.label)} bounce rate</span>
+              <strong style="color:${(h.bounceRate||0)>50 ? "var(--positive)" : "var(--negative)"}">${h.bounceRate?.toFixed(0)}%</strong>
+            </div>
+          `).join("")}
+        </div>
+        <div class="table-wrap" style="margin-top:0.75rem">
+          <table class="lab-trade-table">
+            <thead><tr><th>Horizon</th><th class="right">Events</th><th class="right">Bounce%</th><th class="right">Continue%</th><th class="right">Avg return</th><th class="right">Best</th><th class="right">Worst</th></tr></thead>
+            <tbody>${tableRows}</tbody>
+          </table>
+        </div>
+        <div class="lab-chart-block" style="margin-top:0.75rem">
+          <p class="lab-block-title">Bounce vs Continuation — ${activeAsset} after ${activeTrigger}% drop</p>
+          <div class="lab-chart-wrap" style="height:180px"><canvas id="scout-momentum-chart" height="180"></canvas></div>
+        </div>
+      `}
     </div>
   `;
 }
