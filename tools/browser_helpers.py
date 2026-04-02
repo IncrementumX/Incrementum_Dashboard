@@ -31,6 +31,11 @@ ASSET_TICKERS = {
     "COPX": "COPX",
     "URA": "URA",
     "DXY": "DX-Y.NYB",
+    # Strategy Lab instruments
+    "SPY": "SPY",
+    "VIX": "^VIX",
+    "SLV": "SLV",
+    "SIL": "SIL",
 }
 
 load_dotenv(REPO_ROOT / ".env")

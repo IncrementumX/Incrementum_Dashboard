@@ -388,10 +388,25 @@ function normalizeScoutState(rawScout) {
         .filter((pair) => pair.left && pair.right)
     : [];
 
+  // Strategy Lab params — persisted per user so they survive page refresh
+  const strategyLab = {
+    vixParams: {
+      threshold: Number(rawScout?.strategyLab?.vixParams?.threshold ?? 25),
+      horizon: Number(rawScout?.strategyLab?.vixParams?.horizon ?? 20),
+    },
+    gsParams: {
+      entryRatio: Number(rawScout?.strategyLab?.gsParams?.entryRatio ?? 75),
+      exitRatio: Number(rawScout?.strategyLab?.gsParams?.exitRatio ?? 50),
+      maxDays: Number(rawScout?.strategyLab?.gsParams?.maxDays ?? 180),
+    },
+    activeStrategy: rawScout?.strategyLab?.activeStrategy || "vix",
+  };
+
   return {
     watchlist,
     customPairs,
     lastViewedOpportunityId: rawScout?.lastViewedOpportunityId ? String(rawScout.lastViewedOpportunityId) : null,
+    strategyLab,
   };
 }
 
@@ -945,9 +960,12 @@ function setupImport() {
       saveState();
       renderApp();
 
+      const previousSnapshot = state.importedSnapshots[1] || null;
+      const sanityLines = buildImportSanityCheck(importedSnapshot, previousSnapshot);
+
       setImportStatus(
         "IBKR statement imported successfully.",
-        "success",
+        sanityLines.some((line) => line.startsWith("⚠")) ? "warning" : "success",
         [
           `File: ${file.name}`,
           `Snapshot saved and set active. Manual mode data was preserved separately.`,
@@ -962,6 +980,8 @@ function setupImport() {
           `Accepted rows: ${dedupedTransactions.length}`,
           `Rejected rows: ${result.skippedRows + duplicateRows}`,
           `Rows skipped: ${result.skippedRows}`,
+          `--- Sanity Check ---`,
+          ...sanityLines,
         ],
         `${file.name} · ${result.transactions.length} transactions${importedSnapshot.statementPeriodEndDate ? ` · statement date ${importedSnapshot.statementPeriodEndDate}` : ""}`
       );
@@ -976,6 +996,61 @@ function setupImport() {
       renderDebugPanel();
     }
   });
+}
+
+function buildImportSanityCheck(newSnapshot, previousSnapshot) {
+  const lines = [];
+  const s = newSnapshot.summary;
+  const p = previousSnapshot?.summary || null;
+
+  // 1. Portfolio value vs net contributions sanity
+  if (s.portfolioValue !== undefined && s.netContributions !== undefined) {
+    const grossReturn = s.portfolioValue - s.netContributions;
+    const returnPct = s.netContributions > 0 ? (grossReturn / s.netContributions) * 100 : null;
+    if (returnPct !== null) {
+      const abs = Math.abs(returnPct);
+      if (abs > 150) lines.push(`⚠ P&L vs contributions looks extreme: portfolio is ${returnPct > 0 ? "+" : ""}${returnPct.toFixed(1)}% above net contributions — verify no missing deposits.`);
+      else lines.push(`✓ Portfolio value vs net contributions: ${returnPct > 0 ? "+" : ""}${returnPct.toFixed(1)}% gross return implied.`);
+    }
+  }
+
+  // 2. Cash + holdings vs total
+  if (s.portfolioValue > 0 && s.cash !== undefined) {
+    const equityValue = s.portfolioValue - s.cash;
+    const cashPct = (s.cash / s.portfolioValue) * 100;
+    if (cashPct > 90) lines.push(`⚠ Cash is ${cashPct.toFixed(1)}% of portfolio — portfolio may be mostly uninvested or positions failed to import.`);
+    else if (cashPct < -5) lines.push(`⚠ Cash is negative (${formatCurrency(s.cash)}) — check for missing buy transactions or settlement issues.`);
+    else lines.push(`✓ Cash + holdings split: ${cashPct.toFixed(1)}% cash, ${(100 - cashPct).toFixed(1)}% invested.`);
+  }
+
+  // 3. Total P&L = realized + unrealized
+  if (s.realizedPnL !== undefined && s.unrealizedPnL !== undefined && s.totalPnL !== undefined) {
+    const computed = s.realizedPnL + s.unrealizedPnL;
+    const diff = Math.abs(computed - s.totalPnL);
+    if (diff > 50) lines.push(`⚠ Total P&L (${formatCurrency(s.totalPnL)}) does not equal realized (${formatCurrency(s.realizedPnL)}) + unrealized (${formatCurrency(s.unrealizedPnL)}) — delta: ${formatCurrency(diff)}.`);
+    else lines.push(`✓ P&L components consistent: realized ${formatCurrency(s.realizedPnL)} + unrealized ${formatCurrency(s.unrealizedPnL)} ≈ total ${formatCurrency(s.totalPnL)}.`);
+  }
+
+  // 4. Change vs prior snapshot
+  if (p && p.portfolioValue > 0 && s.portfolioValue > 0) {
+    const change = s.portfolioValue - p.portfolioValue;
+    const changePct = (change / p.portfolioValue) * 100;
+    if (Math.abs(changePct) > 50) lines.push(`⚠ Portfolio value changed by ${changePct > 0 ? "+" : ""}${changePct.toFixed(1)}% vs prior snapshot (${formatCurrency(p.portfolioValue)} → ${formatCurrency(s.portfolioValue)}) — verify this is expected.`);
+    else lines.push(`✓ vs prior snapshot: portfolio changed ${changePct > 0 ? "+" : ""}${changePct.toFixed(1)}% (${formatCurrency(p.portfolioValue)} → ${formatCurrency(s.portfolioValue)}).`);
+  } else if (!p) {
+    lines.push(`ℹ No prior snapshot to compare against — this is the first import.`);
+  }
+
+  // 5. Net contributions direction check
+  if (p && p.netContributions !== undefined && s.netContributions !== undefined) {
+    const contribChange = s.netContributions - p.netContributions;
+    if (contribChange < -100) lines.push(`⚠ Net contributions decreased by ${formatCurrency(Math.abs(contribChange))} vs prior snapshot — check for withdrawal or data anomaly.`);
+    else if (contribChange > 0) lines.push(`✓ Net contributions increased by ${formatCurrency(contribChange)} vs prior snapshot.`);
+    else lines.push(`✓ Net contributions unchanged vs prior snapshot.`);
+  }
+
+  if (!lines.length) lines.push("ℹ No sanity checks could be run — summary data may be incomplete.");
+  return lines;
 }
 
 function dedupeTransactions(transactions) {
@@ -1488,29 +1563,72 @@ function setupScout() {
       invalidateScoutModel();
       saveState();
       renderApp();
+      return;
+    }
+
+    // Strategy lab — switch active strategy tab
+    const strategyTab = event.target.closest("[data-lab-strategy]");
+    if (strategyTab) {
+      state.scout.strategyLab.activeStrategy = strategyTab.dataset.labStrategy;
+      saveState();
+      renderApp();
+      return;
     }
   });
 
   elements.scoutRoot.addEventListener("submit", (event) => {
-    const form = event.target.closest("#scout-custom-pair-form");
-    if (!form) return;
-
-    event.preventDefault();
-    const formData = new FormData(form);
-    const left = String(formData.get("left") || "").trim().toUpperCase();
-    const right = String(formData.get("right") || "").trim().toUpperCase();
-    if (!left || !right || left === right) return;
-
-    const alreadyExists = state.scout.customPairs.some((pair) => pair.left === left && pair.right === right);
-    if (!alreadyExists) {
-      state.scout.customPairs = [...state.scout.customPairs, { left, right }];
-      invalidateScoutModel();
-      saveState();
+    // Strategy lab parameter form
+    const labForm = event.target.closest("[data-lab-form]");
+    if (labForm) {
+      event.preventDefault();
+      const strategy = labForm.dataset.labForm;
+      const formData = new FormData(labForm);
+      if (strategy === "vix") {
+        const threshold = parseInt(formData.get("vix-threshold"), 10);
+        const horizon = parseInt(formData.get("vix-horizon"), 10);
+        if (Number.isFinite(threshold) && Number.isFinite(horizon)) {
+          state.scout.strategyLab.vixParams.threshold = Math.max(10, Math.min(60, threshold));
+          state.scout.strategyLab.vixParams.horizon = Math.max(1, Math.min(120, horizon));
+          invalidateScoutModel();
+          saveState();
+          renderApp();
+        }
+      } else if (strategy === "gs") {
+        const entryRatio = parseFloat(formData.get("gs-entry-ratio"));
+        const exitRatio = parseFloat(formData.get("gs-exit-ratio"));
+        const maxDays = parseInt(formData.get("gs-max-days"), 10);
+        if (Number.isFinite(entryRatio) && Number.isFinite(exitRatio)) {
+          state.scout.strategyLab.gsParams.entryRatio = Math.max(50, Math.min(120, entryRatio));
+          state.scout.strategyLab.gsParams.exitRatio = Math.max(30, Math.min(90, exitRatio));
+          if (Number.isFinite(maxDays)) state.scout.strategyLab.gsParams.maxDays = Math.max(30, Math.min(500, maxDays));
+          invalidateScoutModel();
+          saveState();
+          renderApp();
+        }
+      }
+      return;
     }
 
-    form.reset();
-    renderApp();
+    // Custom pair form
+    const pairForm = event.target.closest("#scout-custom-pair-form");
+    if (pairForm) {
+      event.preventDefault();
+      const formData = new FormData(pairForm);
+      const left = String(formData.get("left") || "").trim().toUpperCase();
+      const right = String(formData.get("right") || "").trim().toUpperCase();
+      if (!left || !right || left === right) return;
+      const alreadyExists = state.scout.customPairs.some((pair) => pair.left === left && pair.right === right);
+      if (!alreadyExists) {
+        state.scout.customPairs = [...state.scout.customPairs, { left, right }];
+        invalidateScoutModel();
+        saveState();
+      }
+      pairForm.reset();
+      renderApp();
+      return;
+    }
   });
+
 }
 
 function upsertScoutWatchlistItem({ kind, targetId, label }) {
@@ -1562,13 +1680,19 @@ function renderScout(context, analytics, summary) {
 
   if (!syncUiState.scoutModel) {
     elements.scoutRoot.innerHTML = `
-      <section class="panel scout-empty-state">
+      <section class="panel scout-empty-state scout-loading-panel">
         <div class="panel-header">
           <div>
             <h2>Building Scout</h2>
-            <p class="panel-subtitle">Loading strategy coverage, mock or provider-backed histories, backtests, and portfolio overlap.</p>
+            <p class="panel-subtitle">Fetching macro data, running regime analysis, backtesting strategies...</p>
           </div>
-          <span class="status-pill status-pill--warning">Preparing research layer</span>
+          <span class="status-pill status-pill--warning">Loading</span>
+        </div>
+        <div class="scout-loading-steps">
+          <div class="scout-loading-step scout-loading-step--active">Fetching FRED macro data</div>
+          <div class="scout-loading-step">Running regime classification</div>
+          <div class="scout-loading-step">Backtesting VIX + Gold/Silver strategies</div>
+          <div class="scout-loading-step">Generating signals</div>
         </div>
       </section>
     `;
@@ -1577,14 +1701,14 @@ function renderScout(context, analytics, summary) {
 
   const model = syncUiState.scoutModel;
   elements.scoutRoot.innerHTML = `
-    ${renderScoutOverview(model, summary)}
-    ${renderScoutMacroSnapshot(model)}
-    ${renderScoutMacroPanels(model)}
-    ${renderScoutRelativeComparisons(model)}
-    ${renderScoutSuggestions(model)}
-    ${renderScoutOpportunityFeed(model)}
-    ${renderScoutStrategyLibrary(model)}
-    ${renderScoutBacktests(model)}
+    ${renderMacroRegimeHeader(model)}
+    ${renderWhatToDoNow(model)}
+    ${renderStrategyLabSignals(model)}
+    ${renderAssetVerdicts(model)}
+    ${renderRelativeExpressions(model)}
+    ${renderConditionalReturns(model)}
+    ${renderSynthesisMemo(model)}
+    ${renderStrategyLab(model)}
     ${renderScoutWatchlist(model)}
   `;
 }
@@ -1616,8 +1740,973 @@ function buildScoutCacheKey(context, analytics) {
   const holdingsKey = (analytics.openHoldings || [])
     .map((holding) => `${holding.ticker}:${roundNumber(holding.marketValue)}`)
     .join("|");
-  return [context.mode, latestTransaction?.date || "-", context.transactions?.length || 0, holdingsKey, state.scout.customPairs.length].join("::");
+  const labKey = JSON.stringify(state.scout.strategyLab);
+  return [context.mode, latestTransaction?.date || "-", context.transactions?.length || 0, holdingsKey, state.scout.customPairs.length, labKey].join("::");
 }
+
+// ── SCOUT v2 rendering ──────────────────────────────────────────────────────
+
+function classifyMacroRegimeFromSnapshot(snapshot) {
+  const by = {};
+  for (const item of snapshot) by[item.code] = item;
+
+  const real = by.DFII10 || {};
+  const be = by.T10YIE || {};
+  const curve = by.T10Y2Y || {};
+  const dollar = by.DXY || {};
+
+  const realFalling = (real.change20 || 0) < -0.1;
+  const realRising = (real.change20 || 0) > 0.1;
+  const realHigh = (real.latest || 0) > 2.0;
+
+  const beRising = (be.change20 || 0) > 0.05;
+  const beFalling = (be.change20 || 0) < -0.05;
+
+  const curveInverted = (curve.latest || 0) < 0;
+  const curveSteepening = (curve.change20 || 0) > 5;
+
+  const dollarFalling = (dollar.change20 || 0) < -0.4;
+  const dollarRising = (dollar.change20 || 0) > 0.4;
+  const dollarStrong = (dollar.percentile || 50) > 65;
+
+  if (realFalling && beRising && dollarFalling) {
+    return {
+      name: "Real Rate Suppression + Soft Dollar",
+      theme: "Falling real rates, rising breakevens, weakening dollar — historically the cleanest setup for metals, miners, and inflation protection.",
+      confidence: "high",
+    };
+  }
+  if (realFalling && beRising) {
+    return {
+      name: "Real Rate Compression / Reflation",
+      theme: "Real yields compressing while breakevens rise — supportive for inflation-protection assets and gold miners.",
+      confidence: "high",
+    };
+  }
+  if (realRising && dollarRising && beFalling) {
+    return {
+      name: "Disinflationary Tightening",
+      theme: "Rising real rates, strengthening dollar, falling breakevens — adverse backdrop for metals and inflation assets.",
+      confidence: "high",
+    };
+  }
+  if (realFalling && dollarFalling && !beRising) {
+    return {
+      name: "Dollar Weakness + Easing",
+      theme: "Dollar weakening alongside falling real yields — metals-supportive even without strong breakeven confirmation.",
+      confidence: "medium",
+    };
+  }
+  if (realHigh && curveInverted && !beRising) {
+    return {
+      name: "Late Cycle / Growth Scare",
+      theme: "Elevated real rates with inverted curve — risk-off signals. Metals outcome depends on whether recession fear dominates.",
+      confidence: "medium",
+    };
+  }
+  if (beRising && curveSteepening && !realHigh) {
+    return {
+      name: "Cyclical Reflation",
+      theme: "Steepening curve with rising inflation expectations — commodity complex and real-asset expressions historically favored.",
+      confidence: "medium",
+    };
+  }
+  if (realRising && beRising) {
+    return {
+      name: "Nominal Repricing",
+      theme: "Both real yields and breakevens rising — mixed for metals. TIP may outperform nominal duration; gold less directional.",
+      confidence: "medium",
+    };
+  }
+  if (dollarStrong && !beRising) {
+    return {
+      name: "Dollar Dominance / Risk-Off",
+      theme: "Strong dollar without inflation support — headwind for metals and commodity expressions.",
+      confidence: "medium",
+    };
+  }
+  if (realRising) {
+    return {
+      name: "Rising Real Yields / Tightening Conditions",
+      theme: "Real yields climbing — historically adverse for gold, miners, and inflation assets. Duration punished without breakeven offset.",
+      confidence: "medium",
+    };
+  }
+  if (realFalling) {
+    return {
+      name: "Falling Real Yields / Easing Bias",
+      theme: "Real yields declining — historically supportive for metals and inflation assets, even without strong breakeven confirmation.",
+      confidence: "medium",
+    };
+  }
+
+  return {
+    name: "Transitional / Mixed Signals",
+    theme: "No dominant regime pattern — macro drivers sending mixed signals. Confidence in any single directional thesis is low.",
+    confidence: "low",
+  };
+}
+
+// ── WHAT TO DO NOW — actionable signals ────────────────────────────────────
+
+function buildActionSignals(model) {
+  const assets = model.macroResearch?.focusAssets || [];
+  const relatives = model.macroResearch?.relativeComparisons || [];
+  const lab = model.strategyLab;
+
+  // Build action for each priority 1+2 asset
+  const assetSignals = assets
+    .filter((a) => a.priority <= 2)
+    .map((asset) => {
+      const regime = asset.currentRegime;
+      const topDriver = asset.rankedDrivers?.[0];
+      const secondDriver = asset.rankedDrivers?.[1];
+
+      // Direction decision
+      let direction, conviction, rationale, drivers;
+
+      if (regime.state === "favorable" && regime.confidence >= 55) {
+        direction = "LONG";
+        conviction = regime.confidence >= 75 ? "HIGH" : "MEDIUM";
+      } else if (regime.state === "unfavorable" && regime.confidence >= 55) {
+        direction = "AVOID";
+        conviction = regime.confidence >= 75 ? "HIGH" : "MEDIUM";
+      } else if (regime.state === "mixed") {
+        direction = "MONITOR";
+        conviction = "LOW";
+      } else {
+        direction = "NEUTRAL";
+        conviction = "LOW";
+      }
+
+      // Build one-line rationale
+      const driverSignals = regime.driverSignals || [];
+      const supportive = driverSignals.filter((s) => s.signal > 0.1).map((s) => s.driverLabel);
+      const adverse = driverSignals.filter((s) => s.signal < -0.1).map((s) => s.driverLabel);
+
+      if (direction === "LONG") {
+        rationale = supportive.length
+          ? `${supportive.slice(0, 2).join(" + ")} historically supportive. Historical ${formatPercent((topDriver?.horizons?.[20]?.edge || 0) * 100)} 20D regime edge.`
+          : "Macro backdrop aligns with historical bull bucket.";
+      } else if (direction === "AVOID") {
+        rationale = adverse.length
+          ? `${adverse.slice(0, 2).join(" + ")} in adverse territory. Historically this setup has underperformed.`
+          : "Macro conditions map to historically weak bucket.";
+      } else {
+        rationale = "Mixed signals — no dominant macro direction. Wait for regime to clarify.";
+      }
+
+      drivers = [topDriver?.driverLabel, secondDriver?.driverLabel].filter(Boolean).slice(0, 2);
+
+      return { symbol: asset.symbol, category: asset.category, direction, conviction, rationale, drivers };
+    });
+
+  // Best relative expression
+  const bestRelative = relatives
+    .filter((r) => Math.abs(r.joint?.edge || 0) > 0.003)
+    .sort((a, b) => Math.abs(b.joint?.edge || 0) - Math.abs(a.joint?.edge || 0))[0];
+
+  let relativeSignal = null;
+  if (bestRelative) {
+    const favors = (bestRelative.joint?.edge || 0) > 0 ? bestRelative.leftSymbol : bestRelative.rightSymbol;
+    const over = favors === bestRelative.leftSymbol ? bestRelative.rightSymbol : bestRelative.leftSymbol;
+    relativeSignal = {
+      label: `${favors} / ${over}`,
+      direction: `${favors} OVER ${over}`,
+      conviction: Math.abs(bestRelative.currentZ) > 1.0 ? "MEDIUM" : "LOW",
+      rationale: bestRelative.interpretation,
+    };
+  }
+
+  return { assetSignals, relativeSignal };
+}
+
+function renderWhatToDoNow(model) {
+  const { assetSignals, relativeSignal } = buildActionSignals(model);
+
+  const dirClass = (dir) => {
+    if (dir === "LONG") return "wtd-badge--long";
+    if (dir === "AVOID") return "wtd-badge--avoid";
+    if (dir === "MONITOR") return "wtd-badge--monitor";
+    return "wtd-badge--neutral";
+  };
+
+  const convClass = (conv) => {
+    if (conv === "HIGH") return "wtd-conv--high";
+    if (conv === "MEDIUM") return "wtd-conv--medium";
+    return "wtd-conv--low";
+  };
+
+  const cards = assetSignals.map((sig) => `
+    <article class="wtd-card">
+      <div class="wtd-card__head">
+        <div>
+          <span class="wtd-symbol">${escapeHtml(sig.symbol)}</span>
+          <span class="wtd-cat">${escapeHtml(sig.category)}</span>
+        </div>
+        <div class="wtd-badges">
+          <span class="wtd-badge ${dirClass(sig.direction)}">${escapeHtml(sig.direction)}</span>
+          <span class="wtd-conv ${convClass(sig.conviction)}">${escapeHtml(sig.conviction)}</span>
+        </div>
+      </div>
+      <p class="wtd-rationale">${escapeHtml(sig.rationale)}</p>
+      ${sig.drivers.length ? `<p class="wtd-drivers">Key drivers: ${sig.drivers.map(escapeHtml).join(" · ")}</p>` : ""}
+    </article>
+  `).join("");
+
+  const relativeBlock = relativeSignal ? `
+    <article class="wtd-card wtd-card--relative">
+      <div class="wtd-card__head">
+        <div>
+          <span class="wtd-symbol">${escapeHtml(relativeSignal.label)}</span>
+          <span class="wtd-cat">Relative expression</span>
+        </div>
+        <div class="wtd-badges">
+          <span class="wtd-badge wtd-badge--long">${escapeHtml(relativeSignal.direction)}</span>
+          <span class="wtd-conv ${convClass(relativeSignal.conviction)}">${escapeHtml(relativeSignal.conviction)}</span>
+        </div>
+      </div>
+      <p class="wtd-rationale">${escapeHtml(relativeSignal.rationale)}</p>
+    </article>
+  ` : "";
+
+  return `
+    <section class="panel wtd-panel">
+      <div class="panel-header">
+        <div>
+          <p class="scout-section-label">Action Layer</p>
+          <h2>What to Do Now</h2>
+          <p class="panel-subtitle">Macro-conditioned signals. Based on historical regime edges — not forecasts. Always apply your own judgment.</p>
+        </div>
+      </div>
+      <div class="wtd-grid">
+        ${cards}
+        ${relativeBlock}
+      </div>
+    </section>
+  `;
+}
+
+// ── Strategy Lab live signals ──────────────────────────────────────────────
+
+function renderStrategyLabSignals(model) {
+  const lab = model.strategyLab;
+  const vix = lab?.vix;
+  const gs = lab?.goldSilver;
+  const vixParams = state.scout.strategyLab?.vixParams || { threshold: 25, horizon: 20 };
+  const gsParams = state.scout.strategyLab?.gsParams || { entryRatio: 75, exitRatio: 50 };
+
+  // VIX current signal
+  const vixData = model.macroResearch?.strategyLabData?.VIX || [];
+  const latestVix = vixData.length ? vixData[vixData.length - 1] : null;
+  const vixActive = latestVix && latestVix.value >= vixParams.threshold;
+  const prevVixTrigger = vix?.trades?.length ? vix.trades[vix.trades.length - 1] : null;
+
+  // Gold/silver ratio current signal
+  const ratioHistory = gs?.ratioHistory || [];
+  const latestRatioPoint = ratioHistory.length ? ratioHistory[ratioHistory.length - 1] : null;
+  const gsActive = latestRatioPoint && latestRatioPoint.value >= gsParams.entryRatio;
+  const prevGsTrade = gs?.trades?.length ? gs.trades[gs.trades.length - 1] : null;
+
+  const signalBlock = (label, active, latestValue, valueLabel, threshold, thresholdLabel, lastTrade, statLabel, statValue) => {
+    const statusClass = active ? "lab-signal--active" : "lab-signal--inactive";
+    const statusLabel = active ? "SIGNAL ACTIVE" : "NO SIGNAL";
+    const statusPillClass = active ? "status-pill--success" : "status-pill--muted";
+    return `
+      <div class="lab-signal-card ${statusClass}">
+        <div class="lab-signal-card__head">
+          <span class="lab-signal-name">${escapeHtml(label)}</span>
+          <span class="status-pill ${statusPillClass}">${statusLabel}</span>
+        </div>
+        <div class="lab-signal-body">
+          <div class="lab-signal-stat">
+            <span>${escapeHtml(valueLabel)}</span>
+            <strong style="color:${active ? "var(--positive)" : "var(--text)"}">${latestValue !== null ? escapeHtml(String(typeof latestValue === "number" ? latestValue.toFixed(1) : latestValue)) : "—"}</strong>
+          </div>
+          <div class="lab-signal-stat">
+            <span>${escapeHtml(thresholdLabel)}</span>
+            <strong>${escapeHtml(String(threshold))}</strong>
+          </div>
+          ${lastTrade ? `
+            <div class="lab-signal-stat">
+              <span>Last signal</span>
+              <strong>${escapeHtml(lastTrade.entryDate)}</strong>
+            </div>
+          ` : ""}
+          ${statValue !== null ? `
+            <div class="lab-signal-stat">
+              <span>${escapeHtml(statLabel)}</span>
+              <strong style="color:${typeof statValue === 'number' && statValue > 0 ? 'var(--positive)' : 'var(--text-muted)'}">${typeof statValue === "number" ? `${statValue > 0 ? "+" : ""}${statValue.toFixed(1)}%` : escapeHtml(String(statValue))}</strong>
+            </div>
+          ` : ""}
+        </div>
+      </div>
+    `;
+  };
+
+  return `
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <p class="scout-section-label">Strategy Signals — Live Status</p>
+          <h2>Is a Signal Active Today?</h2>
+        </div>
+      </div>
+      <div class="lab-signals-row">
+        ${signalBlock(
+          `VIX Entry (threshold ≥ ${vixParams.threshold})`,
+          vixActive,
+          latestVix?.value ?? null,
+          "Current VIX",
+          vixParams.threshold,
+          "Entry threshold",
+          prevVixTrigger,
+          "Hist avg return",
+          vix?.avgReturn ?? null
+        )}
+        ${signalBlock(
+          `Gold/Silver Ratio (entry ≥ ${gsParams.entryRatio})`,
+          gsActive,
+          latestRatioPoint?.value ?? null,
+          "Current ratio",
+          gsParams.entryRatio,
+          "Entry threshold",
+          prevGsTrade,
+          "Hist avg return (SIL)",
+          gs?.avgReturn ?? null
+        )}
+      </div>
+    </section>
+  `;
+}
+
+function renderMacroRegimeHeader(model) {
+  const snapshot = model.macroResearch?.macroSnapshot || [];
+  const regime = classifyMacroRegimeFromSnapshot(snapshot);
+  const confidenceClass =
+    regime.confidence === "high" ? "status-pill--success" : regime.confidence === "medium" ? "status-pill--warning" : "status-pill--muted";
+
+  const signalTiles = snapshot
+    .map((item) => {
+      const threshold = item.unit === "bp" ? 2 : item.unit === "index" ? 0.3 : 0.01;
+      const rising = item.change20 > threshold;
+      const falling = item.change20 < -threshold;
+      const dirClass = rising ? "scout-regime-signal--rising" : falling ? "scout-regime-signal--falling" : "";
+      const dirArrow = rising ? "↑" : falling ? "↓" : "→";
+      const pct = Math.round(item.percentile || 0);
+      return `
+        <div class="scout-regime-signal ${dirClass}">
+          <span class="scout-regime-signal__label">${escapeHtml(item.label)}</span>
+          <strong class="scout-regime-signal__value">${formatMacroValue(item.latest, item.unit)}</strong>
+          <span class="scout-regime-signal__change">${dirArrow} ${escapeHtml(formatMacroDelta(item.change20, item.unit))} 20D</span>
+          <span class="scout-regime-signal__pct">${pct}th pct</span>
+          <div class="scout-regime-signal__bar-wrap">
+            <div class="scout-regime-signal__bar-fill" style="width:${pct}%"></div>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+
+  return `
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <p class="scout-section-label">Macro Regime</p>
+          <h2>${escapeHtml(regime.name)}</h2>
+          <p class="panel-subtitle">${escapeHtml(regime.theme)}</p>
+        </div>
+        <div style="display:flex;gap:0.5rem;align-items:flex-start;flex-wrap:wrap;flex-shrink:0">
+          <span class="status-pill ${confidenceClass}">${escapeHtml(regime.confidence)} confidence</span>
+          <span class="status-pill ${getScoutStatusClass(model.dataStatus)}">${escapeHtml(model.dataStatus)}</span>
+          <span class="status-pill status-pill--muted">${escapeHtml(model.freshnessLabel)}</span>
+        </div>
+      </div>
+      <div class="scout-regime-strip">${signalTiles}</div>
+    </section>
+  `;
+}
+
+function renderAssetVerdicts(model) {
+  const assets = model.macroResearch?.focusAssets || [];
+  const priority1 = assets.filter((a) => a.priority === 1);
+  const priority2 = assets.filter((a) => a.priority === 2);
+  const displayAssets = [...priority1, ...priority2];
+
+  const cards = displayAssets
+    .map((asset) => {
+      const regime = asset.currentRegime;
+      const stateKey = (regime.state || "low-confidence").replace(/\s+/g, "-");
+      const badgeLabel =
+        regime.state === "low-confidence"
+          ? "Low Conf"
+          : regime.state === "favorable"
+            ? "Favorable"
+            : regime.state === "unfavorable"
+              ? "Unfavorable"
+              : "Mixed";
+
+      const topDriver = asset.rankedDrivers?.[0];
+      const secondDriver = asset.rankedDrivers?.[1];
+      const edge20 = topDriver?.horizons?.[20]?.edge;
+      const edge60 = topDriver?.horizons?.[60]?.edge;
+
+      const driverRows = [topDriver, secondDriver]
+        .filter(Boolean)
+        .map((driver) => {
+          const driverSignal = regime.driverSignals?.find((s) => s.driverCode === driver.driverCode);
+          let dirLabel, dirClass;
+          if (driverSignal) {
+            if (driverSignal.signal > 0.15) { dirLabel = "supportive now"; dirClass = "scout-driver-row__verdict--supportive"; }
+            else if (driverSignal.signal < -0.15) { dirLabel = "adverse now"; dirClass = "scout-driver-row__verdict--adverse"; }
+            else { dirLabel = "neutral"; dirClass = "scout-driver-row__verdict--neutral"; }
+          } else {
+            dirLabel = driver.verdict;
+            dirClass = "scout-driver-row__verdict--neutral";
+          }
+          return `
+            <div class="scout-driver-row">
+              <span class="scout-driver-row__name">${escapeHtml(driver.driverLabel)}</span>
+              <span class="scout-driver-row__verdict ${dirClass}">${escapeHtml(dirLabel)}</span>
+            </div>
+          `;
+        })
+        .join("");
+
+      const edgeText =
+        Number.isFinite(edge20) && Number.isFinite(edge60)
+          ? `Regime edge via ${escapeHtml(topDriver?.driverLabel || "top driver")}: ${formatPercent(Math.abs(edge20) * 100)} (20D) · ${formatPercent(Math.abs(edge60) * 100)} (60D)`
+          : "";
+
+      return `
+        <article class="scout-verdict-card">
+          <div class="scout-verdict-card__head">
+            <div>
+              <div class="scout-verdict-card__symbol">${escapeHtml(asset.symbol)}</div>
+              <div class="scout-verdict-card__category">${escapeHtml(asset.category)}</div>
+            </div>
+            <span class="scout-verdict-badge scout-verdict-badge--${escapeHtml(stateKey)}">${escapeHtml(badgeLabel)}</span>
+          </div>
+          ${driverRows ? `<div class="scout-verdict-drivers">${driverRows}</div>` : ""}
+          <p class="scout-verdict-interp">${escapeHtml(asset.interpretation)}</p>
+          ${edgeText ? `<p class="scout-verdict-edge">${edgeText}</p>` : ""}
+        </article>
+      `;
+    })
+    .join("");
+
+  return `
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <p class="scout-section-label">Asset Attractiveness</p>
+          <h2>Macro-Conditioned Verdicts</h2>
+          <p class="panel-subtitle">What does the current regime historically imply for each asset?</p>
+        </div>
+      </div>
+      <div class="scout-verdict-grid">${cards}</div>
+    </section>
+  `;
+}
+
+function renderRelativeExpressions(model) {
+  const relatives = model.macroResearch?.relativeComparisons || [];
+  const sorted = [...relatives].sort((a, b) => {
+    const scoreA = Math.max(Math.abs(a.realYieldEdge?.edge || 0), Math.abs(a.dollarEdge?.edge || 0), Math.abs(a.joint?.edge || 0));
+    const scoreB = Math.max(Math.abs(b.realYieldEdge?.edge || 0), Math.abs(b.dollarEdge?.edge || 0), Math.abs(b.joint?.edge || 0));
+    return scoreB - scoreA;
+  });
+
+  const rows = sorted
+    .slice(0, 6)
+    .map((item) => {
+      const edges = [item.realYieldEdge, item.dollarEdge, item.joint].filter(Boolean);
+      const dominant = edges.sort((a, b) => Math.abs(b.edge || 0) - Math.abs(a.edge || 0))[0];
+      const dominantEdge = dominant?.edge || 0;
+      let verdictClass, verdictLabel;
+      if (dominantEdge > 0.003) {
+        verdictClass = "scout-expr-verdict--left";
+        verdictLabel = `Favors ${item.leftSymbol}`;
+      } else if (dominantEdge < -0.003) {
+        verdictClass = "scout-expr-verdict--right";
+        verdictLabel = `Favors ${item.rightSymbol}`;
+      } else {
+        verdictClass = "scout-expr-verdict--neutral";
+        verdictLabel = "Neutral";
+      }
+      const zSign = item.currentZ >= 0 ? "+" : "";
+      return `
+        <div class="scout-expr-row">
+          <span class="scout-expr-pair">${escapeHtml(item.leftSymbol)} vs ${escapeHtml(item.rightSymbol)}</span>
+          <span class="scout-expr-z">z: ${zSign}${item.currentZ.toFixed(2)}</span>
+          <span class="scout-expr-verdict ${verdictClass}">${escapeHtml(verdictLabel)}</span>
+          <span class="scout-expr-rationale">${escapeHtml(item.interpretation)}</span>
+        </div>
+      `;
+    })
+    .join("");
+
+  return `
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <p class="scout-section-label">Relative Expressions</p>
+          <h2>Regime-Ranked Pair Analysis</h2>
+          <p class="panel-subtitle">Ranked by historical regime edge. Which pair is most differentiated under current macro conditions?</p>
+        </div>
+      </div>
+      <div class="scout-expressions-grid">${rows || '<p class="panel-subtitle">No relative comparison data available.</p>'}</div>
+    </section>
+  `;
+}
+
+function renderConditionalReturns(model) {
+  const assets = model.macroResearch?.focusAssets || [];
+  const priority12 = assets.filter((a) => a.priority <= 2);
+
+  const tableRows = priority12
+    .map((asset) => {
+      const topDriver = asset.rankedDrivers?.[0];
+      if (!topDriver) return "";
+      const h20 = topDriver.horizons?.[20] || {};
+      const h60 = topDriver.horizons?.[60] || {};
+      const edge20 = h20.edge ?? 0;
+      const edge60 = h60.edge ?? 0;
+
+      // favorable mean = the bucket that benefits the asset
+      // if edge < 0: lowMean > highMean → lowMean is favorable bucket
+      // if edge > 0: highMean > lowMean → highMean is favorable bucket
+      const favorMean20 = edge20 >= 0 ? (h20.highMean ?? 0) : (h20.lowMean ?? 0);
+      const adverseMean20 = edge20 >= 0 ? (h20.lowMean ?? 0) : (h20.highMean ?? 0);
+      const favorMean60 = edge60 >= 0 ? (h60.highMean ?? 0) : (h60.lowMean ?? 0);
+
+      const verdict = asset.currentRegime?.state || "low-confidence";
+      const isGood = verdict === "favorable";
+      const isBad = verdict === "unfavorable";
+      const verdictClass = isGood ? "val-positive" : isBad ? "val-negative" : "val-muted";
+      const verdictLabel = verdict === "low-confidence" ? "low conf" : verdict;
+
+      const f20Class = favorMean20 >= 0 ? "val-positive" : "val-negative";
+      const a20Class = adverseMean20 >= 0 ? "val-positive" : "val-negative";
+      const f60Class = favorMean60 >= 0 ? "val-positive" : "val-negative";
+
+      return `
+        <tr>
+          <td><strong>${escapeHtml(asset.symbol)}</strong><div class="table-subtext">${escapeHtml(asset.category)}</div></td>
+          <td>${escapeHtml(topDriver.driverLabel)}</td>
+          <td class="right ${f20Class}">${formatPercent(favorMean20 * 100)}</td>
+          <td class="right ${a20Class}">${formatPercent(adverseMean20 * 100)}</td>
+          <td class="right ${f60Class}">${formatPercent(favorMean60 * 100)}</td>
+          <td class="right"><span class="${verdictClass}">${escapeHtml(verdictLabel)}</span></td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  return `
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <p class="scout-section-label">Conditional Returns</p>
+          <h2>Backtested Regime Edges</h2>
+          <p class="panel-subtitle">Average forward returns when top macro driver is in favorable vs adverse bucket. Not a forecast — a historical tendency.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="scout-cond-table">
+          <thead>
+            <tr>
+              <th>Asset</th>
+              <th>Top driver</th>
+              <th class="right">Fav bucket 20D</th>
+              <th class="right">Adv bucket 20D</th>
+              <th class="right">Fav bucket 60D</th>
+              <th class="right">Current regime</th>
+            </tr>
+          </thead>
+          <tbody>${tableRows || '<tr><td colspan="6" class="val-muted" style="padding:1rem">No data available.</td></tr>'}</tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
+
+function renderSynthesisMemo(model) {
+  const snapshot = model.macroResearch?.macroSnapshot || [];
+  const regime = classifyMacroRegimeFromSnapshot(snapshot);
+  const suggestions = model.macroResearch?.suggestions || [];
+  const assets = model.macroResearch?.focusAssets || [];
+
+  const realYield = snapshot.find((s) => s.code === "DFII10");
+  const breakeven = snapshot.find((s) => s.code === "T10YIE");
+  const dollar = snapshot.find((s) => s.code === "DXY");
+
+  const descParts = [];
+  if (realYield) {
+    const dir = realYield.change20 < 0 ? "falling" : realYield.change20 > 0 ? "rising" : "flat";
+    descParts.push(`Real yields are ${dir} (${formatMacroDelta(realYield.change20, realYield.unit)} over 20 days, now ${formatMacroValue(realYield.latest, realYield.unit)}, ${Math.round(realYield.percentile)}th pct)`);
+  }
+  if (breakeven) {
+    const dir = breakeven.change20 > 0 ? "rising" : breakeven.change20 < 0 ? "falling" : "flat";
+    descParts.push(`breakevens ${dir} (${formatMacroDelta(breakeven.change20, breakeven.unit)})`);
+  }
+  if (dollar) {
+    const dir = dollar.change20 < 0 ? "weakening" : dollar.change20 > 0 ? "strengthening" : "flat";
+    descParts.push(`dollar ${dir} (${Math.round(dollar.percentile)}th pct)`);
+  }
+
+  const macroDesc = descParts.join("; ");
+  const thesis = macroDesc
+    ? `${macroDesc}. This configuration maps to the "${regime.name}" regime.`
+    : regime.theme;
+
+  const favorableAssets = assets.filter((a) => a.currentRegime?.state === "favorable" && a.priority <= 2).map((a) => a.symbol);
+  const unfavorableAssets = assets.filter((a) => a.currentRegime?.state === "unfavorable" && a.priority <= 2).map((a) => a.symbol);
+  const mixedAssets = assets.filter((a) => a.currentRegime?.state === "mixed" && a.priority <= 2).map((a) => a.symbol);
+
+  const bullets = [
+    ...suggestions,
+    favorableAssets.length ? `Favorable macro setup: ${favorableAssets.join(", ")}.` : "",
+    unfavorableAssets.length ? `Adverse macro setup: ${unfavorableAssets.join(", ")}.` : "",
+    mixedAssets.length ? `Mixed signals: ${mixedAssets.join(", ")}.` : "",
+  ].filter(Boolean);
+
+  const dataLabel = model.dataStatus === "live" ? "real FRED + Yahoo Finance data" : "simulated data (connect FRED API for live signals)";
+  const caveats = `Confidence: ${regime.confidence}. Based on ${dataLabel}. Historical regime edges are statistical tendencies, not forward-looking forecasts.`;
+
+  return `
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <p class="scout-section-label">Synthesis</p>
+          <h2>Current Interpretation</h2>
+        </div>
+      </div>
+      <div class="scout-memo">
+        <p class="scout-memo__thesis">${escapeHtml(thesis)}</p>
+        <div class="scout-memo__bullets">
+          ${bullets.map((b) => `<div class="scout-memo__bullet">${escapeHtml(b)}</div>`).join("")}
+        </div>
+        <p class="scout-memo__caveats">${escapeHtml(caveats)}</p>
+      </div>
+    </section>
+  `;
+}
+
+// ── Strategy Lab rendering ──────────────────────────────────────────────────
+
+function renderStrategyLab(model) {
+  const lab = model.strategyLab;
+  const activeStrategy = state.scout.strategyLab?.activeStrategy || "vix";
+  const vixParams = state.scout.strategyLab?.vixParams || { threshold: 25, horizon: 20 };
+  const gsParams = state.scout.strategyLab?.gsParams || { entryRatio: 75, exitRatio: 50, maxDays: 180 };
+
+  const tabVix = activeStrategy === "vix" ? "lab-tab lab-tab--active" : "lab-tab";
+  const tabGs = activeStrategy === "gs" ? "lab-tab lab-tab--active" : "lab-tab";
+
+  const content = activeStrategy === "vix"
+    ? renderVixLab(lab?.vix, vixParams)
+    : renderGoldSilverLab(lab?.goldSilver, gsParams);
+
+  return `
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <p class="scout-section-label">Strategy Lab</p>
+          <h2>Interactive Backtest Explorer</h2>
+          <p class="panel-subtitle">Adjust parameters, inspect methodology, and read results. No hidden logic — every assumption is explicit.</p>
+        </div>
+        <span class="status-pill ${getScoutStatusClass(model.dataStatus)}">${escapeHtml(model.dataStatus)}</span>
+      </div>
+      <div class="lab-tabs">
+        <button type="button" class="${tabVix}" data-lab-strategy="vix">VIX Entry (SPY)</button>
+        <button type="button" class="${tabGs}" data-lab-strategy="gs">Gold/Silver Ratio (SIL)</button>
+      </div>
+      ${content}
+    </section>
+  `;
+}
+
+function renderVixLab(result, params) {
+  const noData = !result || result.tradeCount === 0;
+  const horizonOptions = [5, 10, 20, 60].map((h) =>
+    `<option value="${h}" ${params.horizon === h ? "selected" : ""}>${h}D</option>`
+  ).join("");
+  const thresholdOptions = [15, 20, 25, 30, 35, 40].map((t) =>
+    `<option value="${t}" ${params.threshold === t ? "selected" : ""}>${t}</option>`
+  ).join("");
+
+  const methodology = `
+    <div class="lab-methodology">
+      <p class="lab-methodology__title">Methodology — VIX Entry Strategy</p>
+      <div class="lab-methodology__grid">
+        <div class="lab-methodology__row"><span class="lab-methodology__key">What:</span><span class="lab-methodology__val">Buy SPY when VIX closes at or above the entry threshold.</span></div>
+        <div class="lab-methodology__row"><span class="lab-methodology__key">Why:</span><span class="lab-methodology__val">VIX spikes reflect extreme fear, which historically overshoots; mean-reversion creates equity entry opportunity.</span></div>
+        <div class="lab-methodology__row"><span class="lab-methodology__key">Entry:</span><span class="lab-methodology__val">VIX ≥ ${params.threshold} on close. One trade active at a time. 1-day cooldown after exit.</span></div>
+        <div class="lab-methodology__row"><span class="lab-methodology__key">Exit:</span><span class="lab-methodology__val">After ${params.horizon} trading days OR when VIX drops below ${Math.round(params.threshold * 0.72)} (≈72% of entry level).</span></div>
+        <div class="lab-methodology__row"><span class="lab-methodology__key">Returns:</span><span class="lab-methodology__val">SPY exit price / SPY entry price − 1. No compounding across trades. No cost assumption.</span></div>
+        <div class="lab-methodology__row"><span class="lab-methodology__key">Data:</span><span class="lab-methodology__val">SPY daily close, ^VIX daily close (Yahoo Finance). ${result?.dataRange ? `${result.dataRange.start} – ${result.dataRange.end}` : "Simulated series"}</span></div>
+      </div>
+    </div>
+  `;
+
+  const paramForm = `
+    <div class="lab-params">
+      <p class="lab-params__title">Parameters</p>
+      <form data-lab-form="vix">
+        <div class="lab-field">
+          <label for="vix-threshold-sel">VIX entry threshold</label>
+          <select id="vix-threshold-sel" name="vix-threshold">${thresholdOptions}</select>
+        </div>
+        <div class="lab-field">
+          <label for="vix-horizon-sel">Holding period</label>
+          <select id="vix-horizon-sel" name="vix-horizon">${horizonOptions}</select>
+        </div>
+        <button type="submit" class="button button--primary button--small" style="width:100%;margin-top:0.6rem">Run Backtest</button>
+      </form>
+    </div>
+    <div class="lab-rationale">
+      <strong>Why this works (when it does)</strong>
+      Implied volatility tends to mean-revert. A VIX spike above ${params.threshold} signals elevated fear — historically, the next ${params.horizon} days of SPY returns have skewed positive as sentiment normalizes. This is not a guaranteed edge; large vol spikes that persist (2008, 2020 drawdown) can hurt.
+    </div>
+  `;
+
+  if (noData) {
+    return `
+      <div class="lab-layout">
+        <div class="lab-sidebar">${paramForm}</div>
+        <div class="lab-empty">No trades triggered with VIX ≥ ${params.threshold} in available data. Try lowering the threshold.</div>
+      </div>
+    `;
+  }
+
+  const avgClass = result.avgReturn > 0 ? "lab-stat__value--positive" : "lab-stat__value--negative";
+  const minClass = result.minReturn < 0 ? "lab-stat__value--negative" : "lab-stat__value--positive";
+
+  const stats = `
+    <div class="lab-stats-row">
+      <div class="lab-stat">
+        <span class="lab-stat__label">Trades</span>
+        <span class="lab-stat__value lab-stat__value--muted">${result.tradeCount}</span>
+      </div>
+      <div class="lab-stat">
+        <span class="lab-stat__label">Win Rate</span>
+        <span class="lab-stat__value ${result.winRate >= 50 ? "lab-stat__value--positive" : "lab-stat__value--negative"}">${result.winRate?.toFixed(1)}%</span>
+      </div>
+      <div class="lab-stat">
+        <span class="lab-stat__label">Avg Return</span>
+        <span class="lab-stat__value ${avgClass}">${result.avgReturn >= 0 ? "+" : ""}${result.avgReturn?.toFixed(2)}%</span>
+      </div>
+      <div class="lab-stat">
+        <span class="lab-stat__label">Best Trade</span>
+        <span class="lab-stat__value lab-stat__value--positive">+${result.maxReturn?.toFixed(2)}%</span>
+      </div>
+      <div class="lab-stat">
+        <span class="lab-stat__label">Worst Trade</span>
+        <span class="lab-stat__value ${minClass}">${result.minReturn?.toFixed(2)}%</span>
+      </div>
+    </div>
+  `;
+
+  const maxCount = Math.max(...result.buckets.map((b) => b.count), 1);
+  const distBars = result.buckets.map((b) => {
+    const heightPct = Math.round((b.count / maxCount) * 100);
+    return `
+      <div class="lab-dist-bar-wrap">
+        <div class="lab-dist-bar" style="height:${heightPct}%"></div>
+        <span>${escapeHtml(b.label)}</span>
+      </div>
+    `;
+  }).join("");
+
+  const tradeRows = result.trades.slice(-15).reverse().map((t) => {
+    const retClass = t.returnPct >= 0 ? "pos" : "neg";
+    return `
+      <tr>
+        <td>${escapeHtml(t.entryDate)}</td>
+        <td>${escapeHtml(t.exitDate)}</td>
+        <td class="right">${t.entryVix?.toFixed(1)}</td>
+        <td class="right ${retClass}">${t.returnPct >= 0 ? "+" : ""}${t.returnPct?.toFixed(2)}%</td>
+        <td>${t.daysHeld}D</td>
+        <td class="val-muted" style="font-size:0.68rem;color:var(--text-muted)">${escapeHtml(t.exitReason)}</td>
+      </tr>
+    `;
+  }).join("");
+
+  return `
+    <div class="lab-layout">
+      <div class="lab-sidebar">
+        ${paramForm}
+      </div>
+      <div class="lab-results">
+        ${methodology}
+        ${stats}
+        <div>
+          <p class="scout-section-label" style="margin-bottom:0.4rem">Return Distribution (${result.tradeCount} trades)</p>
+          <div class="lab-dist-bars">${distBars}</div>
+        </div>
+        <div>
+          <p class="scout-section-label" style="margin-bottom:0.5rem">Last 15 Trades (most recent first)</p>
+          <div class="table-wrap">
+            <table class="lab-trade-table">
+              <thead>
+                <tr>
+                  <th>Entry</th><th>Exit</th><th class="right">VIX at entry</th><th class="right">Return</th><th>Held</th><th>Exit reason</th>
+                </tr>
+              </thead>
+              <tbody>${tradeRows}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderGoldSilverLab(result, params) {
+  const noData = !result || result.tradeCount === 0;
+  const entryOptions = [65, 70, 75, 80, 85, 90].map((r) =>
+    `<option value="${r}" ${params.entryRatio === r ? "selected" : ""}>${r}</option>`
+  ).join("");
+  const exitOptions = [40, 45, 50, 55, 60, 65].map((r) =>
+    `<option value="${r}" ${params.exitRatio === r ? "selected" : ""}>${r}</option>`
+  ).join("");
+
+  const methodology = `
+    <div class="lab-methodology">
+      <p class="lab-methodology__title">Methodology — Gold/Silver Ratio Compression (SIL)</p>
+      <div class="lab-methodology__grid">
+        <div class="lab-methodology__row"><span class="lab-methodology__key">What:</span><span class="lab-methodology__val">Long SIL (silver miners ETF) when the gold/silver ratio is historically elevated.</span></div>
+        <div class="lab-methodology__row"><span class="lab-methodology__key">Why:</span><span class="lab-methodology__val">High ratio = silver is cheap relative to gold. Ratio compression = silver outperforms, miners get leveraged upside via SIL.</span></div>
+        <div class="lab-methodology__row"><span class="lab-methodology__key">Ratio:</span><span class="lab-methodology__val">(GLD price × 10) ÷ SLV price — approximates ounces of silver per ounce of gold.</span></div>
+        <div class="lab-methodology__row"><span class="lab-methodology__key">Entry:</span><span class="lab-methodology__val">Ratio ≥ ${params.entryRatio}. One trade active at a time. 1-day cooldown after exit.</span></div>
+        <div class="lab-methodology__row"><span class="lab-methodology__key">Exit:</span><span class="lab-methodology__val">Ratio ≤ ${params.exitRatio} (target compression) OR after ${params.maxDays} days (time-based stop).</span></div>
+        <div class="lab-methodology__row"><span class="lab-methodology__key">Returns:</span><span class="lab-methodology__val">SIL exit / SIL entry − 1. No leverage modeled. No transaction cost assumption.</span></div>
+        <div class="lab-methodology__row"><span class="lab-methodology__key">Data:</span><span class="lab-methodology__val">GLD, SLV, SIL daily close (Yahoo Finance). ${result?.dataRange ? `${result.dataRange.start} – ${result.dataRange.end}` : "Simulated series"}</span></div>
+      </div>
+    </div>
+  `;
+
+  const paramForm = `
+    <div class="lab-params">
+      <p class="lab-params__title">Parameters</p>
+      <form data-lab-form="gs">
+        <div class="lab-field">
+          <label for="gs-entry-sel">Entry ratio (≥)</label>
+          <select id="gs-entry-sel" name="gs-entry-ratio">${entryOptions}</select>
+        </div>
+        <div class="lab-field">
+          <label for="gs-exit-sel">Exit ratio (≤)</label>
+          <select id="gs-exit-sel" name="gs-exit-ratio">${exitOptions}</select>
+        </div>
+        <div class="lab-field">
+          <label for="gs-maxdays">Max holding (days)</label>
+          <input id="gs-maxdays" name="gs-max-days" type="number" value="${params.maxDays}" min="30" max="500" />
+        </div>
+        <button type="submit" class="button button--primary button--small" style="width:100%;margin-top:0.6rem">Run Backtest</button>
+      </form>
+    </div>
+    <div class="lab-rationale">
+      <strong>Why this works (when it does)</strong>
+      The gold/silver ratio above ${params.entryRatio} historically signals extreme underperformance of silver vs gold. When the ratio mean-reverts, silver outperforms gold — and SIL (silver miners) amplifies that move due to operational leverage. Risk: the ratio can stay elevated for long periods; the time-based stop limits the drawdown exposure.
+    </div>
+  `;
+
+  if (noData) {
+    return `
+      <div class="lab-layout">
+        <div class="lab-sidebar">${paramForm}</div>
+        <div class="lab-empty">No trades triggered with ratio ≥ ${params.entryRatio} and exit ≤ ${params.exitRatio} in available data. Try adjusting parameters.</div>
+      </div>
+    `;
+  }
+
+  const avgClass = result.avgReturn > 0 ? "lab-stat__value--positive" : "lab-stat__value--negative";
+  const minClass = result.minReturn < 0 ? "lab-stat__value--negative" : "lab-stat__value--positive";
+
+  const stats = `
+    <div class="lab-stats-row">
+      <div class="lab-stat">
+        <span class="lab-stat__label">Trades</span>
+        <span class="lab-stat__value lab-stat__value--muted">${result.tradeCount}</span>
+      </div>
+      <div class="lab-stat">
+        <span class="lab-stat__label">Win Rate</span>
+        <span class="lab-stat__value ${result.winRate >= 50 ? "lab-stat__value--positive" : "lab-stat__value--negative"}">${result.winRate?.toFixed(1)}%</span>
+      </div>
+      <div class="lab-stat">
+        <span class="lab-stat__label">Avg Return</span>
+        <span class="lab-stat__value ${avgClass}">${result.avgReturn >= 0 ? "+" : ""}${result.avgReturn?.toFixed(2)}%</span>
+      </div>
+      <div class="lab-stat">
+        <span class="lab-stat__label">Best Trade</span>
+        <span class="lab-stat__value lab-stat__value--positive">+${result.maxReturn?.toFixed(2)}%</span>
+      </div>
+      <div class="lab-stat">
+        <span class="lab-stat__label">Worst Trade</span>
+        <span class="lab-stat__value ${minClass}">${result.minReturn?.toFixed(2)}%</span>
+      </div>
+    </div>
+  `;
+
+  const maxCount = Math.max(...result.buckets.map((b) => b.count), 1);
+  const distBars = result.buckets.map((b) => {
+    const heightPct = Math.round((b.count / maxCount) * 100);
+    return `
+      <div class="lab-dist-bar-wrap">
+        <div class="lab-dist-bar" style="height:${Math.max(heightPct, 2)}%"></div>
+        <span>${escapeHtml(b.label)}</span>
+      </div>
+    `;
+  }).join("");
+
+  const tradeRows = result.trades.slice(-15).reverse().map((t) => {
+    const retClass = t.returnPct >= 0 ? "pos" : "neg";
+    const ratioClass = t.ratioChange < 0 ? "pos" : "neg";
+    return `
+      <tr>
+        <td>${escapeHtml(t.entryDate)}</td>
+        <td>${escapeHtml(t.exitDate)}</td>
+        <td class="right">${t.entryRatio?.toFixed(1)}</td>
+        <td class="right">${t.exitRatio?.toFixed(1)}</td>
+        <td class="right ${ratioClass}">${t.ratioChange >= 0 ? "+" : ""}${t.ratioChange?.toFixed(1)}</td>
+        <td class="right ${retClass}">${t.returnPct >= 0 ? "+" : ""}${t.returnPct?.toFixed(2)}%</td>
+        <td>${t.daysHeld}D</td>
+      </tr>
+    `;
+  }).join("");
+
+  return `
+    <div class="lab-layout">
+      <div class="lab-sidebar">
+        ${paramForm}
+      </div>
+      <div class="lab-results">
+        ${methodology}
+        ${stats}
+        <div>
+          <p class="scout-section-label" style="margin-bottom:0.4rem">Return Distribution (${result.tradeCount} trades)</p>
+          <div class="lab-dist-bars">${distBars}</div>
+        </div>
+        <div>
+          <p class="scout-section-label" style="margin-bottom:0.5rem">Last 15 Trades (most recent first)</p>
+          <div class="table-wrap">
+            <table class="lab-trade-table">
+              <thead>
+                <tr>
+                  <th>Entry</th><th>Exit</th><th class="right">Entry ratio</th><th class="right">Exit ratio</th><th class="right">Ratio Δ</th><th class="right">SIL return</th><th>Held</th>
+                </tr>
+              </thead>
+              <tbody>${tradeRows}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ── Legacy SCOUT functions (retained but no longer rendered) ────────────────
 
 function renderScoutOverview(model, summary) {
   const macro = model.macroResearch;
@@ -1984,51 +3073,50 @@ function renderScoutBacktests(model) {
 }
 
 function renderScoutWatchlist(model) {
+  const customPairChips = (state.scout.customPairs || [])
+    .map((pair) => `<span class="status-pill status-pill--muted">${escapeHtml(pair.left)} / ${escapeHtml(pair.right)}</span>`)
+    .join("");
+
+  const watchlistItems = model.watchlist.length
+    ? model.watchlist
+        .map(
+          (item) => `
+            <article class="scout-watchlist-item">
+              <div>
+                <strong>${escapeHtml(item.label)}</strong>
+                <p>${escapeHtml(item.kind)} | ${escapeHtml(item.status)}</p>
+              </div>
+              <button type="button" class="button button--ghost button--small" data-scout-remove-watchlist-id="${escapeHtml(item.id)}">Remove</button>
+            </article>
+          `
+        )
+        .join("")
+    : '<p class="panel-subtitle" style="margin:0">No saved items yet.</p>';
+
   return `
     <section class="panel">
       <div class="panel-header">
         <div>
-          <h2>Watchlist / Research Queue</h2>
-          <p class="panel-subtitle">Persistent shortlist for strategy frameworks and opportunity objects that deserve follow-up.</p>
+          <p class="scout-section-label">Research Queue</p>
+          <h2>Watchlist</h2>
         </div>
       </div>
       <div class="scout-watchlist-layout">
-        <form id="scout-custom-pair-form" class="transaction-form scout-pair-form">
-          <label>
-            <span>Custom Pair Left</span>
-            <input name="left" type="text" placeholder="MSFT" maxlength="16" />
-          </label>
-          <label>
-            <span>Custom Pair Right</span>
-            <input name="right" type="text" placeholder="AAPL" maxlength="16" />
-          </label>
-          <div class="form-actions">
-            <button type="submit" class="button button--primary">Add Pair</button>
+        <form id="scout-custom-pair-form" class="scout-pair-form">
+          <div style="display:flex;gap:0.75rem;align-items:flex-end;flex-wrap:wrap;">
+            <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.72rem;">
+              <span style="color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;font-size:0.62rem;">Left leg</span>
+              <input name="left" type="text" placeholder="RING" maxlength="16" style="width:90px;" />
+            </label>
+            <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.72rem;">
+              <span style="color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;font-size:0.62rem;">Right leg</span>
+              <input name="right" type="text" placeholder="GLD" maxlength="16" style="width:90px;" />
+            </label>
+            <button type="submit" class="button button--primary button--small">Track Pair</button>
           </div>
-          <p class="panel-subtitle">User-defined pairs join the discovery universe. Without provider data they fall back to simulated coverage if supported.</p>
-          <div class="scout-custom-pairs">
-            ${(state.scout.customPairs || []).map((pair) => `<span class="status-pill status-pill--muted">${escapeHtml(pair.left)} / ${escapeHtml(pair.right)}</span>`).join("") || '<span class="panel-subtitle">No custom pairs yet.</span>'}
-          </div>
+          ${customPairChips ? `<div class="scout-custom-pairs" style="margin-top:0.6rem;">${customPairChips}</div>` : ""}
         </form>
-        <div class="scout-watchlist-list">
-          ${
-            model.watchlist.length
-              ? model.watchlist
-                  .map(
-                    (item) => `
-                      <article class="scout-watchlist-item">
-                        <div>
-                          <strong>${escapeHtml(item.label)}</strong>
-                          <p>${escapeHtml(item.kind)} | ${escapeHtml(item.status)}</p>
-                        </div>
-                        <button type="button" class="button button--danger button--small" data-scout-remove-watchlist-id="${escapeHtml(item.id)}">Remove</button>
-                      </article>
-                    `
-                  )
-                  .join("")
-              : '<div class="panel-subtitle">No saved research items yet. Save opportunities or strategy frameworks from above.</div>'
-          }
-        </div>
+        <div class="scout-watchlist-list">${watchlistItems}</div>
       </div>
     </section>
   `;

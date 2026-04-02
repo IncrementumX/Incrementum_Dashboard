@@ -59,6 +59,15 @@ export async function createMacroResearchModel({ scoutState, portfolioContext, p
   const backtests = buildMacroBacktestTable(focusAssets, relativeComparisons);
   const suggestions = buildSuggestions(focusAssets, relativeComparisons);
 
+  // Expose strategy lab raw series so engine.js can run them
+  const strategyLabData = {
+    VIX: dataset.strategyAssets?.VIX || [],
+    SPY: dataset.strategyAssets?.SPY || [],
+    GLD: dataset.assets?.GLD?.map((p) => ({ date: p.date, value: p.value })) || [],
+    SLV: dataset.strategyAssets?.SLV || [],
+    SIL: dataset.strategyAssets?.SIL || [],
+  };
+
   return {
     datasetMeta: dataset.meta,
     macroSnapshot: buildMacroSnapshot(dataset),
@@ -67,6 +76,7 @@ export async function createMacroResearchModel({ scoutState, portfolioContext, p
     opportunities,
     backtests,
     suggestions,
+    strategyLabData,
     watchlistSeeds: scoutState?.watchlist || [],
     dataStatus: effectiveDataStatus,
     freshnessLabel: dataset.meta.freshnessLabel || "Simulated fallback series",
@@ -74,18 +84,51 @@ export async function createMacroResearchModel({ scoutState, portfolioContext, p
   };
 }
 
+// Resolve the scout-data.json URL for the current environment.
+// Local dev server: /__scout_data__ (served by browser_helpers.py)
+// GitHub Pages:     <base>/scout-data.json (static file committed to repo)
+function resolveScoutDataUrls() {
+  const isLocalDev = window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost";
+  if (isLocalDev) {
+    return ["/__scout_data__"];
+  }
+  // GitHub Pages — derive base path from location
+  const base = window.location.pathname.replace(/\/[^/]*$/, "") || "";
+  return [`${base}/scout-data.json`, "./scout-data.json"];
+}
+
+// Simple in-memory cache so we don't re-fetch on every Scout render.
+let _cachedDataset = null;
+let _cachedAt = 0;
+const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
 async function loadMacroDataset() {
-  try {
-    const response = await fetch("/__scout_data__", { cache: "no-store" });
-    if (response.ok) {
-      const payload = await response.json();
-      return buildDatasetFromPayload(payload);
-    }
-  } catch {
-    // fall through to simulated data
+  const now = Date.now();
+  if (_cachedDataset && now - _cachedAt < CACHE_TTL_MS) {
+    return _cachedDataset;
   }
 
-  return buildSimulatedMacroDataset();
+  const urls = resolveScoutDataUrls();
+  for (const url of urls) {
+    try {
+      const response = await fetch(url, { cache: "no-store" });
+      if (response.ok) {
+        const payload = await response.json();
+        const dataset = buildDatasetFromPayload(payload);
+        _cachedDataset = dataset;
+        _cachedAt = now;
+        return dataset;
+      }
+    } catch {
+      // try next URL
+    }
+  }
+
+  // Graceful fallback — simulated data so SCOUT never freezes
+  const simulated = buildSimulatedMacroDataset();
+  _cachedDataset = simulated;
+  _cachedAt = now;
+  return simulated;
 }
 
 function buildSimulatedMacroDataset() {
@@ -128,10 +171,12 @@ function buildSimulatedMacroDataset() {
   }
 
   const assets = buildAssetSeries(dates, data);
+  const strategyAssets = buildSimulatedStrategyAssets(dates, data);
   return {
     dates,
     macro: data,
     assets,
+    strategyAssets,
     meta: {
       startDate: dates[0],
       endDate: dates[dates.length - 1],
@@ -168,8 +213,21 @@ function buildDatasetFromPayload(payload) {
 
   const macro = Object.fromEntries(
     MACRO_SERIES.map((series) => {
-      const aligned = alignMacroToDates(payload?.macro?.[series.code] || [], commonDates);
+      // Prefer payload.macro; fall back to payload.assets for series like DXY that arrive as price data
+      const rawSeries = payload?.macro?.[series.code]?.length
+        ? payload.macro[series.code]
+        : (payload?.assets?.[series.code] || []);
+      const aligned = alignMacroToDates(rawSeries, commonDates);
       return [series.code, aligned];
+    })
+  );
+
+  // Strategy lab assets — raw price series not included in main ASSET_DEFINITIONS
+  const strategyLabSymbols = ["VIX", "SPY", "SLV", "SIL"];
+  const strategyAssets = Object.fromEntries(
+    strategyLabSymbols.map((symbol) => {
+      const raw = payload?.assets?.[symbol] || [];
+      return [symbol, raw.map((p) => ({ date: p.date, value: Number(p.value) })).filter((p) => Number.isFinite(p.value))];
     })
   );
 
@@ -177,6 +235,7 @@ function buildDatasetFromPayload(payload) {
     dates: commonDates,
     macro,
     assets,
+    strategyAssets,
     meta: {
       startDate: commonDates[0],
       endDate: commonDates[commonDates.length - 1],
@@ -241,6 +300,50 @@ function buildAssetSeries(dates, macro) {
   });
 
   return output;
+}
+
+function buildSimulatedStrategyAssets(dates, macro) {
+  // Build plausible SPY, VIX, SLV, SIL series for strategy lab when running simulated data
+  const random = createRng(7401);
+  const features = buildMacroFeatures(macro);
+
+  let spy = 420;
+  let vix = 18;
+  let slv = 22;
+  let sil = 28;
+
+  const result = { SPY: [], VIX: [], SLV: [], SIL: [] };
+
+  for (let i = 0; i < dates.length; i++) {
+    const realChange = features.DFII10.change5[i] || 0;
+    const nominalChange = features.DGS10.change5[i] || 0;
+    const breakevenChange = features.T10YIE.change5[i] || 0;
+    const curveMomentum = features.T10Y2Y.momentum20[i] || 0;
+    const dollarChange = features.DXY.change5[i] || 0;
+
+    // SPY: positive carry, hurt by real rate spikes, helped by curve steepening
+    const spyReturn = 0.0003 - 0.6 * nominalChange - 0.3 * realChange + 0.25 * curveMomentum + (random() - 0.5) * 0.012;
+    spy = Math.max(100, spy * (1 + clamp(spyReturn, -0.08, 0.08)));
+
+    // VIX: mean-reverting, spikes with equity falls, hurt by curve steepening
+    const vixShock = spyReturn < -0.015 ? (random() * 5 + 3) : (random() - 0.55) * 1.5;
+    vix = clamp(vix + vixShock - 0.08 * (vix - 18), 10, 80);
+
+    // SLV: tracks silver, sensitive to dollar and breakevens
+    const slvReturn = 0.0001 - 0.3 * realChange - 0.25 * dollarChange + 0.2 * breakevenChange + (random() - 0.5) * 0.018;
+    slv = Math.max(5, slv * (1 + clamp(slvReturn, -0.1, 0.1)));
+
+    // SIL: silver miners, higher beta to silver
+    const silReturn = 1.4 * slvReturn + 0.15 * curveMomentum + (random() - 0.5) * 0.02;
+    sil = Math.max(5, sil * (1 + clamp(silReturn, -0.14, 0.14)));
+
+    result.SPY.push({ date: dates[i], value: Math.round(spy * 100) / 100 });
+    result.VIX.push({ date: dates[i], value: Math.round(vix * 100) / 100 });
+    result.SLV.push({ date: dates[i], value: Math.round(slv * 100) / 100 });
+    result.SIL.push({ date: dates[i], value: Math.round(sil * 100) / 100 });
+  }
+
+  return result;
 }
 
 function buildMacroSnapshot(dataset) {

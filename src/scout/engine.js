@@ -9,6 +9,7 @@ import {
   createStrategyStatus,
 } from "./models.js";
 import { createMacroResearchModel } from "./macro-engine.js";
+import { runVixStrategy, runGoldSilverRatioStrategy } from "./strategy-lab.js";
 
 const DEFAULT_LOOKBACK_DAYS = 260;
 const PAIRS_ENTRY_Z = 1.8;
@@ -47,6 +48,29 @@ export function createScoutEngine({ config, marketDataGateway }) {
         providerStatus: providerResult.dataStatus,
       });
 
+      // Strategy Lab — VIX Entry + Gold/Silver Ratio
+      const strategyLabData = macroResearch.strategyLabData || {};
+      const vixParams = scoutState?.strategyLab?.vixParams || {};
+      const gsParams = scoutState?.strategyLab?.gsParams || {};
+
+      const vixResult = runVixStrategy({
+        vixSeries: strategyLabData.VIX || [],
+        spySeries: strategyLabData.SPY || [],
+        threshold: vixParams.threshold ?? 25,
+        horizon: vixParams.horizon ?? 20,
+      });
+
+      const gsResult = runGoldSilverRatioStrategy({
+        gldSeries: strategyLabData.GLD || [],
+        slvSeries: strategyLabData.SLV || [],
+        silSeries: strategyLabData.SIL || [],
+        entryRatio: gsParams.entryRatio ?? 75,
+        exitRatio: gsParams.exitRatio ?? 50,
+        maxDays: gsParams.maxDays ?? 180,
+      });
+
+      const strategyLab = { vix: vixResult, goldSilver: gsResult };
+
       const opportunities = [
         ...macroResearch.opportunities,
         ...pairResults.opportunities,
@@ -76,6 +100,7 @@ export function createScoutEngine({ config, marketDataGateway }) {
         freshnessLabel: macroResearch.freshnessLabel || providerResult.freshnessLabel,
         library: strategyLibrary,
         macroResearch,
+        strategyLab,
         opportunities,
         backtests,
         strategyStatuses,
