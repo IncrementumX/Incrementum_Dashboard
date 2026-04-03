@@ -399,7 +399,7 @@ function normalizeScoutState(rawScout) {
       exitRatio: Number(rawScout?.strategyLab?.gsParams?.exitRatio ?? 50),
       maxDays: Number(rawScout?.strategyLab?.gsParams?.maxDays ?? 180),
     },
-    activeStrategy: rawScout?.strategyLab?.activeStrategy || "momentum",
+    activeStrategy: rawScout?.strategyLab?.activeStrategy || "vix",
     // Multi-timeframe: 5 | 20 | 60 | 120 | 250 (trading days, shown as 1Y for 250)
     activeTimeframe: Number(rawScout?.strategyLab?.activeTimeframe ?? 20),
     // Momentum backtest params
@@ -412,16 +412,15 @@ function normalizeScoutState(rawScout) {
 
   // Options calculator state — persisted so inputs survive tab switches
   const optionsCalc = {
-    type:         rawScout?.optionsCalc?.type || "put",
-    spy:          Number(rawScout?.optionsCalc?.spy   ?? 560),
-    strike:       Number(rawScout?.optionsCalc?.strike ?? 555),
-    premium:      Number(rawScout?.optionsCalc?.premium ?? 3.50),
-    delta:        Number(rawScout?.optionsCalc?.delta  ?? -0.35),
-    gamma:        Number(rawScout?.optionsCalc?.gamma  ?? 0.02),
-    theta:        Number(rawScout?.optionsCalc?.theta  ?? -0.08),
-    vega:         Number(rawScout?.optionsCalc?.vega   ?? 0.25),
-    contracts:    Number(rawScout?.optionsCalc?.contracts ?? 1),
-    expectedMove: Number(rawScout?.optionsCalc?.expectedMove ?? -2),
+    type:      rawScout?.optionsCalc?.type || "put",
+    spot:      Number(rawScout?.optionsCalc?.spot     ?? 560),
+    strike:    Number(rawScout?.optionsCalc?.strike   ?? 530),
+    dte:       Number(rawScout?.optionsCalc?.dte      ?? 120),
+    iv:        Number(rawScout?.optionsCalc?.iv       ?? 27),
+    hv:        Number(rawScout?.optionsCalc?.hv       ?? 20),
+    rfr:       Number(rawScout?.optionsCalc?.rfr      ?? 4.4),
+    ivCrush:   Number(rawScout?.optionsCalc?.ivCrush  ?? 10),
+    contracts: Number(rawScout?.optionsCalc?.contracts ?? 1),
   };
 
   return {
@@ -1679,16 +1678,16 @@ function setupScout() {
       } else if (strategy === "options") {
         if (!state.scout.optionsCalc) state.scout.optionsCalc = {};
         const o = state.scout.optionsCalc;
-        o.type         = formData.get("opt-type") === "call" ? "call" : "put";
-        o.spy          = parseFloat(formData.get("opt-spy"))       || o.spy;
-        o.strike       = parseFloat(formData.get("opt-strike"))    || o.strike;
-        o.premium      = parseFloat(formData.get("opt-premium"))   || o.premium;
-        o.delta        = parseFloat(formData.get("opt-delta"))     ?? o.delta;
-        o.gamma        = parseFloat(formData.get("opt-gamma"))     || o.gamma;
-        o.theta        = parseFloat(formData.get("opt-theta"))     ?? o.theta;
-        o.vega         = parseFloat(formData.get("opt-vega"))      || o.vega;
-        o.contracts    = parseInt(formData.get("opt-contracts"), 10) || o.contracts;
-        o.expectedMove = parseFloat(formData.get("opt-move"))      ?? o.expectedMove;
+        o.type      = formData.get("opt-type") === "call" ? "call" : "put";
+        const _n    = (k, fb) => { const v = parseFloat(formData.get(k)); return Number.isFinite(v) ? v : fb; };
+        o.spot      = _n("opt-spot",    o.spot     ?? 560);
+        o.strike    = _n("opt-strike",  o.strike   ?? 530);
+        o.dte       = _n("opt-dte",     o.dte      ?? 120);
+        o.iv        = _n("opt-iv",      o.iv       ?? 27);
+        o.hv        = _n("opt-hv",      o.hv       ?? 20);
+        o.rfr       = _n("opt-rfr",     o.rfr      ?? 4.4);
+        o.ivCrush   = _n("opt-ivcrush", o.ivCrush  ?? 10);
+        o.contracts = Math.max(1, parseInt(formData.get("opt-contracts"), 10) || (o.contracts ?? 1));
         saveState();
         renderApp();
       }
@@ -1813,7 +1812,7 @@ function destroyScoutChart(id) {
 function renderScoutCharts(model) {
   const lab = model.strategyLab;
   if (!lab) return;
-  const activeStrategy = state.scout.strategyLab?.activeStrategy || "momentum";
+  const activeStrategy = state.scout.strategyLab?.activeStrategy || "vix";
 
   if (activeStrategy === "vix") {
     renderVixChart(lab.vix, model);
@@ -2544,86 +2543,68 @@ function renderTradeCards(model) {
   });
 
   return `
-    <div class="sq">
-      <div class="sq-section">
-        <div class="sq-lbl">Signal Summary</div>
-        <div class="sq-h2" style="margin-bottom:4px">Current Setups</div>
-        <div class="sq-desc sq-t3" style="margin-bottom:16px">Is there an actionable trade right now? Each card shows one setup and its current status.<br><strong>ACTIVE</strong> = entry condition is met today. <strong>WATCHLIST</strong> = getting close, monitor. <strong>NO TRADE</strong> = not in setup zone yet.</div>
-        <div class="sq-cards">${cardA}${cardB}${cardC}</div>
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <p class="scout-section-label">Signal Summary</p>
+          <h2>Current Setups</h2>
+          <p class="panel-subtitle">Is there an actionable trade right now? <strong>ACTIVE</strong> = entry condition met. <strong>WATCHLIST</strong> = approaching trigger. <strong>NO TRADE</strong> = not in setup zone.</p>
+        </div>
       </div>
-    </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:4px">${cardA}${cardB}${cardC}</div>
+    </section>
   `;
 }
 
 function renderOneTradeCard({ name, vehicle, type, active, watchlist, direction, whyNow, entryRule, exitRule, invalidates, confirms, currentLabel, currentValue, distanceLabel, distanceActive, momConfirm, momLabel, perf, labTab }) {
   const fmtPct = (v) => v !== null && v !== undefined ? `${v >= 0 ? "+" : ""}${Number(v).toFixed(1)}%` : "—";
 
-  let statusPillCls, statusLabel;
-  if (active)          { statusPillCls = "pill pill-bounce";   statusLabel = "ACTIVE TRADE"; }
-  else if (watchlist)  { statusPillCls = "pill pill-neutral";  statusLabel = "WATCHLIST"; }
-  else                 { statusPillCls = "pill pill-gray";     statusLabel = "NO TRADE"; }
+  const statusColor  = active ? "var(--positive)" : watchlist ? "#fbbf24" : "var(--text-muted)";
+  const statusLabel  = active ? "ACTIVE" : watchlist ? "WATCHLIST" : "NO TRADE";
+  const accentColor  = active ? "var(--positive)" : watchlist ? "#fbbf24" : "var(--border)";
+
+  const row = (label, value, valColor) => `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:5px 0;border-bottom:1px solid var(--border);gap:12px">
+      <span style="font-size:0.72rem;color:var(--text-muted);white-space:nowrap">${escapeHtml(label)}</span>
+      <span style="font-size:0.72rem;color:${valColor || "var(--text-secondary)"};text-align:right;line-height:1.4">${typeof value === "string" ? escapeHtml(value) : value}</span>
+    </div>`;
 
   const perfBlock = perf ? `
-    <hr class="sq-hr">
-    <div class="sq-lbl" style="margin-bottom:6px;font-size:9px">Historical Edge</div>
-    <div class="sq-perf">
-      <div class="sq-perf-item">
-        <span class="sq-perf-lbl">Win Rate</span>
-        <span class="sq-perf-val ${perf.winRate >= 50 ? "sq-perf-val-g" : "sq-perf-val-r"}">${Number(perf.winRate).toFixed(0)}%</span>
+    <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">
+      <div style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:6px">Historical Edge</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
+        <div style="font-size:0.75rem;color:var(--text-muted)">Win Rate <strong style="color:${perf.winRate >= 50 ? "var(--positive)" : "var(--negative)"}">${Number(perf.winRate).toFixed(0)}%</strong></div>
+        <div style="font-size:0.75rem;color:var(--text-muted)">Avg Ret <strong style="color:${perf.avgReturn >= 0 ? "var(--positive)" : "var(--negative)"}">${fmtPct(perf.avgReturn)}</strong></div>
+        <div style="font-size:0.75rem;color:var(--text-muted)">Max DD <strong style="color:var(--negative)">${fmtPct(perf.maxDrawdown)}</strong></div>
+        <div style="font-size:0.75rem;color:var(--text-muted)">Trades <strong style="color:var(--text-secondary)">${perf.trades}</strong></div>
       </div>
-      <div class="sq-perf-item">
-        <span class="sq-perf-lbl">Avg Return</span>
-        <span class="sq-perf-val ${perf.avgReturn >= 0 ? "sq-perf-val-g" : "sq-perf-val-r"}">${fmtPct(perf.avgReturn)}</span>
-      </div>
-      <div class="sq-perf-item">
-        <span class="sq-perf-lbl">Max DD</span>
-        <span class="sq-perf-val sq-perf-val-r">${fmtPct(perf.maxDrawdown)}</span>
-      </div>
-      <div class="sq-perf-item">
-        <span class="sq-perf-lbl">Trades</span>
-        <span class="sq-perf-val">${perf.trades}</span>
-      </div>
-    </div>
-    ${perf.note ? `<div class="sq-t3" style="font-size:11px;margin-top:4px">${escapeHtml(perf.note)}</div>` : ""}
-  ` : `<hr class="sq-hr"><div class="sq-perf-pending">Backtest: see Strategy Lab</div>`;
+    </div>` : `<div style="margin-top:8px;font-size:0.72rem;color:var(--text-muted)">Backtest: see Strategy Lab →</div>`;
 
-  const momBlock = momLabel !== null ? `
-    <div class="sq-row">
-      <span class="sq-row-k">Momentum</span>
-      <span class="sq-row-v ${momConfirm === true ? "sq-row-v-mom-yes" : momConfirm === false ? "sq-row-v-mom-no" : ""}">
-        ${momConfirm === true ? "✓ " : momConfirm === false ? "✗ " : ""}${escapeHtml(momLabel)}
-      </span>
-    </div>
-  ` : "";
+  const momBlock = momLabel !== null ? row("Momentum", (momConfirm === true ? "✓ " : momConfirm === false ? "✗ " : "") + momLabel, momConfirm === true ? "var(--positive)" : momConfirm === false ? "var(--negative)" : "var(--text-secondary)") : "";
 
   return `
-    <div class="sq-card">
-      <div class="sq-card-head">
-        <div class="sq-card-type">${escapeHtml(type)}</div>
-        <div class="sq-card-name">${escapeHtml(name)}</div>
-        <span class="${statusPillCls}">${statusLabel}</span>
-        ${(active || watchlist) && direction ? `<div class="sq-direction">${escapeHtml(direction)}</div>` : ""}
+    <div style="background:var(--bg-card);border:1px solid ${accentColor};border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:0;min-width:220px;max-width:340px;flex:1">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px;gap:8px">
+        <div>
+          <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:2px">${escapeHtml(type)}</div>
+          <div style="font-size:0.9rem;font-weight:600;color:var(--text-primary)">${escapeHtml(name)}</div>
+          ${(active || watchlist) && direction ? `<div style="font-size:0.75rem;font-weight:700;color:${statusColor};margin-top:3px">${escapeHtml(direction)}</div>` : ""}
+        </div>
+        <span style="font-size:0.68rem;font-weight:700;color:${statusColor};white-space:nowrap;padding:3px 8px;border:1px solid ${statusColor};border-radius:4px;letter-spacing:0.04em">${statusLabel}</span>
       </div>
-      <div class="sq-card-body">
-        ${whyNow ? `<div class="finding" style="margin-bottom:10px;border-left-color:${active ? "var(--sq-green)" : watchlist ? "var(--sq-amber)" : "var(--sq-border2)"}">${escapeHtml(whyNow)}</div>` : ""}
-        <div class="sq-row"><span class="sq-row-k">Vehicle</span><span class="sq-row-v">${escapeHtml(vehicle)}</span></div>
-        <div class="sq-row"><span class="sq-row-k">Entry trigger</span><span class="sq-row-v">${escapeHtml(entryRule)}</span></div>
-        <div class="sq-row"><span class="sq-row-k">Exit rule</span><span class="sq-row-v">${escapeHtml(exitRule)}</span></div>
-        ${confirms ? `<div class="sq-row"><span class="sq-row-k" style="color:var(--sq-green)">Confirms</span><span class="sq-row-v">${escapeHtml(confirms)}</span></div>` : ""}
-        ${invalidates ? `<div class="sq-row"><span class="sq-row-k" style="color:var(--sq-red)">Invalidates</span><span class="sq-row-v">${escapeHtml(invalidates)}</span></div>` : ""}
-        <hr class="sq-hr">
-        <div class="sq-row">
-          <span class="sq-row-k">${escapeHtml(currentLabel)}</span>
-          <span class="sq-row-v sq-row-v-live">${escapeHtml(currentValue)}</span>
-        </div>
-        <div class="sq-row">
-          <span class="sq-row-k">Distance to trigger</span>
-          <span class="sq-row-v ${distanceActive ? "sq-row-v-trigger" : ""}">${escapeHtml(distanceLabel)}</span>
-        </div>
+      ${whyNow ? `<div style="font-size:0.75rem;color:var(--text-secondary);background:var(--bg-softer);border-left:3px solid ${accentColor};padding:7px 10px;border-radius:0 4px 4px 0;margin-bottom:8px;line-height:1.5">${escapeHtml(whyNow)}</div>` : ""}
+      <div style="display:flex;flex-direction:column">
+        ${row("Vehicle", vehicle)}
+        ${row("Entry trigger", entryRule)}
+        ${row("Exit rule", exitRule)}
+        ${confirms   ? row("Confirms",   confirms,   "var(--positive)") : ""}
+        ${invalidates ? row("Invalidates", invalidates, "var(--negative)") : ""}
+        ${row(currentLabel, currentValue, "var(--text-primary)")}
+        ${row("Distance to trigger", distanceLabel, distanceActive ? "var(--positive)" : "var(--text-secondary)")}
         ${momBlock}
-        ${perfBlock}
-        ${labTab ? `<div style="margin-top:8px"><a href="#" onclick="event.preventDefault();document.querySelector('[data-lab-strategy=\\'${escapeHtml(labTab)}\\']')?.click()" style="font-size:11px;color:var(--sq-blue)">→ Full backtest in Strategy Lab</a></div>` : ""}
       </div>
+      ${perfBlock}
+      ${labTab ? `<div style="margin-top:10px"><button type="button" class="trigger-tab" data-lab-strategy="${escapeHtml(labTab)}" style="font-size:0.7rem;padding:3px 10px">→ Open in Strategy Lab</button></div>` : ""}
     </div>
   `;
 }
@@ -3749,7 +3730,7 @@ function renderSynthesisMemo(model) {
 
 function renderStrategyLab(model) {
   const lab = model.strategyLab;
-  const activeStrategy = state.scout.strategyLab?.activeStrategy || "momentum";
+  const activeStrategy = state.scout.strategyLab?.activeStrategy || "vix";
   const vixParams = state.scout.strategyLab?.vixParams || { threshold: 25, horizon: 20 };
   const gsParams = state.scout.strategyLab?.gsParams || { entryRatio: 75, exitRatio: 50, maxDays: 180 };
   const momentumParams = state.scout.strategyLab?.momentumParams || { asset: "AGQ", triggerPct: -3 };
@@ -3782,9 +3763,9 @@ function renderStrategyLab(model) {
         <span class="status-pill ${getScoutStatusClass(model.dataStatus)}">${escapeHtml(model.dataStatus)}</span>
       </div>
       <div class="lab-tabs">
-        <button type="button" class="${tabMom}"      data-lab-strategy="momentum">Momentum</button>
-        <button type="button" class="${tabVix}"      data-lab-strategy="vix">VIX Backtest</button>
+        <button type="button" class="${tabVix}"      data-lab-strategy="vix">VIX Spike Entry</button>
         <button type="button" class="${tabGs}"       data-lab-strategy="gs">Gold/Silver</button>
+        <button type="button" class="${tabMom}"      data-lab-strategy="momentum">Momentum Analysis</button>
         <button type="button" class="${tabOptions}"  data-lab-strategy="options">Options</button>
         <button type="button" class="${tabRisk}"     data-lab-strategy="risk">Risk</button>
         <button type="button" class="${tabMacro}"    data-lab-strategy="macro">Macro</button>
@@ -4499,21 +4480,253 @@ function renderMomentumModule(result, params, model) {
 }
 
 // ---------------------------------------------------------------------------
-// OPTIONS TAB — SPY options P&L calculator with Greeks explanations
+// OPTIONS TAB — Black-Scholes SPY/SPX options calculator
 // ---------------------------------------------------------------------------
 
+// ── Black-Scholes math helpers (self-contained, no external libs) ──────────
+function _bsNcdf(x) {
+  const t = 1 / (1 + 0.2316419 * Math.abs(x));
+  const d = 0.3989422820 * Math.exp(-x * x / 2);
+  const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.7814779 + t * (-1.8212560 + t * 1.3302744))));
+  return x >= 0 ? 1 - p : p;
+}
+function _bsNpdf(x) { return Math.exp(-x * x / 2) / Math.sqrt(2 * Math.PI); }
+
+function _bsPrice(type, S, K, T, r, sigma) {
+  if (T <= 0) return type === "put" ? Math.max(0, K - S) : Math.max(0, S - K);
+  const sqT = Math.sqrt(T);
+  const d1 = (Math.log(S / K) + (r + sigma * sigma / 2) * T) / (sigma * sqT);
+  const d2 = d1 - sigma * sqT;
+  if (type === "put")  return Math.max(0, K * Math.exp(-r * T) * _bsNcdf(-d2) - S * _bsNcdf(-d1));
+  return Math.max(0, S * _bsNcdf(d1) - K * Math.exp(-r * T) * _bsNcdf(d2));
+}
+
+function _bsGreeks(type, S, K, T, r, sigma) {
+  if (T <= 0) return { delta: type === "put" ? -1 : 1, gamma: 0, theta: 0, vega: 0 };
+  const sqT = Math.sqrt(T);
+  const d1  = (Math.log(S / K) + (r + sigma * sigma / 2) * T) / (sigma * sqT);
+  const d2  = d1 - sigma * sqT;
+  const delta   = type === "put" ? _bsNcdf(d1) - 1 : _bsNcdf(d1);
+  const gamma   = _bsNpdf(d1) / (S * sigma * sqT);
+  const thetaAnn= type === "put"
+    ? -(S * _bsNpdf(d1) * sigma / (2 * sqT)) + r * K * Math.exp(-r * T) * _bsNcdf(-d2)
+    : -(S * _bsNpdf(d1) * sigma / (2 * sqT)) - r * K * Math.exp(-r * T) * _bsNcdf(d2);
+  const theta   = thetaAnn / 365;
+  const vega    = S * _bsNpdf(d1) * sqT / 100;  // per 1 IV point
+  return { delta, gamma, theta, vega };
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 function renderOptionsTab(model) {
-  const oc = state.scout?.optionsCalc || {};
-  const type        = oc.type        || "put";
-  const spy         = Number(oc.spy         ?? 560);
-  const strike      = Number(oc.strike      ?? 555);
-  const premium     = Number(oc.premium     ?? 3.50);
-  const delta       = Number(oc.delta       ?? -0.35);
-  const gamma       = Number(oc.gamma       ?? 0.02);
-  const theta       = Number(oc.theta       ?? -0.08);
-  const vega        = Number(oc.vega        ?? 0.25);
-  const contracts   = Number(oc.contracts   ?? 1);
-  const expectedMove= Number(oc.expectedMove ?? -2);
+  const oc    = state.scout?.optionsCalc || {};
+  const type  = oc.type || "put";
+  const S     = Number(oc.spot      ?? 560);
+  const K     = Number(oc.strike    ?? 530);
+  const DTE   = Number(oc.dte       ?? 120);
+  const IV    = Number(oc.iv        ?? 27);
+  const HV    = Number(oc.hv        ?? 20);
+  const RFR   = Number(oc.rfr       ?? 4.4);
+  const crush = Number(oc.ivCrush   ?? 10);
+  const N     = Number(oc.contracts ?? 1);
+
+  const T     = DTE / 365;
+  const sigma = IV / 100;
+  const r     = RFR / 100;
+
+  // ── BS theoretical price and Greeks ──────────────────────────────────────
+  const bsVal    = _bsPrice(type, S, K, T, r, sigma);
+  const greeks   = _bsGreeks(type, S, K, T, r, sigma);
+  const intrinsic= type === "put" ? Math.max(0, K - S) : Math.max(0, S - K);
+  const timeVal  = Math.max(0, bsVal - intrinsic);
+  const ivHvPrem = IV - HV;
+
+  // IV crush: reprice at IV − crush pts
+  const sigmaPost= Math.max(0.01, (IV - crush) / 100);
+  const ivCrushLoss = (_bsPrice(type, S, K, T, r, sigmaPost) - bsVal) * 100 * N;
+
+  // ── P&L scenario matrix: spot moves × time horizons ──────────────────────
+  const spotMoves  = [-0.20, -0.15, -0.10, -0.05, 0, 0.05, 0.10];
+  const horizonDays= [30, 60, 90, DTE];
+
+  const scenMatrix = spotMoves.map((mv) => {
+    const newS = S * (1 + mv);
+    return horizonDays.map((hDays) => {
+      const remT    = Math.max(0, (DTE - hDays)) / 365;
+      // apply IV crush post-move (vol often compresses after move resolves)
+      const sigmaH  = hDays >= DTE ? sigma : sigmaPost;
+      const newPrice= _bsPrice(type, newS, K, remT, r, sigmaH);
+      const pnl     = (newPrice - bsVal) * 100 * N;
+      return pnl;
+    });
+  });
+
+  const horizonLabels = horizonDays.map((d, i) => i === horizonDays.length - 1 ? `${d}d (expiry)` : `${d}d`);
+
+  const matrixRows = spotMoves.map((mv, ri) => {
+    const pctLabel = (mv >= 0 ? "+" : "") + (mv * 100).toFixed(0) + "%";
+    const cells = scenMatrix[ri].map((pnl, ci) => {
+      const cls = pnl > 0 ? "pos" : pnl < 0 ? "neg" : "";
+      const pnlFmt = (pnl >= 0 ? "+" : "") + "$" + Math.abs(Math.round(pnl)).toLocaleString();
+      const pctFmt = bsVal > 0 ? ` (${((pnl / (bsVal * 100 * N)) * 100).toFixed(0)}%)` : "";
+      return `<td class="right ${cls}" style="white-space:nowrap">${pnlFmt}<span style="font-size:0.65rem;opacity:0.7">${pctFmt}</span></td>`;
+    }).join("");
+    const rowStyle = mv === 0 ? ' style="background:var(--bg-softer)"' : "";
+    return `<tr${rowStyle}><td style="font-weight:600">${pctLabel}</td>${cells}</tr>`;
+  }).join("");
+
+  // ── Vol assessment ────────────────────────────────────────────────────────
+  let volVerdict, volCls;
+  if (ivHvPrem > 15)      { volVerdict = `IV is ${ivHvPrem.toFixed(1)} pts above realized vol — options are expensive. You're paying a significant premium over historical vol. IV crush risk is high.`; volCls = "verdict-go"; }
+  else if (ivHvPrem > 7)  { volVerdict = `IV is moderately above realized vol (${ivHvPrem.toFixed(1)} pts). This is within normal territory for SPX puts given persistent demand for downside protection. Entry is not cheap, but not extreme either.`; volCls = "verdict-mixed"; }
+  else if (ivHvPrem > 0)  { volVerdict = `IV is only slightly above HV (${ivHvPrem.toFixed(1)} pts). Options are fairly priced vs recent realized vol. Relatively attractive entry if you have directional conviction.`; volCls = "verdict-no"; }
+  else                    { volVerdict = `IV (${IV}%) is BELOW realized HV (${HV}%). Options are cheap vs realized. This is rare — strong entry for option buyers.`; volCls = "verdict-no"; }
+
+  // ── Greeks explanations ───────────────────────────────────────────────────
+  const isPut = type === "put";
+  const perContract = 100 * N;
+  const dailyTheta  = greeks.theta * perContract;
+  const weeklyTheta = dailyTheta * 7;
+  const vegaDollar  = greeks.vega * perContract;
+
+  return `
+    <div class="lab-layout">
+      <div class="lab-sidebar">
+        <div class="lab-params">
+          <p class="lab-params__title">Inputs</p>
+          <form data-lab-form="options">
+            <div class="lab-field">
+              <label>Option type</label>
+              <select name="opt-type">
+                <option value="put"  ${type === "put"  ? "selected" : ""}>Put — bearish / hedge</option>
+                <option value="call" ${type === "call" ? "selected" : ""}>Call — bullish</option>
+              </select>
+            </div>
+            <div class="lab-field">
+              <label>Underlying price (SPY/SPX)</label>
+              <input type="number" name="opt-spot"    value="${S}"     step="1"    min="100"  max="10000" />
+            </div>
+            <div class="lab-field">
+              <label>Strike price</label>
+              <input type="number" name="opt-strike"  value="${K}"     step="1"    min="100"  max="10000" />
+            </div>
+            <div class="lab-field">
+              <label>Days to expiration (DTE)</label>
+              <input type="number" name="opt-dte"     value="${DTE}"   step="1"    min="1"    max="730" />
+            </div>
+            <div class="lab-field">
+              <label>Implied vol — IV (%)</label>
+              <input type="number" name="opt-iv"      value="${IV}"    step="0.5"  min="1"    max="200" />
+            </div>
+            <div class="lab-field">
+              <label>Historical / realized vol — HV (%)</label>
+              <input type="number" name="opt-hv"      value="${HV}"    step="0.5"  min="1"    max="200" />
+            </div>
+            <div class="lab-field">
+              <label>Risk-free rate (%)</label>
+              <input type="number" name="opt-rfr"     value="${RFR}"   step="0.1"  min="0"    max="20" />
+            </div>
+            <div class="lab-field">
+              <label>IV crush scenario (−pts)</label>
+              <input type="number" name="opt-ivcrush" value="${crush}" step="1"    min="0"    max="50" />
+            </div>
+            <div class="lab-field">
+              <label>Contracts (1 = 100× multiplier)</label>
+              <input type="number" name="opt-contracts" value="${N}"   step="1"    min="1"    max="1000" />
+            </div>
+            <button type="submit" class="button button--primary button--small" style="width:100%;margin-top:0.75rem">Price &amp; Calculate</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="lab-results">
+        <p class="lab-block-title" style="margin-bottom:0.5rem">Use this to stress-test your specific strike/expiry before sizing.</p>
+
+        <div class="lab-stats-row" style="margin-bottom:1rem">
+          <div class="lab-stat">
+            <span class="lab-stat__label">BS theoretical value</span>
+            <span class="lab-stat__value" style="font-size:1.1rem;font-weight:700">$${bsVal.toFixed(2)}</span>
+          </div>
+          <div class="lab-stat">
+            <span class="lab-stat__label">Intrinsic value</span>
+            <span class="lab-stat__value lab-stat__value--muted">$${intrinsic.toFixed(2)}</span>
+          </div>
+          <div class="lab-stat">
+            <span class="lab-stat__label">Time value</span>
+            <span class="lab-stat__value lab-stat__value--muted">$${timeVal.toFixed(2)}</span>
+          </div>
+          <div class="lab-stat">
+            <span class="lab-stat__label">IV vs HV premium</span>
+            <span class="lab-stat__value ${ivHvPrem > 0 ? "lab-stat__value--negative" : "lab-stat__value--positive"}">${ivHvPrem >= 0 ? "+" : ""}${ivHvPrem.toFixed(1)} pts</span>
+          </div>
+        </div>
+
+        <div class="lab-stats-row" style="margin-bottom:1rem">
+          <div class="lab-stat">
+            <span class="lab-stat__label">Delta</span>
+            <span class="lab-stat__value lab-stat__value--muted">${greeks.delta.toFixed(3)}</span>
+          </div>
+          <div class="lab-stat">
+            <span class="lab-stat__label">Theta ($/day)</span>
+            <span class="lab-stat__value lab-stat__value--negative">${(dailyTheta).toFixed(2)}/day</span>
+          </div>
+          <div class="lab-stat">
+            <span class="lab-stat__label">Vega (per 1pt IV)</span>
+            <span class="lab-stat__value lab-stat__value--muted">$${vegaDollar.toFixed(2)}</span>
+          </div>
+          <div class="lab-stat">
+            <span class="lab-stat__label">IV crush loss (−${crush}pts)</span>
+            <span class="lab-stat__value lab-stat__value--negative">${ivCrushLoss.toFixed(2) > 0 ? "+" : ""}$${ivCrushLoss.toFixed(2)}</span>
+          </div>
+        </div>
+
+        <div style="margin-bottom:1rem">
+          <p class="lab-block-title">P&amp;L Scenarios — value at each time horizon (per ${N} contract${N !== 1 ? "s" : ""} × 100 multiplier)</p>
+          <p class="lab-block-sub">Rows = SPX/SPY move. Columns = days elapsed. P&amp;L already includes IV crush to ${(IV - crush).toFixed(0)}% for horizon columns. At expiry: intrinsic value only (no IV). The key insight: without a move, theta bleed dominates — use this table to find the minimum required decline to break even at your intended hold period.</p>
+          <div class="table-wrap" style="margin-top:0.5rem;overflow-x:auto">
+            <table class="lab-trade-table">
+              <thead>
+                <tr>
+                  <th>SPX move</th>
+                  ${horizonLabels.map((h) => `<th class="right">${h}</th>`).join("")}
+                </tr>
+              </thead>
+              <tbody>${matrixRows}</tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="verdict-bar ${volCls}" style="margin-bottom:1rem">
+          <strong>Vol assessment:</strong> ${volVerdict}
+        </div>
+
+        <div>
+          <p class="lab-block-title">What the Greeks mean for your position</p>
+          <div style="display:grid;gap:0.6rem;margin-top:0.5rem">
+            <div style="padding:0.75rem;background:var(--bg-softer);border-radius:6px;font-size:0.75rem;line-height:1.6">
+              <strong>Delta ${greeks.delta.toFixed(3)}:</strong>
+              For every $1 move in the underlying, your option changes by $${Math.abs(greeks.delta * 100 * N).toFixed(0)} (${N} contract${N !== 1 ? "s" : ""}).
+              ${isPut ? "Negative delta means you profit when the underlying drops." : "Positive delta means you profit when the underlying rises."}
+              A ${isPut ? "10% SPY drop" : "10% SPY rise"} moves the underlying by $${(S * 0.1).toFixed(0)} — delta alone contributes $${Math.abs(greeks.delta * S * 0.1 * 100 * N).toFixed(0)} in P&amp;L.
+            </div>
+            <div style="padding:0.75rem;background:var(--bg-softer);border-radius:6px;font-size:0.75rem;line-height:1.6">
+              <strong>Theta ${dailyTheta.toFixed(2)}/day:</strong>
+              Your position loses $${Math.abs(dailyTheta).toFixed(2)}/day from time decay alone, even if the underlying doesn't move.
+              Over a week that's $${Math.abs(weeklyTheta).toFixed(0)}. At ${DTE} DTE with IV at ${IV}%, this is the minimum daily hurdle you need the underlying to overcome.
+              <span style="color:var(--negative)">Time works against option buyers.</span>
+            </div>
+            <div style="padding:0.75rem;background:var(--bg-softer);border-radius:6px;font-size:0.75rem;line-height:1.6">
+              <strong>Vega $${vegaDollar.toFixed(2)} per 1pt IV:</strong>
+              If IV rises 5 points (e.g. VIX spikes from ${IV} to ${IV + 5}), your position gains +$${(vegaDollar * 5).toFixed(0)}.
+              If IV falls 5 points (market calms), you lose −$${(vegaDollar * 5).toFixed(0)}.
+              The IV crush scenario (−${crush}pts) costs $${Math.abs(ivCrushLoss).toFixed(0)} even if you're directionally right.
+              <span style="color:var(--text-muted)">This is why timing matters: buying protection after IV is already elevated is expensive.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
 
   // ── Compute P&L at expected move ──────────────────────────────────────────
   const spyChg       = spy * (expectedMove / 100);          // $ change in SPY
