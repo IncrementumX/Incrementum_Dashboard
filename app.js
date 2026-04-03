@@ -4948,13 +4948,8 @@ function renderOpportunityRadar(model) {
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const score = (signal, regime, mom) => Math.round(0.4 * clamp(signal,0,100) + 0.3 * clamp(regime,0,100) + 0.3 * clamp(mom,0,100));
 
-  // Pre-compute all series we need
-  const slvS = labData.SLV || [];
-  const gldS = labData.GLD || [];
-  const ringS = labData.RING || [];
+  // Pre-compute all series we need (slvS, gldS, ringS, spyS, vixS already declared above)
   const agqS  = labData.AGQ || [];
-  const spyS  = labData.SPY || [];
-  const vixS  = labData.VIX || [];
   const gsResult  = model.strategyLab?.goldSilver;
   const vixResult = model.strategyLab?.vix;
 
