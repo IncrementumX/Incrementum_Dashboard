@@ -2274,50 +2274,67 @@ function renderMomentumMatrix(model) {
     { sym: "GDX",  label: "GDX — Gold Miners ETF" },
   ];
 
-  const rows = ASSETS.map(({ sym, label }) => {
+  const mmToVcell = (cls) => cls === "mm-bull" ? "vcell vcell-no" : cls === "mm-bear" ? "vcell vcell-go" : "vcell vcell-gray";
+
+  const rowData = ASSETS.map(({ sym, label }) => {
     const series = labData[sym] || [];
-    const row = computeMomentumRow(sym, series);
-    const noData = series.length < 22;
+    return { sym, label, row: computeMomentumRow(sym, series), noData: series.length < 22 };
+  });
+
+  const bullCount = rowData.filter((r) => r.row.dailyCls === "mm-bull").length;
+  const bearCount = rowData.filter((r) => r.row.dailyCls === "mm-bear").length;
+  let verdictCls, verdictText;
+  if (bullCount > bearCount + 1)    { verdictCls = "verdict-no";    verdictText = `${bullCount}/5 assets bullish — silver complex trending up`; }
+  else if (bearCount > bullCount + 1) { verdictCls = "verdict-go";  verdictText = `${bearCount}/5 assets bearish — silver complex under pressure`; }
+  else                               { verdictCls = "verdict-mixed"; verdictText = `Mixed signals (${bullCount} bullish, ${bearCount} bearish) — wait for alignment`; }
+
+  const rows = rowData.map(({ sym, label, row, noData }) => {
+    const dailyCls = noData ? "vcell vcell-gray" : mmToVcell(row.dailyCls);
+    const todayCls = noData ? "vcell vcell-gray" : mmToVcell(row.todayCls);
+    const alignCls = noData ? "vcell vcell-gray" : mmToVcell(row.alignCls);
     return `
       <tr>
-        <td class="mm-asset"><strong>${escapeHtml(sym)}</strong><span>${escapeHtml(label.split("—")[1]?.trim() || "")}</span></td>
-        <td class="${noData ? "mm-neutral" : row.dailyCls}">
-          ${escapeHtml(row.daily)}
-          ${!noData && row.r5 !== null ? `<span class="mm-sub">${row.r5 >= 0 ? "+" : ""}${row.r5.toFixed(1)}% 5D / ${row.r20 >= 0 ? "+" : ""}${row.r20.toFixed(1)}% 20D</span>` : ""}
+        <td class="left"><div class="row-label">${escapeHtml(sym)}</div><div class="row-sub">${escapeHtml(label.split("—")[1]?.trim() || "")}</div></td>
+        <td>
+          <span class="${dailyCls}">${escapeHtml(row.daily)}</span>
+          ${!noData && row.r5 !== null ? `<span class="sub-nums">${row.r5 >= 0 ? "+" : ""}${row.r5.toFixed(1)}% 5D / ${row.r20 >= 0 ? "+" : ""}${row.r20.toFixed(1)}% 20D</span>` : ""}
         </td>
-        <td class="${noData ? "mm-neutral" : row.todayCls}">${escapeHtml(row.today)}</td>
-        <td class="${noData ? "mm-neutral" : row.alignCls}">${escapeHtml(row.alignment)}</td>
-        <td class="mm-impl">${escapeHtml(row.implication)}</td>
+        <td><span class="${todayCls}">${escapeHtml(row.today)}</span></td>
+        <td><span class="${alignCls}">${escapeHtml(row.alignment)}</span></td>
+        <td class="left"><span class="impl">${escapeHtml(row.implication)}</span></td>
       </tr>
     `;
   }).join("");
 
   const freshness = model.macroResearch?.freshnessLabel || "Simulated data";
   return `
-    <section class="panel mm-panel">
-      <div class="panel-header">
-        <div>
-          <p class="scout-section-label">Live Signal Matrix</p>
-          <h2>Momentum Matrix</h2>
-          <p class="panel-subtitle">Daily = 5D+20D trend alignment. Today = last close vs prior close vs avg daily range. <span class="val-muted">${escapeHtml(freshness)}</span></p>
+    <div class="sq">
+      <div class="sq-section">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">
+          <div>
+            <div class="sq-lbl">Live Signal Matrix</div>
+            <div class="sq-h2">Momentum Matrix</div>
+            <div class="sq-desc sq-t3">Daily = 5D+20D trend alignment. Today = last close vs prior close vs avg daily range. ${escapeHtml(freshness)}</div>
+          </div>
+          <span class="badge badge-gray">${escapeHtml(model.dataStatus || "")}</span>
         </div>
-        <span class="status-pill ${getScoutStatusClass(model.dataStatus)}">${escapeHtml(model.dataStatus)}</span>
+        <div class="sq-tw">
+          <table>
+            <thead>
+              <tr>
+                <th class="left">Asset</th>
+                <th class="left">Daily Momentum</th>
+                <th class="left">Today's Move</th>
+                <th class="left">Alignment</th>
+                <th class="left">Implication</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        <div class="verdict-bar ${verdictCls}" style="margin-top:12px">${escapeHtml(verdictText)}</div>
       </div>
-      <div class="mm-wrap">
-        <table class="mm-table">
-          <thead>
-            <tr>
-              <th>Asset</th>
-              <th>Daily Momentum</th>
-              <th>Today's Move</th>
-              <th>Alignment</th>
-              <th>Implication</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
-    </section>
+    </div>
   `;
 }
 
@@ -2452,67 +2469,77 @@ function renderTradeCards(model) {
   });
 
   return `
-    <section class="panel">
-      <div class="panel-header">
-        <div>
-          <p class="scout-section-label">Strategy Signals</p>
-          <h2>Trade Cards</h2>
-          <p class="panel-subtitle">Is there a trade right now? What is it? How do I execute it?</p>
-        </div>
+    <div class="sq">
+      <div class="sq-section">
+        <div class="sq-lbl">Strategy Signals</div>
+        <div class="sq-h2" style="margin-bottom:16px">Trade Cards</div>
+        <div class="sq-cards">${cardA}${cardB}${cardC}</div>
       </div>
-      <div class="trade-cards">${cardA}${cardB}${cardC}</div>
-    </section>
+    </div>
   `;
 }
 
 function renderOneTradeCard({ name, vehicle, type, active, direction, entryRule, exitRule, currentLabel, currentValue, distanceLabel, distanceActive, momConfirm, momLabel, perf }) {
-  const statusCls = active ? "trade-card--active" : "trade-card--inactive";
+  const statusPillCls = active ? "pill pill-bounce" : "pill pill-gray";
   const statusLabel = active ? "ACTIVE TRADE" : "NO TRADE";
   const fmtPct = (v) => v !== null && v !== undefined ? `${v >= 0 ? "+" : ""}${Number(v).toFixed(1)}%` : "—";
 
   const perfBlock = perf ? `
-    <div class="trade-card__perf">
-      <div class="trade-card__perf-row"><span>Win Rate</span><strong style="color:${perf.winRate >= 50 ? "var(--positive)" : "var(--negative)"}">${Number(perf.winRate).toFixed(0)}%</strong></div>
-      <div class="trade-card__perf-row"><span>Avg Return</span><strong style="color:${perf.avgReturn >= 0 ? "var(--positive)" : "var(--negative)"}">${fmtPct(perf.avgReturn)}</strong></div>
-      <div class="trade-card__perf-row"><span>Max Drawdown</span><strong style="color:var(--negative)">${fmtPct(perf.maxDrawdown)}</strong></div>
-      <div class="trade-card__perf-row"><span>Backtest trades</span><strong>${perf.trades}</strong></div>
-      ${perf.note ? `<div class="trade-card__perf-note">${escapeHtml(perf.note)}</div>` : ""}
+    <hr class="sq-hr">
+    <div class="sq-perf">
+      <div class="sq-perf-item">
+        <span class="sq-perf-lbl">Win Rate</span>
+        <span class="sq-perf-val ${perf.winRate >= 50 ? "sq-perf-val-g" : "sq-perf-val-r"}">${Number(perf.winRate).toFixed(0)}%</span>
+      </div>
+      <div class="sq-perf-item">
+        <span class="sq-perf-lbl">Avg Return</span>
+        <span class="sq-perf-val ${perf.avgReturn >= 0 ? "sq-perf-val-g" : "sq-perf-val-r"}">${fmtPct(perf.avgReturn)}</span>
+      </div>
+      <div class="sq-perf-item">
+        <span class="sq-perf-lbl">Max DD</span>
+        <span class="sq-perf-val sq-perf-val-r">${fmtPct(perf.maxDrawdown)}</span>
+      </div>
+      <div class="sq-perf-item">
+        <span class="sq-perf-lbl">Trades</span>
+        <span class="sq-perf-val">${perf.trades}</span>
+      </div>
     </div>
-  ` : `<div class="trade-card__perf-pending">Backtest pending</div>`;
+    ${perf.note ? `<div class="sq-t3" style="font-size:11px;margin-top:4px">${escapeHtml(perf.note)}</div>` : ""}
+  ` : `<hr class="sq-hr"><div class="sq-perf-pending">Backtest pending</div>`;
 
   const momBlock = momLabel !== null ? `
-    <div class="trade-card__row">
-      <span class="trade-card__label">Momentum</span>
-      <span class="trade-card__val" style="color:${momConfirm === true ? "var(--positive)" : momConfirm === false ? "var(--negative)" : "var(--text-muted)"}">
-        ${momConfirm === true ? "✓ Confirmed" : momConfirm === false ? "✗ Not confirmed" : "—"}
-        ${escapeHtml(momLabel)}
+    <div class="sq-row">
+      <span class="sq-row-k">Momentum</span>
+      <span class="sq-row-v ${momConfirm === true ? "sq-row-v-mom-yes" : momConfirm === false ? "sq-row-v-mom-no" : ""}">
+        ${momConfirm === true ? "✓ " : momConfirm === false ? "✗ " : ""}${escapeHtml(momLabel)}
       </span>
     </div>
   ` : "";
 
   return `
-    <div class="trade-card ${statusCls}">
-      <div class="trade-card__header">
-        <div class="trade-card__name">${escapeHtml(name)}</div>
-        <div class="trade-card__status">${statusLabel}</div>
+    <div class="sq-card">
+      <div class="sq-card-head">
+        <div class="sq-card-type">${escapeHtml(type)}</div>
+        <div class="sq-card-name">${escapeHtml(name)}</div>
+        <span class="${statusPillCls}">${statusLabel}</span>
+        ${active && direction ? `<div class="sq-direction">${escapeHtml(direction)}</div>` : ""}
       </div>
-      <div class="trade-card__vehicle">${escapeHtml(vehicle)}</div>
-      <div class="trade-card__type">${escapeHtml(type)}</div>
-      ${active && direction ? `<div class="trade-card__direction">Direction: <strong>${escapeHtml(direction)}</strong></div>` : ""}
-      <div class="trade-card__divider"></div>
-      <div class="trade-card__row"><span class="trade-card__label">Entry Rule</span><span class="trade-card__val">${escapeHtml(entryRule)}</span></div>
-      <div class="trade-card__row"><span class="trade-card__label">Exit Rule</span><span class="trade-card__val">${escapeHtml(exitRule)}</span></div>
-      <div class="trade-card__row">
-        <span class="trade-card__label">${escapeHtml(currentLabel)}</span>
-        <span class="trade-card__val trade-card__val--live">${escapeHtml(currentValue)}</span>
+      <div class="sq-card-body">
+        <div class="sq-row"><span class="sq-row-k">Vehicle</span><span class="sq-row-v">${escapeHtml(vehicle)}</span></div>
+        <div class="sq-row"><span class="sq-row-k">Entry</span><span class="sq-row-v">${escapeHtml(entryRule)}</span></div>
+        <div class="sq-row"><span class="sq-row-k">Exit</span><span class="sq-row-v">${escapeHtml(exitRule)}</span></div>
+        <hr class="sq-hr">
+        <div class="sq-row">
+          <span class="sq-row-k">${escapeHtml(currentLabel)}</span>
+          <span class="sq-row-v sq-row-v-live">${escapeHtml(currentValue)}</span>
+        </div>
+        <div class="sq-row">
+          <span class="sq-row-k">Distance</span>
+          <span class="sq-row-v ${distanceActive ? "sq-row-v-trigger" : ""}">${escapeHtml(distanceLabel)}</span>
+        </div>
+        ${momBlock}
+        ${perfBlock}
       </div>
-      <div class="trade-card__row">
-        <span class="trade-card__label">Distance</span>
-        <span class="trade-card__val ${distanceActive ? "trade-card__val--trigger" : ""}">${escapeHtml(distanceLabel)}</span>
-      </div>
-      ${momBlock}
-      <div class="trade-card__divider"></div>
-      ${perfBlock}
     </div>
   `;
 }
@@ -2569,38 +2596,53 @@ function renderMacroRatePanel(model) {
   const items = snapshot.filter((s) => TARGET_CODES.includes(s.code));
   if (!items.length) return "";
 
-  const tiles = items.map((item) => {
+  const interpToVcell = (cls) => cls === "macro-tile--bull" ? "vcell vcell-no" : cls === "macro-tile--bear" ? "vcell vcell-go" : "vcell vcell-gray";
+  const interpToLabel = (cls) => cls === "macro-tile--bull" ? "Tailwind" : cls === "macro-tile--bear" ? "Headwind" : "Neutral";
+
+  const rows = items.map((item) => {
     const interp = macroInterpretation(item.code, item.latest, item.change20, item.percentile);
     const pct = Math.round(item.percentile || 0);
     const threshold = item.unit === "bp" ? 2 : item.unit === "index" ? 0.3 : 0.01;
     const rising = item.change20 > threshold;
     const falling = item.change20 < -threshold;
     const arrow = rising ? "↑" : falling ? "↓" : "→";
+    const chgCls = rising ? "sq-chg-pos" : falling ? "sq-chg-neg" : "sq-chg-flat";
     return `
-      <div class="macro-tile ${interp.cls}">
-        <div class="macro-tile__head">
-          <span class="macro-tile__label">${escapeHtml(item.label)}</span>
-          <span class="macro-tile__pct">${pct}th pct</span>
-        </div>
-        <div class="macro-tile__value">${formatMacroValue(item.latest, item.unit)}</div>
-        <div class="macro-tile__change">${arrow} ${escapeHtml(formatMacroDelta(item.change20, item.unit))} / 20 days</div>
-        ${interp.text ? `<div class="macro-tile__interp">${escapeHtml(interp.text)}</div>` : ""}
-        <div class="macro-tile__bar"><div class="macro-tile__bar-fill" style="width:${pct}%"></div></div>
-      </div>
+      <tr>
+        <td class="left">
+          <div class="row-label">${escapeHtml(item.label)}</div>
+          ${interp.text ? `<span class="sq-interp sq-t3">${escapeHtml(interp.text)}</span>` : ""}
+        </td>
+        <td class="right"><span class="sq-big">${formatMacroValue(item.latest, item.unit)}</span></td>
+        <td class="right"><span class="sq-chg ${chgCls}">${arrow} ${escapeHtml(formatMacroDelta(item.change20, item.unit))}</span></td>
+        <td class="right"><span class="vcell vcell-gray" style="font-size:11px">${pct}th</span></td>
+        <td><span class="${interpToVcell(interp.cls)}">${interpToLabel(interp.cls)}</span></td>
+      </tr>
     `;
   }).join("");
 
   return `
-    <section class="panel">
-      <div class="panel-header">
-        <div>
-          <p class="scout-section-label">Macro Context</p>
-          <h2>Rate &amp; Macro Panel</h2>
-          <p class="panel-subtitle">What rates are doing and what it means for your book. Green = tailwind, Red = headwind, Gray = neutral.</p>
+    <div class="sq">
+      <div class="sq-section">
+        <div class="sq-lbl">Macro Context</div>
+        <div class="sq-h2" style="margin-bottom:6px">Rate &amp; Macro Panel</div>
+        <div class="sq-desc sq-t3" style="margin-bottom:14px">What rates are doing and what it means for your book. Green = tailwind, Red = headwind, Gray = neutral.</div>
+        <div class="sq-rate-tw">
+          <table class="sq-rate-table">
+            <thead>
+              <tr>
+                <th>Indicator</th>
+                <th class="right">Value</th>
+                <th class="right">20D Change</th>
+                <th class="right">Percentile</th>
+                <th>Signal</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
         </div>
       </div>
-      <div class="macro-rate-grid">${tiles}</div>
-    </section>
+    </div>
   `;
 }
 
