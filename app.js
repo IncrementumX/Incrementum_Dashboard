@@ -4093,9 +4093,7 @@ function renderGoldSilverLabV2(result, params, model) {
   }
 
   // Live regime note for GS strategy
-  const gsLabData = model.macroResearch?.strategyLabData || {};
-  const gsSlvS = gsLabData.SLV || [], gsGldS = gsLabData.GLD || [];
-  const gsRatioNow = latestRatio; // already computed from ratioHistory
+  const gsRatioNow = result?.ratioHistory?.length ? result.ratioHistory[result.ratioHistory.length - 1]?.value : null;
   const gsRegimeNote = gsRatioNow !== null ? (() => {
     if (gsRatioNow >= params.entryRatio)
       return `<div class="verdict-bar verdict-no" style="margin-bottom:0.75rem">Ratio at ${gsRatioNow.toFixed(1)} — AT or ABOVE trigger (${params.entryRatio}). Setup is ACTIVE. SIL historical avg per trade: ${result.avgReturn >= 0 ? "+" : ""}${result.avgReturn?.toFixed(1)}%.</div>`;
