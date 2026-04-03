@@ -399,7 +399,7 @@ function normalizeScoutState(rawScout) {
       exitRatio: Number(rawScout?.strategyLab?.gsParams?.exitRatio ?? 50),
       maxDays: Number(rawScout?.strategyLab?.gsParams?.maxDays ?? 180),
     },
-    activeStrategy: rawScout?.strategyLab?.activeStrategy || "vix",
+    activeStrategy: rawScout?.strategyLab?.activeStrategy || "momentum",
     // Multi-timeframe: 5 | 20 | 60 | 120 | 250 (trading days, shown as 1Y for 250)
     activeTimeframe: Number(rawScout?.strategyLab?.activeTimeframe ?? 20),
     // Momentum backtest params
@@ -1757,11 +1757,10 @@ function renderScout(context, analytics, summary) {
 
   const model = syncUiState.scoutModel;
   elements.scoutRoot.innerHTML = `
-    ${renderTradeCards(model)}
     ${renderMacroRatePanel(model)}
     ${renderStrategyLab(model)}
+    ${renderTradeCards(model)}
     ${renderOpportunityRadar(model)}
-    ${renderScoutWatchlist(model)}
   `;
   // Initialize Chart.js charts after DOM is ready
   requestAnimationFrame(() => renderScoutCharts(model));
@@ -1784,7 +1783,7 @@ function destroyScoutChart(id) {
 function renderScoutCharts(model) {
   const lab = model.strategyLab;
   if (!lab) return;
-  const activeStrategy = state.scout.strategyLab?.activeStrategy || "vix";
+  const activeStrategy = state.scout.strategyLab?.activeStrategy || "momentum";
 
   if (activeStrategy === "vix") {
     renderVixChart(lab.vix, model);
@@ -2517,9 +2516,9 @@ function renderTradeCards(model) {
   return `
     <div class="sq">
       <div class="sq-section">
-        <div class="sq-lbl">Opportunity Scanner</div>
-        <div class="sq-h2" style="margin-bottom:4px">Trade Cards</div>
-        <div class="sq-desc sq-t3" style="margin-bottom:16px">Is there a trade right now? Status: ACTIVE = trigger met, WATCHLIST = approaching trigger, NO TRADE = not in setup zone.</div>
+        <div class="sq-lbl">Signal Summary</div>
+        <div class="sq-h2" style="margin-bottom:4px">Current Setups</div>
+        <div class="sq-desc sq-t3" style="margin-bottom:16px">Is there an actionable trade right now? Each card shows one setup and its current status.<br><strong>ACTIVE</strong> = entry condition is met today. <strong>WATCHLIST</strong> = getting close, monitor. <strong>NO TRADE</strong> = not in setup zone yet.</div>
         <div class="sq-cards">${cardA}${cardB}${cardC}</div>
       </div>
     </div>
@@ -2680,8 +2679,8 @@ function renderMacroRatePanel(model) {
     <div class="sq">
       <div class="sq-section">
         <div class="sq-lbl">Macro Context</div>
-        <div class="sq-h2" style="margin-bottom:6px">Rate &amp; Macro Panel</div>
-        <div class="sq-desc sq-t3" style="margin-bottom:14px">What rates are doing and what it means for your book. Green = tailwind, Red = headwind, Gray = neutral.</div>
+        <div class="sq-h2" style="margin-bottom:6px">Rates &amp; Macro</div>
+        <div class="sq-desc sq-t3" style="margin-bottom:14px">Key macro indicators and their 20-day trend. <strong>Tailwind</strong> = favorable for risk assets / silver. <strong>Headwind</strong> = unfavorable. <strong>Neutral</strong> = ambiguous. Percentile = current reading vs. last 2 years of history.</div>
         <div class="sq-rate-tw">
           <table class="sq-rate-table">
             <thead>
@@ -3720,14 +3719,14 @@ function renderSynthesisMemo(model) {
 
 function renderStrategyLab(model) {
   const lab = model.strategyLab;
-  const activeStrategy = state.scout.strategyLab?.activeStrategy || "vix";
+  const activeStrategy = state.scout.strategyLab?.activeStrategy || "momentum";
   const vixParams = state.scout.strategyLab?.vixParams || { threshold: 25, horizon: 20 };
   const gsParams = state.scout.strategyLab?.gsParams || { entryRatio: 75, exitRatio: 50, maxDays: 180 };
   const momentumParams = state.scout.strategyLab?.momentumParams || { asset: "AGQ", triggerPct: -3 };
 
+  const tabMom = activeStrategy === "momentum" ? "lab-tab lab-tab--active" : "lab-tab";
   const tabVix = activeStrategy === "vix" ? "lab-tab lab-tab--active" : "lab-tab";
   const tabGs  = activeStrategy === "gs"  ? "lab-tab lab-tab--active" : "lab-tab";
-  const tabMom = activeStrategy === "momentum" ? "lab-tab lab-tab--active" : "lab-tab";
 
   let content;
   if (activeStrategy === "vix") content = renderVixLabV2(lab?.vix, lab?.vixMultiHorizon, vixParams, model);
@@ -3738,16 +3737,16 @@ function renderStrategyLab(model) {
     <section class="panel">
       <div class="panel-header">
         <div>
-          <p class="scout-section-label">Strategy Backtest Lab</p>
-          <h2>Strategies</h2>
-          <p class="panel-subtitle">Every rule explicit. Every trade visible. Is there a trade right now?</p>
+          <p class="scout-section-label">Research &amp; Backtest</p>
+          <h2>Strategy Lab</h2>
+          <p class="panel-subtitle">Momentum patterns, historical backtests, rule-based signals. Every entry rule explicit, every trade visible.</p>
         </div>
         <span class="status-pill ${getScoutStatusClass(model.dataStatus)}">${escapeHtml(model.dataStatus)}</span>
       </div>
       <div class="lab-tabs">
-        <button type="button" class="${tabVix}" data-lab-strategy="vix">VIX Spike Entry</button>
-        <button type="button" class="${tabGs}" data-lab-strategy="gs">Gold/Silver Mean Reversion</button>
         <button type="button" class="${tabMom}" data-lab-strategy="momentum">Momentum Analysis</button>
+        <button type="button" class="${tabVix}" data-lab-strategy="vix">VIX Spike Entry</button>
+        <button type="button" class="${tabGs}" data-lab-strategy="gs">Gold/Silver Reversion</button>
       </div>
       ${content}
     </section>
@@ -3772,6 +3771,13 @@ function renderVixLabV2(result, multiHorizon, params, model) {
         </div>
         <button type="submit" class="button button--primary button--small" style="width:100%;margin-top:0.6rem">Run Backtest</button>
       </form>
+      <div style="margin-top:1rem;padding:0.75rem;background:var(--bg-softer);border-radius:6px;font-size:0.72rem;line-height:1.6">
+        <p style="font-weight:600;margin-bottom:0.4rem;color:var(--text-primary)">Strategy Rules</p>
+        <p><strong>Entry:</strong> Buy SPY when VIX closes ≥ ${params.threshold}</p>
+        <p><strong>Exit:</strong> After ${params.horizon} trading days, OR when VIX drops below ${Math.round(params.threshold * 0.72)} (normalized)</p>
+        <p><strong>No pyramiding:</strong> One trade at a time. 1-day cooldown after exit.</p>
+        <p style="margin-top:0.4rem;color:var(--text-muted)">Vehicle: SPY. No transaction costs assumed. Returns are SPY exit/entry − 1.</p>
+      </div>
     </div>
   `;
 
@@ -3818,11 +3824,11 @@ function renderVixLabV2(result, multiHorizon, params, model) {
 
   const multiHorizonTable = `
     <div class="vix-horizon-block">
-      <p class="lab-block-title">Forward Returns by Holding Period — VIX ≥ ${params.threshold}</p>
-      <p class="lab-block-sub">Each row: buy on VIX spike, hold for that period. Same entry rules, different exit timing. <strong>Best horizon = highest avg return with ≥5 trades.</strong></p>
+      <p class="lab-block-title">How long to hold? — Forward Returns by Holding Period</p>
+      <p class="lab-block-sub">Same entry rule (VIX ≥ ${params.threshold}), different exit timing. Each row answers: if I bought SPY on the spike day and held for exactly N days, what happened on average?<br><strong>Win Rate</strong> = % of trades where SPY was higher at exit than at entry. <strong>Avg Return</strong> = mean SPY return across all triggered trades at that horizon.</p>
       <div class="table-wrap">
         <table class="lab-trade-table">
-          <thead><tr><th>Hold</th><th>Avg return</th><th>Win rate</th><th>Trades</th><th>Best</th><th>Worst</th></tr></thead>
+          <thead><tr><th>Hold period</th><th>Avg SPY return</th><th>Win Rate</th><th>Trades (n)</th><th>Best trade</th><th>Worst trade</th></tr></thead>
           <tbody>${horizonRows}</tbody>
         </table>
       </div>
@@ -3900,9 +3906,10 @@ function renderVixLabV2(result, multiHorizon, params, model) {
           <div class="lab-chart-wrap"><canvas id="scout-vix-chart" height="220"></canvas></div>
         </div>
         <div>
-          <p class="lab-block-title">Last 12 Trades</p>
+          <p class="lab-block-title">Last 12 Triggered Trades</p>
+          <p class="lab-block-sub">Each row = one historical instance where VIX closed ≥ ${params.threshold}. Entry = SPY price on that day. Return = SPY at exit ÷ SPY at entry − 1.</p>
           <div class="table-wrap"><table class="lab-trade-table">
-            <thead><tr><th>Entry</th><th>Exit</th><th class="right">VIX in</th><th class="right">Return</th><th>Held</th><th>Exit reason</th></tr></thead>
+            <thead><tr><th>Entry date</th><th>Exit date</th><th class="right">VIX at entry</th><th class="right">SPY return</th><th>Days held</th><th>Why it exited</th></tr></thead>
             <tbody>${tradeRows}</tbody>
           </table></div>
         </div>
@@ -4274,7 +4281,7 @@ function renderMomentumAnalysis(model) {
 
 function renderMomentumModule(result, params, model) {
   const ASSETS = ["AGQ", "SLV", "GLD", "RING", "GDX", "SPY"];
-  const TRIGGERS = [1, 2, 3, 5];
+  const TRIGGERS = [1, 2, 3, 4, 5];
   const activeAsset = params.asset || "AGQ";
   const activeDirection = params.direction || "down";
   const activeTriggerAbs = Math.abs(params.triggerPct ?? 3);
@@ -4396,11 +4403,14 @@ function renderMomentumModule(result, params, model) {
     <div class="momentum-module">
       ${snapHtml}
       <div class="momentum-module__note">
-        <strong>What this shows:</strong>
-        After ${activeAsset} ${isDown ? "drops" : "rises"} ≥${activeTriggerAbs}% in a single trading day, what happens at 1D / 5D / 20D / 60D horizons?
-        <strong>${col1Label}</strong> = price higher than trigger-day close at that horizon.
-        <strong>${col2Label}</strong> = price lower.
-        <span class="val-muted">Based on all daily closes. No transaction costs assumed.</span>
+        <strong>Question:</strong>
+        After ${activeAsset} ${isDown ? "closes down ≥" : "closes up ≥"}${activeTriggerAbs}% in a single day, what tends to happen over the following days?
+        &nbsp;·&nbsp;
+        <strong>${col1Label}</strong> = price is ${isDown ? "higher" : "higher"} than the trigger-day close at that horizon (${isDown ? "bounce/recovery" : "momentum continues"}).
+        &nbsp;·&nbsp;
+        <strong>${col2Label}</strong> = price is ${isDown ? "lower" : "lower"} (${isDown ? "drop extended" : "reversal"}).
+        &nbsp;·&nbsp;
+        <span class="val-muted">Daily closes only. Intraday horizons (15min–12h) require tick data not available in this feed. No transaction costs assumed.</span>
       </div>
       <div class="momentum-module__selectors">
         <div>
@@ -4410,12 +4420,12 @@ function renderMomentumModule(result, params, model) {
         <div>
           <p class="momentum-module__label">Direction</p>
           <div class="trigger-tabs">
-            <button class="trigger-tab ${isDown ? "trigger-tab--active" : ""}" data-momentum-direction="down">▼ Drop</button>
-            <button class="trigger-tab ${!isDown ? "trigger-tab--active" : ""}" data-momentum-direction="up">▲ Rise</button>
+            <button class="trigger-tab ${isDown ? "trigger-tab--active" : ""}" data-momentum-direction="down">▼ Drop ≥ X%</button>
+            <button class="trigger-tab ${!isDown ? "trigger-tab--active" : ""}" data-momentum-direction="up">▲ Rise ≥ X%</button>
           </div>
         </div>
         <div>
-          <p class="momentum-module__label">Trigger size</p>
+          <p class="momentum-module__label">Trigger size (X)</p>
           <div class="trigger-tabs">${triggerTabs}</div>
         </div>
       </div>
