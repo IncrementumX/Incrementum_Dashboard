@@ -399,7 +399,7 @@ function normalizeScoutState(rawScout) {
       exitRatio: Number(rawScout?.strategyLab?.gsParams?.exitRatio ?? 50),
       maxDays: Number(rawScout?.strategyLab?.gsParams?.maxDays ?? 180),
     },
-    activeStrategy: rawScout?.strategyLab?.activeStrategy || "vix",
+    activeStrategy: rawScout?.strategyLab?.activeStrategy || "macro",
     // Multi-timeframe: 5 | 20 | 60 | 120 | 250 (trading days, shown as 1Y for 250)
     activeTimeframe: Number(rawScout?.strategyLab?.activeTimeframe ?? 20),
     // Momentum backtest params
@@ -1786,7 +1786,6 @@ function renderScout(context, analytics, summary) {
 
   const model = syncUiState.scoutModel;
   elements.scoutRoot.innerHTML = `
-    ${renderMacroRatePanel(model)}
     ${renderStrategyLab(model)}
     ${renderTradeCards(model)}
     ${renderOpportunityRadar(model)}
@@ -1812,7 +1811,7 @@ function destroyScoutChart(id) {
 function renderScoutCharts(model) {
   const lab = model.strategyLab;
   if (!lab) return;
-  const activeStrategy = state.scout.strategyLab?.activeStrategy || "vix";
+  const activeStrategy = state.scout.strategyLab?.activeStrategy || "macro";
 
   if (activeStrategy === "vix") {
     renderVixChart(lab.vix, model);
@@ -3730,46 +3729,38 @@ function renderSynthesisMemo(model) {
 
 function renderStrategyLab(model) {
   const lab = model.strategyLab;
-  const activeStrategy = state.scout.strategyLab?.activeStrategy || "vix";
+  const activeStrategy = state.scout.strategyLab?.activeStrategy || "macro";
   const vixParams = state.scout.strategyLab?.vixParams || { threshold: 25, horizon: 20 };
   const gsParams = state.scout.strategyLab?.gsParams || { entryRatio: 75, exitRatio: 50, maxDays: 180 };
-  const momentumParams = state.scout.strategyLab?.momentumParams || { asset: "AGQ", triggerPct: -3 };
 
-  const tabMom     = activeStrategy === "momentum" ? "lab-tab lab-tab--active" : "lab-tab";
-  const tabVix     = activeStrategy === "vix"      ? "lab-tab lab-tab--active" : "lab-tab";
-  const tabGs      = activeStrategy === "gs"       ? "lab-tab lab-tab--active" : "lab-tab";
-  const tabOptions = activeStrategy === "options"  ? "lab-tab lab-tab--active" : "lab-tab";
-  const tabRisk    = activeStrategy === "risk"     ? "lab-tab lab-tab--active" : "lab-tab";
-  const tabMacro   = activeStrategy === "macro"    ? "lab-tab lab-tab--active" : "lab-tab";
-  const tabDecision= activeStrategy === "decision" ? "lab-tab lab-tab--active" : "lab-tab";
+  const tab = (id) => activeStrategy === id ? "lab-tab lab-tab--active" : "lab-tab";
 
   let content;
-  if      (activeStrategy === "vix")      content = renderVixLabV2(lab?.vix, lab?.vixMultiHorizon, vixParams, model);
+  if      (activeStrategy === "macro")    content = renderMacroTab(model);
+  else if (activeStrategy === "decision") content = renderDecisionTab(model);
+  else if (activeStrategy === "vix")      content = renderVixLabV2(lab?.vix, lab?.vixMultiHorizon, vixParams, model);
   else if (activeStrategy === "gs")       content = renderGoldSilverLabV2(lab?.goldSilver, gsParams, model);
   else if (activeStrategy === "options")  content = renderOptionsTab(model);
   else if (activeStrategy === "risk")     content = renderRiskTab(model);
-  else if (activeStrategy === "macro")    content = renderMacroTab(model);
-  else if (activeStrategy === "decision") content = renderDecisionTab(model);
-  else content = renderMomentumModule(lab?.momentumResult, state.scout.strategyLab?.momentumParams || {}, model);
+  else                                    content = renderMomentumModule(lab?.momentumResult, state.scout.strategyLab?.momentumParams || {}, model);
 
   return `
     <section class="panel">
-      <div class="panel-header">
+      <div class="panel-header" style="margin-bottom:0">
         <div>
-          <p class="scout-section-label">Research &amp; Backtest</p>
-          <h2>Strategy Lab</h2>
-          <p class="panel-subtitle">Momentum patterns, historical backtests, rule-based signals. Every entry rule explicit, every trade visible.</p>
+          <h2>Scout</h2>
+          <p class="panel-subtitle">Macro context → decision framework → strategy backtests → execution tools</p>
         </div>
         <span class="status-pill ${getScoutStatusClass(model.dataStatus)}">${escapeHtml(model.dataStatus)}</span>
       </div>
-      <div class="lab-tabs">
-        <button type="button" class="${tabVix}"      data-lab-strategy="vix">VIX Spike Entry</button>
-        <button type="button" class="${tabGs}"       data-lab-strategy="gs">Gold/Silver</button>
-        <button type="button" class="${tabMom}"      data-lab-strategy="momentum">Momentum Analysis</button>
-        <button type="button" class="${tabOptions}"  data-lab-strategy="options">Options</button>
-        <button type="button" class="${tabRisk}"     data-lab-strategy="risk">Risk</button>
-        <button type="button" class="${tabMacro}"    data-lab-strategy="macro">Macro</button>
-        <button type="button" class="${tabDecision}" data-lab-strategy="decision">Decision</button>
+      <div class="lab-tabs" style="margin-top:1rem">
+        <button type="button" class="${tab("macro")}"    data-lab-strategy="macro">Macro</button>
+        <button type="button" class="${tab("decision")}" data-lab-strategy="decision">Decision</button>
+        <button type="button" class="${tab("vix")}"      data-lab-strategy="vix">VIX Backtest</button>
+        <button type="button" class="${tab("gs")}"       data-lab-strategy="gs">Gold/Silver</button>
+        <button type="button" class="${tab("momentum")}" data-lab-strategy="momentum">Momentum</button>
+        <button type="button" class="${tab("options")}"  data-lab-strategy="options">Options</button>
+        <button type="button" class="${tab("risk")}"     data-lab-strategy="risk">Risk</button>
       </div>
       ${content}
     </section>
@@ -4303,10 +4294,10 @@ function renderMomentumAnalysis(model) {
 }
 
 function renderMomentumModule(result, params, model) {
-  const ASSETS = ["AGQ", "SLV", "GLD", "RING", "GDX", "SPY"];
-  const TRIGGERS = [1, 2, 3, 4, 5];
-  const activeAsset = params.asset || "AGQ";
-  const activeDirection = params.direction || "down";
+  const ASSETS    = ["AGQ", "SLV", "GLD", "RING", "GDX", "SPY"];
+  const TRIGGERS  = [1, 2, 3, 4, 5];
+  const activeAsset      = params.asset     || "AGQ";
+  const activeDirection  = params.direction || "down";
   const activeTriggerAbs = Math.abs(params.triggerPct ?? 3);
   const isDown = activeDirection === "down";
 
@@ -4314,44 +4305,47 @@ function renderMomentumModule(result, params, model) {
     `<button class="trigger-tab ${a === activeAsset ? "trigger-tab--active" : ""}" data-momentum-asset="${escapeHtml(a)}">${a}</button>`
   ).join("");
 
-  // Trigger tabs — stored value is signed, display is absolute
   const triggerTabs = TRIGGERS.map((t) => {
     const stored = isDown ? -t : t;
-    return `<button class="trigger-tab ${t === activeTriggerAbs ? "trigger-tab--active" : ""}" data-momentum-trigger="${stored}" style="font-size:11px">${t}%</button>`;
+    return `<button class="trigger-tab ${t === activeTriggerAbs ? "trigger-tab--active" : ""}" data-momentum-trigger="${stored}">${isDown ? "−" : "+"}${t}%</button>`;
   }).join("");
 
-  const noData = !result || !result.horizons || result.totalEvents === 0;
   const col1Label = isDown ? "Bounce %" : "Continues %";
   const col2Label = isDown ? "Continues %" : "Reversal %";
+  const col1Title = isDown ? "Price higher than trigger-day close (recovery)" : "Price higher at horizon (momentum continues)";
+  const col2Title = isDown ? "Price still lower (drop extended)" : "Price lower at horizon (reversal)";
 
-  // Verdict based on 5D horizon
+  const noData = !result || !result.horizons || result.totalEvents === 0;
+
+  // ── Verdict: use 5D for primary signal ───────────────────────────────────
   let verdictHtml;
   if (noData) {
     verdictHtml = `<div class="verdict-bar verdict-neutral">No events found for ${activeAsset} ${isDown ? "drops" : "rises"} ≥${activeTriggerAbs}%. Try a smaller trigger or different asset.</div>`;
   } else {
     const h5 = result.horizons.find((h) => h.horizon === 5);
     if (!h5 || h5.n < 5) {
-      verdictHtml = `<div class="verdict-bar verdict-neutral">Not enough 5D samples yet (n=${h5?.n ?? 0}, need ≥5).</div>`;
+      verdictHtml = `<div class="verdict-bar verdict-neutral">Not enough 5D samples yet (n=${h5?.n ?? 0}, need ≥5). More history needed.</div>`;
     } else {
       const edge = (h5.bounceRate || 0) - (h5.contRate || 0);
       let cls, text;
       if (isDown) {
-        if (edge > 10)       { cls = "verdict-no";    text = `Bounce edge: after ${activeAsset} drops ≥${activeTriggerAbs}%, price is higher 5D later in ${h5.bounceRate?.toFixed(0)}% of cases. Avg: ${h5.avgReturn >= 0 ? "+" : ""}${h5.avgReturn?.toFixed(1)}%. n=${h5.n}.`; }
-        else if (edge < -10) { cls = "verdict-go";    text = `Continuation: drop tends to persist. Price still lower 5D later in ${h5.contRate?.toFixed(0)}% of cases. Avg: ${h5.avgReturn?.toFixed(1)}%. n=${h5.n}.`; }
-        else                 { cls = "verdict-mixed"; text = `Near coin-flip at 5D after ≥${activeTriggerAbs}% drop (bounce ${h5.bounceRate?.toFixed(0)}% vs cont ${h5.contRate?.toFixed(0)}%). No reliable edge. n=${h5.n}.`; }
+        if (edge > 10)       { cls = "verdict-no";    text = `Bounce edge: after ${activeAsset} drops ≥${activeTriggerAbs}%, price is higher 5D later in ${h5.bounceRate?.toFixed(0)}% of cases. Avg return: ${h5.avgReturn >= 0 ? "+" : ""}${h5.avgReturn?.toFixed(1)}%. n = ${h5.n} events.`; }
+        else if (edge < -10) { cls = "verdict-go";    text = `Continuation: drop tends to persist. Price still lower 5D later in ${h5.contRate?.toFixed(0)}% of cases. Avg return: ${h5.avgReturn?.toFixed(1)}%. n = ${h5.n}.`; }
+        else                 { cls = "verdict-mixed"; text = `Near coin-flip at 5D after ≥${activeTriggerAbs}% drop. Bounce ${h5.bounceRate?.toFixed(0)}% vs continuation ${h5.contRate?.toFixed(0)}%. No reliable edge. n = ${h5.n}.`; }
       } else {
-        if (edge > 10)       { cls = "verdict-no";    text = `Momentum continues: after ${activeAsset} rises ≥${activeTriggerAbs}%, price is still higher 5D later in ${h5.bounceRate?.toFixed(0)}% of cases. Avg: +${h5.avgReturn?.toFixed(1)}%. n=${h5.n}.`; }
-        else if (edge < -10) { cls = "verdict-go";    text = `Mean reversion: rise tends to reverse. Price lower 5D later in ${h5.contRate?.toFixed(0)}% of cases. Avg: ${h5.avgReturn?.toFixed(1)}%. n=${h5.n}.`; }
-        else                 { cls = "verdict-mixed"; text = `No clear edge at 5D after ≥${activeTriggerAbs}% rise. Near coin-flip. n=${h5.n}.`; }
+        if (edge > 10)       { cls = "verdict-no";    text = `Momentum: after ${activeAsset} rises ≥${activeTriggerAbs}%, price is still higher 5D later in ${h5.bounceRate?.toFixed(0)}% of cases. Avg: +${h5.avgReturn?.toFixed(1)}%. n = ${h5.n}.`; }
+        else if (edge < -10) { cls = "verdict-go";    text = `Mean reversion: rise tends to reverse. Price lower 5D later in ${h5.contRate?.toFixed(0)}% of cases. Avg: ${h5.avgReturn?.toFixed(1)}%. n = ${h5.n}.`; }
+        else                 { cls = "verdict-mixed"; text = `No clear edge at 5D after ≥${activeTriggerAbs}% rise. Near coin-flip. n = ${h5.n}.`; }
       }
       verdictHtml = `<div class="verdict-bar ${cls}">${escapeHtml(text)}</div>`;
     }
   }
 
+  // ── Event-study results table ────────────────────────────────────────────
   const tableRows = noData ? "" : result.horizons.map((h) => {
-    if (!h.n || h.n < 3) return `<tr><td>${escapeHtml(h.label)}</td><td colspan="6" class="val-muted">— too few events</td></tr>`;
+    if (!h.n || h.n < 3) return `<tr><td><strong>${escapeHtml(h.label)}</strong></td><td colspan="6" class="val-muted">— fewer than 3 events</td></tr>`;
     const col1Cls = (h.bounceRate || 0) > 55 ? "pos" : (h.bounceRate || 0) < 45 ? "neg" : "";
-    const col2Cls = (h.contRate || 0) > 55 ? "neg" : "";
+    const col2Cls = (h.contRate  || 0) > 55 ? "neg" : "";
     const retCls  = (h.avgReturn || 0) >= 0 ? "pos" : "neg";
     return `<tr>
       <td><strong>${escapeHtml(h.label)}</strong></td>
@@ -4364,117 +4358,142 @@ function renderMomentumModule(result, params, model) {
     </tr>`;
   }).join("");
 
+  // ── Recent trigger chips ─────────────────────────────────────────────────
   const recentHtml = (result?.recentEvents || []).length ? `
-    <div style="margin-top:0.75rem">
-      <p class="lab-block-title">Recent Triggers — last ${result.recentEvents.length} events</p>
-      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:0.3rem">
+    <div style="margin-top:1rem">
+      <p class="lab-block-title" style="margin-bottom:0.4rem">Recent Trigger Events</p>
+      <div style="display:flex;flex-wrap:wrap;gap:4px">
         ${result.recentEvents.map((e) => `
-          <span style="font-size:0.7rem;padding:2px 8px;border-radius:4px;background:var(--bg-softer);color:${e.triggerReturn < 0 ? "var(--positive)" : "var(--negative)"}">
-            ${escapeHtml(e.date)} ${e.triggerReturn >= 0 ? "+" : ""}${e.triggerReturn?.toFixed(1)}%
+          <span style="font-size:0.7rem;padding:2px 10px;border-radius:4px;background:var(--bg-softer);border:1px solid var(--border);color:${e.triggerReturn < 0 ? "var(--positive)" : "var(--negative)"}">
+            ${escapeHtml(e.date)} &nbsp;${e.triggerReturn >= 0 ? "+" : ""}${e.triggerReturn?.toFixed(1)}%
           </span>
         `).join("")}
       </div>
     </div>
   ` : "";
 
-  // Multi-asset momentum snapshot at top of tab
+  // ── Multi-asset daily snapshot ───────────────────────────────────────────
   const SNAP_ASSETS = ["AGQ", "SLV", "GLD", "RING", "SPY", "VIX"];
-  const labDataSnap = model.macroResearch?.strategyLabData || {};
+  const labData = model.macroResearch?.strategyLabData || {};
   const snapRows = SNAP_ASSETS.map((sym) => {
-    const s = labDataSnap[sym] || [];
-    if (s.length < 22) return `<tr><td>${sym}</td><td colspan="4" class="val-muted right">—</td></tr>`;
+    const s = labData[sym] || [];
+    if (s.length < 22) return `<tr><td><strong>${sym}</strong></td><td colspan="4" class="val-muted right">no data</td></tr>`;
     const now = s[s.length-1]?.value;
-    const p5  = s[s.length-6]?.value, p20 = s[s.length-21]?.value;
-    const r5  = p5  ? ((now/p5-1)*100)  : null;
+    const p1  = s[s.length-2]?.value;
+    const p5  = s[s.length-6]?.value;
+    const p20 = s[s.length-21]?.value;
+    const r1  = p1  ? ((now/p1 -1)*100) : null;
+    const r5  = p5  ? ((now/p5 -1)*100) : null;
     const r20 = p20 ? ((now/p20-1)*100) : null;
     let g=0,l=0;
     for (let i=s.length-14;i<s.length;i++) {
       const d=s[i].value-(s[i-1]?.value||s[i].value);
       if(d>0) g+=d; else l-=d;
     }
-    const rsi=Math.round(100-100/(1+(l===0?100:g/l)));
-    const trend = r20 !== null && r5 !== null
+    const rsi = Math.round(100-100/(1+(l===0?100:g/l)));
+    const trend = r20!==null && r5!==null
       ? (r5 > 1.5 && r20 > 0 ? "BULL" : r5 < -1.5 && r20 < 0 ? "BEAR" : "FLAT")
       : "—";
     const trendCls = trend === "BULL" ? "pos" : trend === "BEAR" ? "neg" : "val-muted";
-    return `
-      <tr>
-        <td><strong>${sym}</strong></td>
-        <td class="right ${r5!==null&&r5>=0?"pos":"neg"}">${r5!==null?(r5>=0?"+":"")+r5.toFixed(1)+"%":"—"}</td>
-        <td class="right ${r20!==null&&r20>=0?"pos":"neg"}">${r20!==null?(r20>=0?"+":"")+r20.toFixed(1)+"%":"—"}</td>
-        <td class="right">${rsi}</td>
-        <td class="right ${trendCls}" style="font-weight:600;font-size:0.72rem">${trend}</td>
-      </tr>
-    `;
+    const fmt = (v) => v !== null ? `${v >= 0 ? "+" : ""}${v.toFixed(1)}%` : "—";
+    const cls = (v) => v !== null ? (v >= 0 ? "pos" : "neg") : "val-muted";
+    return `<tr>
+      <td><strong>${sym}</strong></td>
+      <td class="right ${cls(r1)}">${fmt(r1)}</td>
+      <td class="right ${cls(r5)}">${fmt(r5)}</td>
+      <td class="right ${cls(r20)}">${fmt(r20)}</td>
+      <td class="right val-muted">${rsi}</td>
+      <td class="right ${trendCls}" style="font-weight:600;font-size:0.72rem">${trend}</td>
+    </tr>`;
   }).join("");
 
-  const snapHtml = `
-    <div style="margin-bottom:1rem">
-      <p class="lab-block-title">Multi-Asset Snapshot</p>
-      <p class="lab-block-sub">5D/20D return and RSI-14 for all key assets. BULL = 5D > 1.5% AND 20D > 0. BEAR = 5D < −1.5% AND 20D < 0.</p>
-      <div class="table-wrap" style="margin-top:0.4rem">
-        <table class="lab-trade-table">
-          <thead><tr><th>Asset</th><th class="right">5D Return</th><th class="right">20D Return</th><th class="right">RSI-14</th><th class="right">Trend</th></tr></thead>
-          <tbody>${snapRows}</tbody>
-        </table>
-      </div>
+  // ── Intraday note ─────────────────────────────────────────────────────────
+  const intradayNote = `
+    <div style="margin-top:1.25rem;padding:0.875rem 1rem;background:var(--bg-softer);border:1px solid var(--border);border-radius:6px">
+      <p style="font-weight:600;font-size:0.8rem;margin-bottom:0.5rem;color:var(--text-primary)">Intraday horizons — 1H / 2H / 3H / 6H / 12H</p>
+      <p style="font-size:0.75rem;color:var(--text-secondary);line-height:1.6">
+        This tool runs on <strong>daily closing prices</strong>. For intraday event studies (1H, 2H, 3H, 6H, 12H after a trigger), you need intraday tick/bar data which is not available in this feed.
+        <br>
+        <strong>What to do instead:</strong> When AGQ or SLV triggers a large intraday move, use your broker platform (e.g. IBKR) to check historical intraday behavior for that asset at similar conditions.
+        The daily bounce analysis below (especially 1D) is the closest proxy for "does it recover by close?".
+      </p>
     </div>
-    <hr style="border-color:var(--border);margin:0.75rem 0">
   `;
 
   return `
-    <div class="momentum-module">
-      ${snapHtml}
-      <div class="momentum-module__note">
-        <strong>Question:</strong>
-        After ${activeAsset} ${isDown ? "closes down ≥" : "closes up ≥"}${activeTriggerAbs}% in a single day, what tends to happen over the following days?
-        &nbsp;·&nbsp;
-        <strong>${col1Label}</strong> = price is ${isDown ? "higher" : "higher"} than the trigger-day close at that horizon (${isDown ? "bounce/recovery" : "momentum continues"}).
-        &nbsp;·&nbsp;
-        <strong>${col2Label}</strong> = price is ${isDown ? "lower" : "lower"} (${isDown ? "drop extended" : "reversal"}).
-        &nbsp;·&nbsp;
-        <span class="val-muted">Daily closes only. Intraday horizons (15min–12h) require tick data not available in this feed. No transaction costs assumed.</span>
-      </div>
-      <div class="momentum-module__selectors">
-        <div>
-          <p class="momentum-module__label">Asset</p>
-          <div class="trigger-tabs">${assetTabs}</div>
-        </div>
-        <div>
-          <p class="momentum-module__label">Direction</p>
-          <div class="trigger-tabs">
-            <button class="trigger-tab ${isDown ? "trigger-tab--active" : ""}" data-momentum-direction="down">▼ Drop ≥ X%</button>
-            <button class="trigger-tab ${!isDown ? "trigger-tab--active" : ""}" data-momentum-direction="up">▲ Rise ≥ X%</button>
-          </div>
-        </div>
-        <div>
-          <p class="momentum-module__label">Trigger size (X)</p>
-          <div class="trigger-tabs">${triggerTabs}</div>
-        </div>
-      </div>
-      ${verdictHtml}
-      ${noData ? `<p style="color:var(--text-muted);font-size:0.8rem;padding:0.75rem 0">No events found. Try lowering the trigger size or changing asset.</p>` : `
-        <div class="table-wrap" style="margin-top:0.75rem">
+    <div style="padding:0.5rem 0">
+
+      <div style="margin-bottom:1.25rem">
+        <p class="lab-block-title">Asset Snapshot — current momentum state</p>
+        <p class="lab-block-sub">1D / 5D / 20D returns and RSI-14 for all tracked assets. <strong>BULL</strong> = 5D > +1.5% AND 20D positive. <strong>BEAR</strong> = 5D < −1.5% AND 20D negative.</p>
+        <div class="table-wrap" style="margin-top:0.4rem">
           <table class="lab-trade-table">
-            <thead>
-              <tr>
-                <th>Horizon</th>
-                <th class="right" title="Number of historical trigger events with full forward data">Events (n)</th>
-                <th class="right" title="${isDown ? "Price higher than entry after N days — bounce/recovery" : "Price higher after N days — momentum continued"}">${escapeHtml(col1Label)}</th>
-                <th class="right" title="${isDown ? "Price still lower after N days — drop continued" : "Price lower after N days — reversal"}">${escapeHtml(col2Label)}</th>
-                <th class="right" title="Average forward return across all events at this horizon">Avg Return</th>
-                <th class="right">Best</th>
-                <th class="right">Worst</th>
-              </tr>
-            </thead>
-            <tbody>${tableRows}</tbody>
+            <thead><tr><th>Asset</th><th class="right">1D</th><th class="right">5D</th><th class="right">20D</th><th class="right">RSI-14</th><th class="right">Trend</th></tr></thead>
+            <tbody>${snapRows}</tbody>
           </table>
         </div>
-        <p class="lab-block-sub" style="margin-top:0.4rem">
-          ${result.totalEvents} total historical triggers. ${isDown ? "Entry = close on drop day. Forward return = close at horizon / drop-day close − 1." : "Entry = close on surge day. Forward return = close at horizon / surge-day close − 1."}
+      </div>
+
+      <div style="margin-bottom:0.75rem">
+        <p class="lab-block-title">Event Study — what happens after a trigger?</p>
+        <p class="lab-block-sub" style="margin-bottom:0.75rem">
+          <strong>Trigger:</strong> ${activeAsset} ${isDown ? "closes down ≥" : "closes up ≥"}${activeTriggerAbs}% in one trading day.
+          &nbsp;·&nbsp;
+          <strong>${col1Label}</strong>: ${col1Title}.
+          &nbsp;·&nbsp;
+          <strong>${col2Label}</strong>: ${col2Title}.
+          &nbsp;·&nbsp;
+          All based on daily closing prices. No transaction costs assumed.
         </p>
-        ${recentHtml}
-      `}
+
+        <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-bottom:0.75rem;align-items:flex-end">
+          <div>
+            <p class="momentum-module__label" style="margin-bottom:4px">Asset</p>
+            <div class="trigger-tabs">${assetTabs}</div>
+          </div>
+          <div>
+            <p class="momentum-module__label" style="margin-bottom:4px">Direction</p>
+            <div class="trigger-tabs">
+              <button class="trigger-tab ${isDown ? "trigger-tab--active" : ""}" data-momentum-direction="down">▼ Drop</button>
+              <button class="trigger-tab ${!isDown ? "trigger-tab--active" : ""}" data-momentum-direction="up">▲ Rise</button>
+            </div>
+          </div>
+          <div>
+            <p class="momentum-module__label" style="margin-bottom:4px">Trigger size</p>
+            <div class="trigger-tabs">${triggerTabs}</div>
+          </div>
+        </div>
+
+        ${verdictHtml}
+
+        ${noData
+          ? `<p style="color:var(--text-muted);font-size:0.8rem;padding:0.75rem 0">No events found. Try lowering the trigger size or changing asset.</p>`
+          : `
+          <div class="table-wrap" style="margin-top:0.5rem">
+            <table class="lab-trade-table">
+              <thead>
+                <tr>
+                  <th>Horizon</th>
+                  <th class="right">Events (n)</th>
+                  <th class="right" title="${escapeHtml(col1Title)}">${escapeHtml(col1Label)}</th>
+                  <th class="right" title="${escapeHtml(col2Title)}">${escapeHtml(col2Label)}</th>
+                  <th class="right">Avg Return</th>
+                  <th class="right">Best</th>
+                  <th class="right">Worst</th>
+                </tr>
+              </thead>
+              <tbody>${tableRows}</tbody>
+            </table>
+          </div>
+          <p class="lab-block-sub" style="margin-top:0.4rem">
+            ${result.totalEvents} total historical trigger events found.
+            ${isDown ? "Entry at trigger-day close. Forward return = close at N days / trigger-day close − 1." : "Entry at trigger-day close. Forward return = close at N days / trigger-day close − 1."}
+          </p>
+          ${recentHtml}
+        `}
+      </div>
+
+      ${intradayNote}
     </div>
   `;
 }

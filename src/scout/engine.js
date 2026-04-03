@@ -91,7 +91,7 @@ export function createScoutEngine({ config, marketDataGateway }) {
       const momentumResult = runMomentumBacktest({
         priceSeries: momentumSeries,
         triggerPct: momentumTrigger,
-        horizons: [1, 5, 20, 60],
+        horizons: [1, 5, 20, 60, 120, 180, 250],
         direction: momentumParams.direction || "down",
       });
 
