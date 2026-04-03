@@ -410,11 +410,26 @@ function normalizeScoutState(rawScout) {
     },
   };
 
+  // Options calculator state — persisted so inputs survive tab switches
+  const optionsCalc = {
+    type:         rawScout?.optionsCalc?.type || "put",
+    spy:          Number(rawScout?.optionsCalc?.spy   ?? 560),
+    strike:       Number(rawScout?.optionsCalc?.strike ?? 555),
+    premium:      Number(rawScout?.optionsCalc?.premium ?? 3.50),
+    delta:        Number(rawScout?.optionsCalc?.delta  ?? -0.35),
+    gamma:        Number(rawScout?.optionsCalc?.gamma  ?? 0.02),
+    theta:        Number(rawScout?.optionsCalc?.theta  ?? -0.08),
+    vega:         Number(rawScout?.optionsCalc?.vega   ?? 0.25),
+    contracts:    Number(rawScout?.optionsCalc?.contracts ?? 1),
+    expectedMove: Number(rawScout?.optionsCalc?.expectedMove ?? -2),
+  };
+
   return {
     watchlist,
     customPairs,
     lastViewedOpportunityId: rawScout?.lastViewedOpportunityId ? String(rawScout.lastViewedOpportunityId) : null,
     strategyLab,
+    optionsCalc,
   };
 }
 
@@ -1661,6 +1676,21 @@ function setupScout() {
           saveState();
           renderApp();
         }
+      } else if (strategy === "options") {
+        if (!state.scout.optionsCalc) state.scout.optionsCalc = {};
+        const o = state.scout.optionsCalc;
+        o.type         = formData.get("opt-type") === "call" ? "call" : "put";
+        o.spy          = parseFloat(formData.get("opt-spy"))       || o.spy;
+        o.strike       = parseFloat(formData.get("opt-strike"))    || o.strike;
+        o.premium      = parseFloat(formData.get("opt-premium"))   || o.premium;
+        o.delta        = parseFloat(formData.get("opt-delta"))     ?? o.delta;
+        o.gamma        = parseFloat(formData.get("opt-gamma"))     || o.gamma;
+        o.theta        = parseFloat(formData.get("opt-theta"))     ?? o.theta;
+        o.vega         = parseFloat(formData.get("opt-vega"))      || o.vega;
+        o.contracts    = parseInt(formData.get("opt-contracts"), 10) || o.contracts;
+        o.expectedMove = parseFloat(formData.get("opt-move"))      ?? o.expectedMove;
+        saveState();
+        renderApp();
       }
       return;
     }
@@ -3724,13 +3754,21 @@ function renderStrategyLab(model) {
   const gsParams = state.scout.strategyLab?.gsParams || { entryRatio: 75, exitRatio: 50, maxDays: 180 };
   const momentumParams = state.scout.strategyLab?.momentumParams || { asset: "AGQ", triggerPct: -3 };
 
-  const tabMom = activeStrategy === "momentum" ? "lab-tab lab-tab--active" : "lab-tab";
-  const tabVix = activeStrategy === "vix" ? "lab-tab lab-tab--active" : "lab-tab";
-  const tabGs  = activeStrategy === "gs"  ? "lab-tab lab-tab--active" : "lab-tab";
+  const tabMom     = activeStrategy === "momentum" ? "lab-tab lab-tab--active" : "lab-tab";
+  const tabVix     = activeStrategy === "vix"      ? "lab-tab lab-tab--active" : "lab-tab";
+  const tabGs      = activeStrategy === "gs"       ? "lab-tab lab-tab--active" : "lab-tab";
+  const tabOptions = activeStrategy === "options"  ? "lab-tab lab-tab--active" : "lab-tab";
+  const tabRisk    = activeStrategy === "risk"     ? "lab-tab lab-tab--active" : "lab-tab";
+  const tabMacro   = activeStrategy === "macro"    ? "lab-tab lab-tab--active" : "lab-tab";
+  const tabDecision= activeStrategy === "decision" ? "lab-tab lab-tab--active" : "lab-tab";
 
   let content;
-  if (activeStrategy === "vix") content = renderVixLabV2(lab?.vix, lab?.vixMultiHorizon, vixParams, model);
-  else if (activeStrategy === "gs") content = renderGoldSilverLabV2(lab?.goldSilver, gsParams, model);
+  if      (activeStrategy === "vix")      content = renderVixLabV2(lab?.vix, lab?.vixMultiHorizon, vixParams, model);
+  else if (activeStrategy === "gs")       content = renderGoldSilverLabV2(lab?.goldSilver, gsParams, model);
+  else if (activeStrategy === "options")  content = renderOptionsTab(model);
+  else if (activeStrategy === "risk")     content = renderRiskTab(model);
+  else if (activeStrategy === "macro")    content = renderMacroTab(model);
+  else if (activeStrategy === "decision") content = renderDecisionTab(model);
   else content = renderMomentumModule(lab?.momentumResult, state.scout.strategyLab?.momentumParams || {}, model);
 
   return `
@@ -3744,9 +3782,13 @@ function renderStrategyLab(model) {
         <span class="status-pill ${getScoutStatusClass(model.dataStatus)}">${escapeHtml(model.dataStatus)}</span>
       </div>
       <div class="lab-tabs">
-        <button type="button" class="${tabMom}" data-lab-strategy="momentum">Momentum Analysis</button>
-        <button type="button" class="${tabVix}" data-lab-strategy="vix">VIX Spike Entry</button>
-        <button type="button" class="${tabGs}" data-lab-strategy="gs">Gold/Silver Reversion</button>
+        <button type="button" class="${tabMom}"      data-lab-strategy="momentum">Momentum</button>
+        <button type="button" class="${tabVix}"      data-lab-strategy="vix">VIX Backtest</button>
+        <button type="button" class="${tabGs}"       data-lab-strategy="gs">Gold/Silver</button>
+        <button type="button" class="${tabOptions}"  data-lab-strategy="options">Options</button>
+        <button type="button" class="${tabRisk}"     data-lab-strategy="risk">Risk</button>
+        <button type="button" class="${tabMacro}"    data-lab-strategy="macro">Macro</button>
+        <button type="button" class="${tabDecision}" data-lab-strategy="decision">Decision</button>
       </div>
       ${content}
     </section>
@@ -4452,6 +4494,543 @@ function renderMomentumModule(result, params, model) {
         </p>
         ${recentHtml}
       `}
+    </div>
+  `;
+}
+
+// ---------------------------------------------------------------------------
+// OPTIONS TAB — SPY options P&L calculator with Greeks explanations
+// ---------------------------------------------------------------------------
+
+function renderOptionsTab(model) {
+  const oc = state.scout?.optionsCalc || {};
+  const type        = oc.type        || "put";
+  const spy         = Number(oc.spy         ?? 560);
+  const strike      = Number(oc.strike      ?? 555);
+  const premium     = Number(oc.premium     ?? 3.50);
+  const delta       = Number(oc.delta       ?? -0.35);
+  const gamma       = Number(oc.gamma       ?? 0.02);
+  const theta       = Number(oc.theta       ?? -0.08);
+  const vega        = Number(oc.vega        ?? 0.25);
+  const contracts   = Number(oc.contracts   ?? 1);
+  const expectedMove= Number(oc.expectedMove ?? -2);
+
+  // ── Compute P&L at expected move ──────────────────────────────────────────
+  const spyChg       = spy * (expectedMove / 100);          // $ change in SPY
+  const deltaChg     = delta * spyChg;                      // 1st-order price change
+  const gammaAdj     = 0.5 * gamma * spyChg * spyChg;      // 2nd-order (convexity)
+  const optionChgEst = deltaChg + gammaAdj;
+  const newPremium   = Math.max(0, premium + optionChgEst);
+  const pnlPerContr  = (newPremium - premium) * 100;        // each contract = 100 shares
+  const totalPnl     = pnlPerContr * contracts;
+
+  // ── Scenarios: −5% to +5% SPY move ────────────────────────────────────────
+  const scenarios = [-5, -3, -2, -1, 0, 1, 2, 3, 5].map((pct) => {
+    const chg  = spy * (pct / 100);
+    const dChg = delta * chg + 0.5 * gamma * chg * chg;
+    const est  = Math.max(0, premium + dChg);
+    const pnl  = (est - premium) * 100 * contracts;
+    return { pct, est, pnl };
+  });
+
+  const scenRows = scenarios.map(({ pct, est, pnl }) => {
+    const cls = pnl > 0 ? "pos" : pnl < 0 ? "neg" : "";
+    const isTarget = pct === Math.round(expectedMove);
+    return `<tr${isTarget ? ' style="background:var(--bg-softer);font-weight:600"' : ""}>
+      <td>${pct >= 0 ? "+" : ""}${pct}%</td>
+      <td class="right">$${(spy * (1 + pct / 100)).toFixed(2)}</td>
+      <td class="right">$${est.toFixed(2)}</td>
+      <td class="right ${cls}">${pnl >= 0 ? "+" : ""}$${pnl.toFixed(0)}</td>
+    </tr>`;
+  }).join("");
+
+  const pnlCls = totalPnl >= 0 ? "lab-stat__value--positive" : "lab-stat__value--negative";
+  const isPut = type === "put";
+  const isCall = type === "call";
+
+  // ── Greeks guide ────────────────────────────────────────────────────────────
+  const greeksGuide = `
+    <div style="margin-top:1.25rem">
+      <p class="lab-block-title">Understanding the Greeks — what each number means</p>
+      <div style="display:grid;gap:0.75rem;margin-top:0.5rem">
+        <div style="padding:0.75rem;background:var(--bg-softer);border-radius:6px">
+          <p style="font-weight:600;font-size:0.82rem;margin-bottom:0.3rem">Delta (δ) = ${delta >= 0 ? "+" : ""}${delta}</p>
+          <p style="font-size:0.75rem;color:var(--text-secondary);line-height:1.6">
+            <strong>What it is:</strong> how much the option price moves for every $1 move in ${isPut ? "SPY (negative for puts — they gain when SPY drops)" : "SPY (positive for calls — they gain when SPY rises)"}.
+            <br><strong>Your position:</strong> With delta = ${delta}, if SPY moves $1, your option changes by ~$${Math.abs(delta).toFixed(2)}.
+            With ${contracts} contract${contracts !== 1 ? "s" : ""} (${contracts * 100} shares), that's ~$${(Math.abs(delta) * contracts * 100).toFixed(0)} per $1 SPY move.
+            <br><strong>Range:</strong> ${isPut ? "0 to −1 for puts (deep ITM = −1, far OTM ≈ 0)" : "0 to +1 for calls (deep ITM = +1, far OTM ≈ 0)"}.
+          </p>
+        </div>
+        <div style="padding:0.75rem;background:var(--bg-softer);border-radius:6px">
+          <p style="font-weight:600;font-size:0.82rem;margin-bottom:0.3rem">Gamma (γ) = ${gamma}</p>
+          <p style="font-size:0.75rem;color:var(--text-secondary);line-height:1.6">
+            <strong>What it is:</strong> how fast delta changes as SPY moves. If SPY drops $10, gamma tells you delta won't stay at ${delta} — it will get more negative (put gains more).
+            <br><strong>Practical impact:</strong> Gamma is why big moves are <em>better than expected</em> for option buyers. On a $10 SPY drop, your put doesn't just gain ${delta} × 10 = $${(delta * 10).toFixed(2)} — it gains more because delta grows. The extra is ½ × ${gamma} × 10² = $${(0.5 * gamma * 100).toFixed(2)}.
+          </p>
+        </div>
+        <div style="padding:0.75rem;background:var(--bg-softer);border-radius:6px">
+          <p style="font-weight:600;font-size:0.82rem;margin-bottom:0.3rem">Theta (θ) = ${theta} per day</p>
+          <p style="font-size:0.75rem;color:var(--text-secondary);line-height:1.6">
+            <strong>What it is:</strong> time decay — how much the option loses in value every calendar day just from time passing, with everything else held constant.
+            <br><strong>Your position:</strong> This option loses $${Math.abs(theta * 100 * contracts).toFixed(0)}/day across your ${contracts} contract${contracts !== 1 ? "s" : ""}. Over a week: −$${Math.abs(theta * 100 * contracts * 7).toFixed(0)}. <strong>Time works against option buyers.</strong>
+          </p>
+        </div>
+        <div style="padding:0.75rem;background:var(--bg-softer);border-radius:6px">
+          <p style="font-weight:600;font-size:0.82rem;margin-bottom:0.3rem">Vega (ν) = ${vega}</p>
+          <p style="font-size:0.75rem;color:var(--text-secondary);line-height:1.6">
+            <strong>What it is:</strong> how much the option price changes per 1 percentage point move in implied volatility (IV).
+            <br><strong>Your position:</strong> If IV rises +5 pp (e.g., VIX spikes), your option gains +$${(vega * 5 * 100 * contracts).toFixed(0)}. If IV falls −5 pp (calm market), you lose −$${(vega * 5 * 100 * contracts).toFixed(0)}.
+            <br><strong>Why it matters:</strong> When you buy ${isPut ? "a put" : "a call"} expecting a move, volatility compression can kill P&L even if you're directionally right.
+          </p>
+        </div>
+      </div>
+    </div>
+  `;
+
+  return `
+    <div class="lab-layout">
+      <div class="lab-sidebar">
+        <div class="lab-params">
+          <p class="lab-params__title">Position Inputs</p>
+          <form data-lab-form="options">
+            <div class="lab-field">
+              <label>Type</label>
+              <select name="opt-type">
+                <option value="put"  ${type === "put"  ? "selected" : ""}>Put (bearish)</option>
+                <option value="call" ${type === "call" ? "selected" : ""}>Call (bullish)</option>
+              </select>
+            </div>
+            <div class="lab-field">
+              <label>SPY price (current)</label>
+              <input type="number" name="opt-spy" value="${spy}" step="0.5" min="100" max="1000" />
+            </div>
+            <div class="lab-field">
+              <label>Strike price</label>
+              <input type="number" name="opt-strike" value="${strike}" step="0.5" min="100" max="1000" />
+            </div>
+            <div class="lab-field">
+              <label>Premium paid ($)</label>
+              <input type="number" name="opt-premium" value="${premium}" step="0.05" min="0.01" max="200" />
+            </div>
+            <div class="lab-field">
+              <label>Delta</label>
+              <input type="number" name="opt-delta" value="${delta}" step="0.01" min="-1" max="1" />
+            </div>
+            <div class="lab-field">
+              <label>Gamma</label>
+              <input type="number" name="opt-gamma" value="${gamma}" step="0.001" min="0" max="0.5" />
+            </div>
+            <div class="lab-field">
+              <label>Theta (per day)</label>
+              <input type="number" name="opt-theta" value="${theta}" step="0.01" min="-5" max="0" />
+            </div>
+            <div class="lab-field">
+              <label>Vega</label>
+              <input type="number" name="opt-vega" value="${vega}" step="0.01" min="0" max="5" />
+            </div>
+            <div class="lab-field">
+              <label>Contracts (1 = 100 shares)</label>
+              <input type="number" name="opt-contracts" value="${contracts}" step="1" min="1" max="1000" />
+            </div>
+            <div class="lab-field">
+              <label>Expected SPY move (%)</label>
+              <input type="number" name="opt-move" value="${expectedMove}" step="0.5" min="-30" max="30" />
+            </div>
+            <button type="submit" class="button button--primary button--small" style="width:100%;margin-top:0.6rem">Calculate P&amp;L</button>
+          </form>
+          <div style="margin-top:1rem;padding:0.75rem;background:var(--bg-softer);border-radius:6px;font-size:0.72rem;line-height:1.6">
+            <p style="font-weight:600;margin-bottom:0.3rem">How the calculation works</p>
+            <p>Option value change ≈ <strong>Delta × ΔSPY + ½ × Gamma × ΔSPY²</strong></p>
+            <p style="color:var(--text-muted);margin-top:0.3rem">This is the 2nd-order Taylor approximation. Accurate for moderate moves (&lt;5%). For larger moves, actual results diverge.</p>
+          </div>
+        </div>
+      </div>
+      <div class="lab-results">
+        <div class="verdict-bar ${totalPnl >= 0 ? "verdict-no" : "verdict-go"}" style="margin-bottom:1rem">
+          If SPY moves ${expectedMove >= 0 ? "+" : ""}${expectedMove}%, your ${contracts} contract${contracts !== 1 ? "s" : ""} should ${totalPnl >= 0 ? "gain" : "lose"} approximately <strong>${totalPnl >= 0 ? "+" : ""}$${Math.abs(totalPnl).toFixed(0)}</strong>.
+          Option price: $${premium.toFixed(2)} → ~$${newPremium.toFixed(2)}.
+        </div>
+        <div class="lab-stats-row" style="margin-bottom:1rem">
+          <div class="lab-stat"><span class="lab-stat__label">Type</span><span class="lab-stat__value lab-stat__value--muted">${escapeHtml(type.toUpperCase())}</span></div>
+          <div class="lab-stat"><span class="lab-stat__label">Strike</span><span class="lab-stat__value lab-stat__value--muted">$${strike.toFixed(0)}</span></div>
+          <div class="lab-stat"><span class="lab-stat__label">Premium paid</span><span class="lab-stat__value lab-stat__value--muted">$${premium.toFixed(2)}</span></div>
+          <div class="lab-stat"><span class="lab-stat__label">Est. new premium</span><span class="lab-stat__value">${newPremium >= premium ? "lab-stat__value--positive" : "lab-stat__value--negative"}">${newPremium >= premium ? "▲" : "▼"} $${newPremium.toFixed(2)}</span></div>
+          <div class="lab-stat"><span class="lab-stat__label">Total P&amp;L</span><span class="lab-stat__value ${pnlCls}">${totalPnl >= 0 ? "+" : ""}$${totalPnl.toFixed(0)}</span></div>
+          <div class="lab-stat"><span class="lab-stat__label">Max loss (if expires worthless)</span><span class="lab-stat__value lab-stat__value--negative">−$${(premium * 100 * contracts).toFixed(0)}</span></div>
+        </div>
+        <p class="lab-block-title">P&amp;L across SPY scenarios</p>
+        <p class="lab-block-sub">Each row = what happens at that SPY move. Highlighted row = your expected move. P&amp;L = (new option price − premium paid) × 100 × contracts.</p>
+        <div class="table-wrap">
+          <table class="lab-trade-table">
+            <thead><tr><th>SPY move</th><th class="right">SPY price</th><th class="right">Est. option value</th><th class="right">P&amp;L</th></tr></thead>
+            <tbody>${scenRows}</tbody>
+          </table>
+        </div>
+        ${greeksGuide}
+      </div>
+    </div>
+  `;
+}
+
+// ---------------------------------------------------------------------------
+// RISK TAB — Correlation matrix + cluster identification
+// ---------------------------------------------------------------------------
+
+function renderRiskTab(model) {
+  const labData = model.macroResearch?.strategyLabData || {};
+  const ASSETS  = ["AGQ", "SLV", "GLD", "RING", "GDX", "SPY"];
+
+  // Compute daily returns for last 63 trading days (~3 months)
+  function dailyReturns(sym) {
+    const s = labData[sym] || [];
+    if (s.length < 10) return [];
+    const slice = s.slice(-64);
+    return slice.slice(1).map((p, i) =>
+      (slice[i].value && p.value) ? ((p.value / slice[i].value) - 1) : null
+    ).filter((r) => r !== null);
+  }
+
+  function pearson(a, b) {
+    const n = Math.min(a.length, b.length);
+    if (n < 10) return null;
+    const ax = a.slice(-n), bx = b.slice(-n);
+    const ma = ax.reduce((s, v) => s + v, 0) / n;
+    const mb = bx.reduce((s, v) => s + v, 0) / n;
+    let num = 0, da = 0, db = 0;
+    for (let i = 0; i < n; i++) {
+      num += (ax[i] - ma) * (bx[i] - mb);
+      da  += (ax[i] - ma) ** 2;
+      db  += (bx[i] - mb) ** 2;
+    }
+    const denom = Math.sqrt(da * db);
+    return denom ? Math.round((num / denom) * 100) / 100 : null;
+  }
+
+  const returns = {};
+  for (const sym of ASSETS) returns[sym] = dailyReturns(sym);
+
+  const hasData = ASSETS.some((s) => returns[s].length >= 10);
+  if (!hasData) {
+    return `<div class="lab-empty" style="padding:2rem;text-align:left">Correlation data not available yet — waiting for price series to load.</div>`;
+  }
+
+  // Correlation cell background
+  function corrBg(v) {
+    if (v === null) return "var(--bg-softer)";
+    const abs = Math.abs(v);
+    if (v === 1.00)  return "var(--bg-softer)";
+    if (v  >  0.75)  return "rgba(239,68,68,0.35)";    // high positive — same risk
+    if (v  >  0.45)  return "rgba(251,146,60,0.25)";   // moderate positive
+    if (v  >  0.15)  return "rgba(250,204,21,0.15)";   // mild positive
+    if (v  < -0.30)  return "rgba(74,222,128,0.25)";   // negative — hedge potential
+    return "transparent";
+  }
+
+  const corrMatrix = ASSETS.map((rowSym) =>
+    ASSETS.map((colSym) => {
+      if (rowSym === colSym) return 1.00;
+      return pearson(returns[rowSym], returns[colSym]);
+    })
+  );
+
+  const headerCols = ASSETS.map((s) => `<th class="right" style="min-width:52px">${s}</th>`).join("");
+  const matrixRows = ASSETS.map((rowSym, ri) => {
+    const cells = ASSETS.map((colSym, ci) => {
+      const v = corrMatrix[ri][ci];
+      const bg = corrBg(v);
+      const txt = v === null ? "—" : v.toFixed(2);
+      return `<td class="right" style="background:${bg};font-weight:${v !== null && Math.abs(v) > 0.7 && v !== 1 ? "600" : "400"}">${txt}</td>`;
+    }).join("");
+    return `<tr><td><strong>${rowSym}</strong></td>${cells}</tr>`;
+  }).join("");
+
+  // Cluster detection: assets with >0.70 correlation to anything
+  const clusters = { metals: [], equity: [], mixed: [] };
+  const metalGroup = ["AGQ", "SLV", "GLD", "RING", "GDX"];
+  metalGroup.forEach((s) => { if (returns[s].length >= 10) clusters.metals.push(s); });
+  if (returns.SPY.length >= 10) clusters.equity.push("SPY");
+
+  const clusterHtml = `
+    <div style="margin-top:1rem;display:flex;gap:0.75rem;flex-wrap:wrap">
+      <div style="padding:0.6rem 0.85rem;background:rgba(239,68,68,0.12);border-radius:6px;font-size:0.75rem">
+        <span style="font-weight:600">Metals cluster:</span> ${clusters.metals.join(", ")} — likely all exposed to the same silver/gold risk factor. A single macro move (real rates, dollar) hits all at once.
+      </div>
+      <div style="padding:0.6rem 0.85rem;background:rgba(99,102,241,0.12);border-radius:6px;font-size:0.75rem">
+        <span style="font-weight:600">Equity:</span> SPY — partially decorrelated from metals in risk-on environments, correlated during systemic stress.
+      </div>
+    </div>
+  `;
+
+  // Concentration warning
+  const metalAssets = metalGroup.filter((s) => returns[s].length >= 10);
+  const concWarning = metalAssets.length >= 3 ? `
+    <div class="verdict-bar verdict-mixed" style="margin-bottom:1rem">
+      <strong>Concentration warning:</strong> You have ${metalAssets.length} metals positions (${metalAssets.join(", ")}). These are highly correlated — in a single macro shock, they move together. Your effective exposure is larger than the number of positions suggests.
+    </div>
+  ` : "";
+
+  return `
+    <div style="padding:0.5rem 0">
+      <p class="lab-block-title">Correlation Matrix — last 63 trading days (~3 months)</p>
+      <p class="lab-block-sub">
+        How much each pair of assets moves together. <strong>+1.0</strong> = perfectly in sync (same risk). <strong>0.0</strong> = independent. <strong>−1.0</strong> = perfect hedge.
+        <span style="display:inline-block;padding:1px 6px;background:rgba(239,68,68,0.3);border-radius:3px;font-size:0.7rem;margin-left:4px">Red</span> = highly correlated (&gt;0.75).
+        <span style="display:inline-block;padding:1px 6px;background:rgba(74,222,128,0.25);border-radius:3px;font-size:0.7rem;margin-left:4px">Green</span> = negative (potential hedge).
+      </p>
+      ${concWarning}
+      <div class="table-wrap" style="margin-top:0.75rem">
+        <table class="lab-trade-table">
+          <thead><tr><th></th>${headerCols}</tr></thead>
+          <tbody>${matrixRows}</tbody>
+        </table>
+      </div>
+      ${clusterHtml}
+      <div style="margin-top:1.25rem;padding:0.75rem;background:var(--bg-softer);border-radius:6px;font-size:0.75rem;line-height:1.65">
+        <p style="font-weight:600;margin-bottom:0.4rem">How to use this</p>
+        <p>If two assets have correlation &gt; 0.75, they share the same risk factor. Holding both gives you more of the same bet, not diversification. To reduce cluster risk: either size down overlapping positions, or hedge one leg with an inversely correlated asset.</p>
+        <p style="margin-top:0.4rem;color:var(--text-muted)">Note: correlations are unstable — they rise during crises (everything correlates) and fall in normal markets. This matrix reflects recent history, not permanent structure.</p>
+      </div>
+    </div>
+  `;
+}
+
+// ---------------------------------------------------------------------------
+// MACRO TAB — Indicators + trade-level implications
+// ---------------------------------------------------------------------------
+
+function renderMacroTab(model) {
+  const snapshot = model.macroResearch?.macroSnapshot || [];
+  if (!snapshot.length) {
+    return `<div class="lab-empty" style="padding:2rem;text-align:left">Macro data loading…</div>`;
+  }
+
+  const TARGET_CODES = ["DGS10", "DFII10", "T10YIE", "T10Y2Y", "T5YIFR", "DXY", "DTWEXBGS"];
+  const items = snapshot.filter((s) => TARGET_CODES.includes(s.code));
+
+  // Trade implication per indicator
+  function tradeImplication(code, interp, value, change20) {
+    if (code === "DFII10") {
+      if (value > 1.5)  return { text: "Avoid long gold/silver. Real rates above 1.5% have historically been negative for metals. Wait for rate compression before adding metals exposure.", caution: true };
+      if (value > 0)    return { text: "Modest headwind for metals. Gold/silver can still work but will need strong inflation narrative to overcome. Size down.", caution: true };
+      return { text: "Favorable for gold/silver. Negative real rates are the single best structural setup for metals. Full sizing justified.", caution: false };
+    }
+    if (code === "T10YIE") {
+      if (value > 2.5)  return { text: "Inflation expectations supportive. Long silver/gold thesis intact. Metals as inflation hedge is active.", caution: false };
+      if (value >= 2.0) return { text: "Neutral. Inflation on-target — no strong push for metals. Needs catalyst (supply shock, Fed pivot) to activate metals trade.", caution: false };
+      return { text: "Watch out. Low inflation expectations reduce metals appeal. Deflationary pressure = gold may hold but silver underperforms.", caution: true };
+    }
+    if (code === "T10Y2Y") {
+      if (value > 50)   return { text: "Steepening curve = reflation trade on. Supports silver, cyclicals, and growth. Constructive for risk-on metals thesis.", caution: false };
+      if (value > -10)  return { text: "Flat curve = no clear regime signal. Don't over-trade. Wait for curve to pick a direction.", caution: false };
+      return { text: "Inverted curve = recession risk elevated. Equities face headwinds. Prefer GLD over SLV/AGQ — flight to safety favors gold over silver.", caution: true };
+    }
+    if (code === "T5YIFR") {
+      if (value > 2.5)  return { text: "Long-term inflation anchored high = secular tailwind for gold/silver. This is the structural backdrop that justifies a core metals position.", caution: false };
+      return { text: "Long-term inflation anchored near target. Gold performs but lacks the structural lift from elevated long-run expectations.", caution: false };
+    }
+    if (code === "DGS10") {
+      if (value > 4.5)  return { text: "High nominal yields = high opportunity cost of holding gold. Reduces relative attractiveness vs cash/bonds. Keep metals sizing light.", caution: true };
+      if (value >= 3.5) return { text: "Moderate yields. Metals compete with bonds. Gold can still work if real rates are low despite nominal yields.", caution: false };
+      return { text: "Low yields = easy financial conditions. Good backdrop for metals and risk assets. Liquidity supportive.", caution: false };
+    }
+    if (code === "DXY" || code === "DTWEXBGS") {
+      if (change20 > 1) return { text: "Dollar strengthening = headwind for gold, silver, and commodities. Consider reducing metals exposure or hedging. Hold off on new entries.", caution: true };
+      if (change20 < -1)return { text: "Dollar weakening = tailwind for gold/silver and EM. Adds to metals thesis. Good entry environment for long metals.", caution: false };
+      return { text: "Dollar stable = neutral. FX not a catalyst in either direction right now. Focus on other signals.", caution: false };
+    }
+    return { text: "", caution: false };
+  }
+
+  const rows = items.map((item) => {
+    const interp = macroInterpretation(item.code, item.latest, item.change20, item.percentile);
+    const impl   = tradeImplication(item.code, interp, item.latest, item.change20);
+    const pct    = Math.round(item.percentile || 0);
+    const threshold = item.unit === "bp" ? 2 : item.unit === "index" ? 0.3 : 0.01;
+    const rising  = item.change20 > threshold;
+    const falling = item.change20 < -threshold;
+    const arrow   = rising ? "↑" : falling ? "↓" : "→";
+    const chgCls  = rising ? "sq-chg-pos" : falling ? "sq-chg-neg" : "sq-chg-flat";
+    const statusCls = interp.cls === "macro-tile--bull" ? "vcell vcell-no"
+      : interp.cls === "macro-tile--bear" ? "vcell vcell-go" : "vcell vcell-gray";
+    return `
+      <tr>
+        <td style="min-width:120px">
+          <div style="font-weight:600;font-size:0.82rem">${escapeHtml(item.label)}</div>
+          <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px">${escapeHtml(interp.text)}</div>
+        </td>
+        <td class="right"><strong>${formatMacroValue(item.latest, item.unit)}</strong></td>
+        <td class="right"><span class="sq-chg ${chgCls}">${arrow} ${escapeHtml(formatMacroDelta(item.change20, item.unit))}</span></td>
+        <td class="right"><span class="vcell vcell-gray" style="font-size:11px">${pct}th</span></td>
+        <td><span class="${statusCls}" style="font-size:0.7rem">${interp.cls === "macro-tile--bull" ? "Tailwind" : interp.cls === "macro-tile--bear" ? "Headwind" : "Neutral"}</span></td>
+        <td style="min-width:260px;font-size:0.73rem;color:${impl.caution ? "var(--negative)" : "var(--text-secondary)"};line-height:1.5">${escapeHtml(impl.text)}</td>
+      </tr>
+    `;
+  }).join("");
+
+  // Overall macro verdict
+  const headwinds = items.filter((item) => {
+    const i = macroInterpretation(item.code, item.latest, item.change20, item.percentile);
+    return i.cls === "macro-tile--bear";
+  }).length;
+  const tailwinds = items.filter((item) => {
+    const i = macroInterpretation(item.code, item.latest, item.change20, item.percentile);
+    return i.cls === "macro-tile--bull";
+  }).length;
+  const total = items.length;
+  const macroScore = total ? Math.round((tailwinds / total) * 100) : 50;
+  const macroVerdict = macroScore >= 60 ? "Macro broadly favorable for metals and risk assets."
+    : macroScore <= 35 ? "Macro broadly unfavorable — multiple headwinds active. Reduce exposure or hedge."
+    : "Macro mixed — some tailwinds, some headwinds. Be selective.";
+
+  return `
+    <div style="padding:0.5rem 0">
+      <div class="verdict-bar ${macroScore >= 60 ? "verdict-no" : macroScore <= 35 ? "verdict-go" : "verdict-mixed"}" style="margin-bottom:1rem">
+        <strong>Macro summary:</strong> ${tailwinds} tailwind${tailwinds !== 1 ? "s" : ""}, ${headwinds} headwind${headwinds !== 1 ? "s" : ""} out of ${total} indicators. ${macroVerdict}
+      </div>
+      <p class="lab-block-title">Indicator Detail with Trade Implications</p>
+      <p class="lab-block-sub">Each row: current reading, 20-day trend, historical percentile, and what it means for your actual trades. Red text = caution. Normal text = favorable or neutral.</p>
+      <div class="table-wrap" style="margin-top:0.5rem;overflow-x:auto">
+        <table class="lab-trade-table">
+          <thead>
+            <tr>
+              <th>Indicator</th>
+              <th class="right">Value</th>
+              <th class="right">20D trend</th>
+              <th class="right">Percentile</th>
+              <th>Signal</th>
+              <th>What it means for your trades</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+// ---------------------------------------------------------------------------
+// DECISION TAB — Short-term + long-term actionable synthesis
+// ---------------------------------------------------------------------------
+
+function renderDecisionTab(model) {
+  const labData = model.macroResearch?.strategyLabData || {};
+  const snapshot = model.macroResearch?.macroSnapshot || [];
+  const gsResult  = model.strategyLab?.goldSilver;
+  const vixResult = model.strategyLab?.vix;
+
+  // Helper: get latest value for a symbol
+  const latest = (sym) => { const s = labData[sym] || []; return s.length ? s[s.length-1]?.value : null; };
+  const ret5d  = (sym) => { const s = labData[sym] || []; if (s.length < 7) return null; const n=s[s.length-1]?.value,p=s[s.length-6]?.value; return (n&&p)?(n/p-1)*100:null; };
+  const ret20d = (sym) => { const s = labData[sym] || []; if (s.length < 22) return null; const n=s[s.length-1]?.value,p=s[s.length-21]?.value; return (n&&p)?(n/p-1)*100:null; };
+
+  const vixNow    = latest("VIX");
+  const spyR5     = ret5d("SPY");
+  const spyR20    = ret20d("SPY");
+  const slvR5     = ret5d("SLV");
+  const slvR20    = ret20d("SLV");
+  const agqR5     = ret5d("AGQ");
+  const gsRatio   = gsResult?.ratioHistory?.length ? gsResult.ratioHistory[gsResult.ratioHistory.length-1]?.value : null;
+
+  const macroItem = (code) => snapshot.find((s) => s.code === code);
+  const realRate  = macroItem("DFII10")?.latest;
+  const breakeven = macroItem("T10YIE")?.latest;
+  const yieldCurve= macroItem("T10Y2Y")?.latest;
+  const dxyChg    = macroItem("DXY")?.change20 || macroItem("DTWEXBGS")?.change20;
+
+  // ── Short-term signals (1–3 months) ──────────────────────────────────────
+  const stSignals = [];
+  const stActions = [];
+  const stAvoids  = [];
+
+  // VIX regime
+  if (vixNow !== null) {
+    if (vixNow >= 30)     { stSignals.push(`VIX ${vixNow.toFixed(1)} — fear spike. Contrarian entry window for SPY (historically above-average forward returns).`); stActions.push("Consider SPY long entry — VIX spike historically precedes mean reversion."); }
+    else if (vixNow >= 22){ stSignals.push(`VIX ${vixNow.toFixed(1)} — elevated. Market stress present but not at panic levels.`); stSignals.push("Monitor for further VIX rise to 30+ for full entry signal."); }
+    else                  { stSignals.push(`VIX ${vixNow.toFixed(1)} — calm. No fear-driven entry opportunity in SPY right now.`); stAvoids.push("Do not chase SPY on VIX spike thesis — VIX not at threshold."); }
+  }
+
+  // Gold/Silver ratio
+  if (gsRatio !== null) {
+    if (gsRatio >= 75)    { stSignals.push(`G/S ratio ${gsRatio.toFixed(1)} — above 75 trigger. Silver historically cheap vs gold.`); stActions.push("Silver mean reversion setup ACTIVE. SIL or AGQ for exposure. Size per conviction."); }
+    else if (gsRatio >= 65){ stSignals.push(`G/S ratio ${gsRatio.toFixed(1)} — approaching 75 trigger. Not yet active but worth watching.`); stSignals.push("Set alert at 75. Prepare position sizing."); }
+    else                  { stAvoids.push("Gold/silver ratio well below 75 — silver not cheap enough vs gold. Avoid entering the mean-reversion trade."); }
+  }
+
+  // AGQ / Silver momentum
+  if (agqR5 !== null) {
+    if (agqR5 <= -3)      { stSignals.push(`AGQ down ${agqR5.toFixed(1)}% in 5 days — potential bounce setup.`); stActions.push("Check Momentum tab: AGQ daily drop backtest. If bounce rate > 60% historically, this is a buying opportunity."); }
+    else if (agqR5 >= 3)  { stSignals.push(`AGQ up ${agqR5.toFixed(1)}% in 5 days — momentum running.`); }
+  }
+
+  // Dollar
+  if (dxyChg !== null) {
+    if (dxyChg > 1)       { stAvoids.push(`Dollar strengthening (20D: +${dxyChg.toFixed(1)}) — headwind for metals. Delay new long entries in silver/gold.`); }
+    else if (dxyChg < -1) { stActions.push(`Dollar weakening (20D: ${dxyChg.toFixed(1)}) — tailwind for metals. Add to conviction for long silver/gold.`); }
+  }
+
+  if (!stActions.length) stActions.push("No high-conviction short-term setup active. Stay light or hold existing positions.");
+  if (!stAvoids.length)  stAvoids.push("No specific near-term risks flagged.");
+
+  // ── Long-term signals (3–12 months) ──────────────────────────────────────
+  const ltSignals = [];
+  const ltActions = [];
+  const ltAvoids  = [];
+
+  if (realRate !== null) {
+    if (realRate > 1.5)   { ltSignals.push(`Real rates at ${realRate.toFixed(2)}% — elevated. Structural headwind for gold/silver.`); ltAvoids.push("Avoid building a large long-term metals position until real rates compress below 1%."); }
+    else if (realRate > 0){ ltSignals.push(`Real rates at ${realRate.toFixed(2)}% — mildly positive. Slight headwind for metals, but not prohibitive.`); }
+    else                  { ltSignals.push(`Real rates at ${realRate.toFixed(2)}% — negative. Structural tailwind for gold/silver.`); ltActions.push("Build core metals position. Negative real rates are the primary long-term driver for gold/silver outperformance."); }
+  }
+  if (breakeven !== null) {
+    if (breakeven > 2.5)  { ltSignals.push(`Inflation expectations at ${breakeven.toFixed(2)}% — elevated. Inflation hedge thesis structurally intact.`); ltActions.push("Long-term metals thesis supported by elevated inflation expectations."); }
+    else if (breakeven >= 2){ ltSignals.push(`Inflation expectations at ${breakeven.toFixed(2)}% — near target. Neutral for metals thesis.`); }
+    else                  { ltAvoids.push("Low inflation expectations remove one pillar of the metals bull case."); }
+  }
+  if (yieldCurve !== null) {
+    if (yieldCurve < -10) { ltSignals.push(`Yield curve inverted (${yieldCurve.toFixed(0)} bp) — recession probability elevated.`); ltAvoids.push("Inverted curve: reduce cyclical exposure (SLV/AGQ). Prefer GLD as safe haven if recession materializes."); }
+    else if (yieldCurve > 50){ ltSignals.push(`Yield curve steepening (${yieldCurve.toFixed(0)} bp) — reflation signal. Supportive for silver.`); ltActions.push("Steepening curve is a green light for silver and inflation-linked assets."); }
+  }
+
+  if (!ltActions.length) ltActions.push("No urgent long-term positioning changes indicated. Maintain existing allocations.");
+  if (!ltAvoids.length)  ltAvoids.push("No structural long-term risks flagged.");
+
+  function bullet(items, cls) {
+    return items.map((t) => `<li style="padding:0.3rem 0;font-size:0.78rem;color:var(${cls})">${escapeHtml(t)}</li>`).join("");
+  }
+
+  return `
+    <div style="padding:0.5rem 0">
+      <p class="lab-block-title">Decision Summary — what to do right now</p>
+      <p class="lab-block-sub">Synthesizes VIX, Gold/Silver ratio, momentum, and macro into actionable guidance. Not a recommendation — a framework for your own decision-making.</p>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1rem">
+
+        <div style="padding:1rem;background:var(--bg-softer);border-radius:8px;border:1px solid var(--border)">
+          <p style="font-weight:700;font-size:0.88rem;margin-bottom:0.75rem;border-bottom:1px solid var(--border);padding-bottom:0.4rem">SHORT TERM — 1 to 3 months</p>
+          <p style="font-size:0.72rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.3rem">What is happening</p>
+          <ul style="list-style:disc;padding-left:1.2rem;margin-bottom:0.75rem">${bullet(stSignals, "--text-secondary")}</ul>
+          <p style="font-size:0.72rem;font-weight:600;color:var(--positive);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.3rem">What to do</p>
+          <ul style="list-style:disc;padding-left:1.2rem;margin-bottom:0.75rem">${bullet(stActions, "--positive")}</ul>
+          <p style="font-size:0.72rem;font-weight:600;color:var(--negative);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.3rem">What to avoid</p>
+          <ul style="list-style:disc;padding-left:1.2rem">${bullet(stAvoids, "--negative")}</ul>
+        </div>
+
+        <div style="padding:1rem;background:var(--bg-softer);border-radius:8px;border:1px solid var(--border)">
+          <p style="font-weight:700;font-size:0.88rem;margin-bottom:0.75rem;border-bottom:1px solid var(--border);padding-bottom:0.4rem">LONG TERM — 3 to 12 months</p>
+          <p style="font-size:0.72rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.3rem">What is happening</p>
+          <ul style="list-style:disc;padding-left:1.2rem;margin-bottom:0.75rem">${bullet(ltSignals, "--text-secondary")}</ul>
+          <p style="font-size:0.72rem;font-weight:600;color:var(--positive);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.3rem">What to do</p>
+          <ul style="list-style:disc;padding-left:1.2rem;margin-bottom:0.75rem">${bullet(ltActions, "--positive")}</ul>
+          <p style="font-size:0.72rem;font-weight:600;color:var(--negative);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.3rem">What to avoid</p>
+          <ul style="list-style:disc;padding-left:1.2rem">${bullet(ltAvoids, "--negative")}</ul>
+        </div>
+
+      </div>
+
+      <div style="margin-top:1rem;padding:0.75rem;border-radius:6px;font-size:0.72rem;color:var(--text-muted);line-height:1.5;border:1px solid var(--border)">
+        This summary is generated from live market data and backtested rules. It reflects current signal states, not a forecast. Always size appropriately and use your own judgment.
+      </div>
     </div>
   `;
 }
