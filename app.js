@@ -399,7 +399,7 @@ function normalizeScoutState(rawScout) {
       exitRatio: Number(rawScout?.strategyLab?.gsParams?.exitRatio ?? 50),
       maxDays: Number(rawScout?.strategyLab?.gsParams?.maxDays ?? 180),
     },
-    activeStrategy: rawScout?.strategyLab?.activeStrategy || "vix",
+    activeStrategy: rawScout?.strategyLab?.activeStrategy || "macro",
     // Multi-timeframe: 5 | 20 | 60 | 120 | 250 (trading days, shown as 1Y for 250)
     activeTimeframe: Number(rawScout?.strategyLab?.activeTimeframe ?? 20),
     // Momentum backtest params
@@ -1813,7 +1813,7 @@ function destroyScoutChart(id) {
 function renderScoutCharts(model) {
   const lab = model.strategyLab;
   if (!lab) return;
-  const activeStrategy = state.scout.strategyLab?.activeStrategy || "vix";
+  const activeStrategy = state.scout.strategyLab?.activeStrategy || "macro";
 
   if (activeStrategy === "vix") {
     renderVixChart(lab.vix, model);
@@ -3731,7 +3731,7 @@ function renderSynthesisMemo(model) {
 
 function renderStrategyLab(model) {
   const lab = model.strategyLab;
-  const activeStrategy = state.scout.strategyLab?.activeStrategy || "vix";
+  const activeStrategy = state.scout.strategyLab?.activeStrategy || "macro";
   const vixParams = state.scout.strategyLab?.vixParams || { threshold: 25, horizon: 20 };
   const gsParams = state.scout.strategyLab?.gsParams || { entryRatio: 75, exitRatio: 50, maxDays: 180 };
 
@@ -3756,13 +3756,13 @@ function renderStrategyLab(model) {
         <span class="status-pill ${getScoutStatusClass(model.dataStatus)}">${escapeHtml(model.dataStatus)}</span>
       </div>
       <div class="lab-tabs" style="margin-top:1rem">
-        <button type="button" class="${tab("vix")}"      data-lab-strategy="vix">VIX Spike Entry</button>
+        <button type="button" class="${tab("macro")}"    data-lab-strategy="macro">Macro</button>
+        <button type="button" class="${tab("decision")}" data-lab-strategy="decision">Decision</button>
+        <button type="button" class="${tab("vix")}"      data-lab-strategy="vix">VIX Backtest</button>
         <button type="button" class="${tab("gs")}"       data-lab-strategy="gs">Gold/Silver</button>
         <button type="button" class="${tab("momentum")}" data-lab-strategy="momentum">Momentum</button>
         <button type="button" class="${tab("options")}"  data-lab-strategy="options">Options</button>
         <button type="button" class="${tab("risk")}"     data-lab-strategy="risk">Risk</button>
-        <button type="button" class="${tab("macro")}"    data-lab-strategy="macro">Macro</button>
-        <button type="button" class="${tab("decision")}" data-lab-strategy="decision">Decision</button>
       </div>
       ${content}
     </section>
