@@ -92,6 +92,7 @@ export function createScoutEngine({ config, marketDataGateway }) {
         priceSeries: momentumSeries,
         triggerPct: momentumTrigger,
         horizons: [1, 5, 20, 60],
+        direction: momentumParams.direction || "down",
       });
 
       const strategyLab = { vix: vixResult, vixMultiHorizon, goldSilver: gsResult, momentumResult, activeTimeframe };

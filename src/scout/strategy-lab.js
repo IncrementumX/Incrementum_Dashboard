@@ -307,20 +307,21 @@ export function runVixStrategyMultiHorizon({ vixSeries, spySeries, threshold = 2
 // "Bounce" = next horizon return > 0. "Continue" = next horizon return < 0.
 // ---------------------------------------------------------------------------
 
-export function runMomentumBacktest({ priceSeries, triggerPct = -3, horizons = [1, 5, 20, 60] }) {
+export function runMomentumBacktest({ priceSeries, triggerPct = -3, horizons = [1, 5, 20, 60], direction = "down" }) {
   if (!priceSeries || priceSeries.length < 65) {
-    return { triggerPct, horizons: horizons.map((h) => ({ horizon: h, label: h === 250 ? "1Y" : `${h}D`, n: 0, bounceRate: null, contRate: null, avgReturn: null })), events: [] };
+    return { triggerPct, direction, horizons: horizons.map((h) => ({ horizon: h, label: h === 250 ? "1Y" : `${h}D`, n: 0, bounceRate: null, contRate: null, avgReturn: null })), events: [] };
   }
 
   const prices = priceSeries;
-  const threshold = triggerPct / 100; // negative, e.g. -0.03
+  const absTrigger = Math.abs(triggerPct) / 100;
 
-  // Find trigger days
+  // Find trigger days — down: drop >= absTrigger, up: rise >= absTrigger
   const events = [];
   for (let i = 1; i < prices.length; i++) {
     if (!prices[i - 1]?.value || !prices[i]?.value) continue;
     const dayReturn = prices[i].value / prices[i - 1].value - 1;
-    if (dayReturn <= threshold) {
+    const triggered = direction === "up" ? dayReturn >= absTrigger : dayReturn <= -absTrigger;
+    if (triggered) {
       events.push({ idx: i, date: prices[i].date, triggerReturn: dayReturn * 100, entryPrice: prices[i].value });
     }
   }
@@ -340,16 +341,18 @@ export function runMomentumBacktest({ priceSeries, triggerPct = -3, horizons = [
 
     if (!fwdReturns.length) return { horizon: h, label, n: 0, bounceRate: null, contRate: null, avgReturn: null };
 
-    const bounces = fwdReturns.filter((r) => r > 0).length;
-    const conts = fwdReturns.filter((r) => r < 0).length;
+    const positives = fwdReturns.filter((r) => r > 0).length;
+    const negatives = fwdReturns.filter((r) => r < 0).length;
     const avgReturn = fwdReturns.reduce((s, r) => s + r, 0) / fwdReturns.length;
 
     return {
       horizon: h,
       label,
       n: fwdReturns.length,
-      bounceRate: roundNum((bounces / fwdReturns.length) * 100),
-      contRate: roundNum((conts / fwdReturns.length) * 100),
+      // bounceRate: % positive (for down = price recovered, for up = momentum continued)
+      // contRate:   % negative (for down = drop continued, for up = price reversed)
+      bounceRate: roundNum((positives / fwdReturns.length) * 100),
+      contRate: roundNum((negatives / fwdReturns.length) * 100),
       avgReturn: roundNum(avgReturn),
       maxReturn: roundNum(Math.max(...fwdReturns)),
       minReturn: roundNum(Math.min(...fwdReturns)),
@@ -357,10 +360,10 @@ export function runMomentumBacktest({ priceSeries, triggerPct = -3, horizons = [
   });
 
   return {
-    triggerPct,
+    triggerPct: direction === "up" ? absTrigger * 100 : -absTrigger * 100,
+    direction,
     totalEvents: events.length,
     horizons: horizonResults,
-    // Last 10 events for display
     recentEvents: events.slice(-10).reverse().map((e) => ({ date: e.date, triggerReturn: roundNum(e.triggerReturn) })),
   };
 }
