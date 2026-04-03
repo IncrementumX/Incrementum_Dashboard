@@ -13,12 +13,12 @@ async function bootstrap() {
 
   await runtime.initialize();
   window.IncrementumRuntime = runtime;
-  await import("../app.js");
+  await import("../app.js?v=2");
 }
 
 bootstrap().catch((error) => {
   console.error("Incrementum bootstrap failed", error);
-  import("../app.js").catch((secondaryError) => {
+  import("../app.js?v=2").catch((secondaryError) => {
     console.error("Incrementum app fallback import failed", secondaryError);
   });
 });
