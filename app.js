@@ -3805,10 +3805,21 @@ function renderVixLabV2(result, multiHorizon, params, model) {
     `;
   }).join("");
 
+  // Regime context: what VIX level are we in now vs backtest entries?
+  const vixLabData = model.macroResearch?.strategyLabData?.VIX || [];
+  const currentVix = vixLabData.length ? vixLabData[vixLabData.length-1]?.value : null;
+  const regimeNote = currentVix !== null ? (() => {
+    if (currentVix >= params.threshold)
+      return `<div class="verdict-bar verdict-no" style="margin-bottom:0.75rem">VIX currently ${currentVix.toFixed(1)} — AT or ABOVE the ${params.threshold} threshold. Setup is LIVE. Forward returns in the backtest have averaged ${result.avgReturn >= 0 ? "+" : ""}${result.avgReturn?.toFixed(1)}% across all triggered periods.</div>`;
+    if (currentVix >= params.threshold * 0.8)
+      return `<div class="verdict-bar verdict-mixed" style="margin-bottom:0.75rem">VIX currently ${currentVix.toFixed(1)} — approaching the ${params.threshold} threshold (${(params.threshold - currentVix).toFixed(1)} pts away). Monitor for spike to trigger zone.</div>`;
+    return `<div class="verdict-bar verdict-neutral" style="margin-bottom:0.75rem">VIX currently ${currentVix.toFixed(1)} — well below the ${params.threshold} threshold. Setup not active. This backtest applies when VIX spikes to current params.</div>`;
+  })() : "";
+
   const multiHorizonTable = `
     <div class="vix-horizon-block">
       <p class="lab-block-title">Forward Returns by Holding Period — VIX ≥ ${params.threshold}</p>
-      <p class="lab-block-sub">Each row: buy on VIX spike, hold for that period. Same entry rules, different exit timing.</p>
+      <p class="lab-block-sub">Each row: buy on VIX spike, hold for that period. Same entry rules, different exit timing. <strong>Best horizon = highest avg return with ≥5 trades.</strong></p>
       <div class="table-wrap">
         <table class="lab-trade-table">
           <thead><tr><th>Hold</th><th>Avg return</th><th>Win rate</th><th>Trades</th><th>Best</th><th>Worst</th></tr></thead>
@@ -3875,6 +3886,7 @@ function renderVixLabV2(result, multiHorizon, params, model) {
       <div class="lab-results">
         ${renderSignalBox(signal)}
         ${renderHowItWorks("vix")}
+        ${regimeNote}
         ${metricDefs}
         ${statsHtml}
         ${multiHorizonTable}
@@ -4080,9 +4092,21 @@ function renderGoldSilverLabV2(result, params, model) {
     `;
   }
 
+  // Live regime note for GS strategy
+  const gsLabData = model.macroResearch?.strategyLabData || {};
+  const gsSlvS = gsLabData.SLV || [], gsGldS = gsLabData.GLD || [];
+  const gsRatioNow = latestRatio; // already computed from ratioHistory
+  const gsRegimeNote = gsRatioNow !== null ? (() => {
+    if (gsRatioNow >= params.entryRatio)
+      return `<div class="verdict-bar verdict-no" style="margin-bottom:0.75rem">Ratio at ${gsRatioNow.toFixed(1)} — AT or ABOVE trigger (${params.entryRatio}). Setup is ACTIVE. SIL historical avg per trade: ${result.avgReturn >= 0 ? "+" : ""}${result.avgReturn?.toFixed(1)}%.</div>`;
+    if (gsRatioNow >= params.entryRatio * 0.87)
+      return `<div class="verdict-bar verdict-mixed" style="margin-bottom:0.75rem">Ratio at ${gsRatioNow.toFixed(1)} — approaching trigger ${params.entryRatio} (${(params.entryRatio - gsRatioNow).toFixed(1)} pts away). Watch for further silver weakness vs gold.</div>`;
+    return `<div class="verdict-bar verdict-neutral" style="margin-bottom:0.75rem">Ratio at ${gsRatioNow.toFixed(1)} — well below trigger ${params.entryRatio}. Setup not active. Gold and silver roughly in line historically.</div>`;
+  })() : "";
+
   const statsHtml = `
     <div class="lab-stats-row">
-      <div class="lab-stat"><span class="lab-stat__label">Trades</span><span class="lab-stat__value lab-stat__value--muted">${result.tradeCount}</span></div>
+      <div class="lab-stat"><span class="lab-stat__label">Trades (n)</span><span class="lab-stat__value lab-stat__value--muted">${result.tradeCount}</span></div>
       <div class="lab-stat"><span class="lab-stat__label">Win Rate</span><span class="lab-stat__value ${result.winRate >= 50 ? "lab-stat__value--positive" : "lab-stat__value--negative"}">${result.winRate?.toFixed(0)}%</span></div>
       <div class="lab-stat"><span class="lab-stat__label">Avg Return (SIL)</span><span class="lab-stat__value ${result.avgReturn >= 0 ? "lab-stat__value--positive" : "lab-stat__value--negative"}">${result.avgReturn >= 0 ? "+" : ""}${result.avgReturn?.toFixed(1)}%</span></div>
       <div class="lab-stat"><span class="lab-stat__label">Best</span><span class="lab-stat__value lab-stat__value--positive">+${result.maxReturn?.toFixed(1)}%</span></div>
@@ -4110,6 +4134,7 @@ function renderGoldSilverLabV2(result, params, model) {
       <div class="lab-results">
         ${renderSignalBox(signal)}
         ${renderHowItWorks("gs")}
+        ${gsRegimeNote}
         ${statsHtml}
         <div class="lab-methodology" style="margin-bottom:0.75rem">
           <p class="lab-methodology__title">How to read these metrics</p>
@@ -4324,8 +4349,54 @@ function renderMomentumModule(result, params, model) {
     </div>
   ` : "";
 
+  // Multi-asset momentum snapshot at top of tab
+  const SNAP_ASSETS = ["AGQ", "SLV", "GLD", "RING", "SPY", "VIX"];
+  const labDataSnap = model.macroResearch?.strategyLabData || {};
+  const snapRows = SNAP_ASSETS.map((sym) => {
+    const s = labDataSnap[sym] || [];
+    if (s.length < 22) return `<tr><td>${sym}</td><td colspan="4" class="val-muted right">—</td></tr>`;
+    const now = s[s.length-1]?.value;
+    const p5  = s[s.length-6]?.value, p20 = s[s.length-21]?.value;
+    const r5  = p5  ? ((now/p5-1)*100)  : null;
+    const r20 = p20 ? ((now/p20-1)*100) : null;
+    let g=0,l=0;
+    for (let i=s.length-14;i<s.length;i++) {
+      const d=s[i].value-(s[i-1]?.value||s[i].value);
+      if(d>0) g+=d; else l-=d;
+    }
+    const rsi=Math.round(100-100/(1+(l===0?100:g/l)));
+    const trend = r20 !== null && r5 !== null
+      ? (r5 > 1.5 && r20 > 0 ? "BULL" : r5 < -1.5 && r20 < 0 ? "BEAR" : "FLAT")
+      : "—";
+    const trendCls = trend === "BULL" ? "pos" : trend === "BEAR" ? "neg" : "val-muted";
+    return `
+      <tr>
+        <td><strong>${sym}</strong></td>
+        <td class="right ${r5!==null&&r5>=0?"pos":"neg"}">${r5!==null?(r5>=0?"+":"")+r5.toFixed(1)+"%":"—"}</td>
+        <td class="right ${r20!==null&&r20>=0?"pos":"neg"}">${r20!==null?(r20>=0?"+":"")+r20.toFixed(1)+"%":"—"}</td>
+        <td class="right">${rsi}</td>
+        <td class="right ${trendCls}" style="font-weight:600;font-size:0.72rem">${trend}</td>
+      </tr>
+    `;
+  }).join("");
+
+  const snapHtml = `
+    <div style="margin-bottom:1rem">
+      <p class="lab-block-title">Multi-Asset Snapshot</p>
+      <p class="lab-block-sub">5D/20D return and RSI-14 for all key assets. BULL = 5D > 1.5% AND 20D > 0. BEAR = 5D < −1.5% AND 20D < 0.</p>
+      <div class="table-wrap" style="margin-top:0.4rem">
+        <table class="lab-trade-table">
+          <thead><tr><th>Asset</th><th class="right">5D Return</th><th class="right">20D Return</th><th class="right">RSI-14</th><th class="right">Trend</th></tr></thead>
+          <tbody>${snapRows}</tbody>
+        </table>
+      </div>
+    </div>
+    <hr style="border-color:var(--border);margin:0.75rem 0">
+  `;
+
   return `
     <div class="momentum-module">
+      ${snapHtml}
       <div class="momentum-module__note">
         <strong>What this shows:</strong>
         After ${activeAsset} ${isDown ? "drops" : "rises"} ≥${activeTriggerAbs}% in a single trading day, what happens at 1D / 5D / 20D / 60D horizons?
@@ -4744,7 +4815,8 @@ function renderScoutBacktests(model) {
 }
 
 // ---------------------------------------------------------------------------
-// OPPORTUNITY RADAR — Additional alpha ideas, each with hypothesis + live check
+// IDEA PIPELINE — Ranked alpha ideas with live Opportunity Score (0–100)
+// Score = 40% signal strength + 30% regime alignment + 30% momentum confirmation
 // ---------------------------------------------------------------------------
 
 function renderOpportunityRadar(model) {
@@ -4871,18 +4943,273 @@ function renderOpportunityRadar(model) {
     spyVixHtml || `<p class="val-muted" style="font-size:0.75rem">Insufficient data</p>`
   );
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // IDEA PIPELINE — compute all ideas and rank by opportunity score
+  // ──────────────────────────────────────────────────────────────────────────
+
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const score = (signal, regime, mom) => Math.round(0.4 * clamp(signal,0,100) + 0.3 * clamp(regime,0,100) + 0.3 * clamp(mom,0,100));
+
+  // Pre-compute all series we need
+  const slvS = labData.SLV || [];
+  const gldS = labData.GLD || [];
+  const ringS = labData.RING || [];
+  const agqS  = labData.AGQ || [];
+  const spyS  = labData.SPY || [];
+  const vixS  = labData.VIX || [];
+  const gsResult  = model.strategyLab?.goldSilver;
+  const vixResult = model.strategyLab?.vix;
+
+  const pct20 = (s) => {
+    if (s.length < 22) return null;
+    const now = s[s.length-1]?.value, p = s[s.length-21]?.value;
+    return (now && p) ? (now/p-1)*100 : null;
+  };
+  const pct5 = (s) => {
+    if (s.length < 7) return null;
+    const now = s[s.length-1]?.value, p = s[s.length-6]?.value;
+    return (now && p) ? (now/p-1)*100 : null;
+  };
+  const rsi14 = (s) => {
+    if (s.length < 15) return null;
+    let g=0,l=0;
+    for (let i=s.length-14;i<s.length;i++) {
+      const d=s[i].value-(s[i-1]?.value||s[i].value);
+      if(d>0) g+=d; else l-=d;
+    }
+    return Math.round(100-100/(1+(l===0?100:g/l)));
+  };
+
+  const slvR20 = pct20(slvS), gldR20 = pct20(gldS);
+  const ringR20 = pct20(ringS);
+  const slvR5  = pct5(slvS),  gldR5  = pct5(gldS);
+  const agqR1  = agqS.length > 1 ? (agqS[agqS.length-1]?.value/agqS[agqS.length-2]?.value-1)*100 : null;
+  const agqRsi = rsi14(agqS);
+  const spyR20 = pct20(spyS), spyR5 = pct5(spyS);
+  const latestVix   = vixS.length ? vixS[vixS.length-1]?.value : null;
+  const latestRatio = gsResult?.ratioHistory?.length ? gsResult.ratioHistory[gsResult.ratioHistory.length-1]?.value : null;
+  const spy20High   = spyS.length >= 20 ? Math.max(...spyS.slice(-20).map(p=>p.value)) : null;
+  const spyNow      = spyS.length ? spyS[spyS.length-1]?.value : null;
+
+  const ideas = [];
+
+  // ── Idea 1: Gold/Silver Mean Reversion ──
+  if (latestRatio !== null) {
+    const sig    = latestRatio >= 75 ? 100 : clamp((latestRatio - 55) / (75 - 55) * 100, 0, 100);
+    const regAlg = latestVix !== null && latestVix > 15 ? 60 : 45; // VIX elevated = risk-off = metals ok
+    const momC   = (slvR5 !== null && slvR5 > 0) ? 75 : (slvR5 !== null && slvR5 < -2) ? 25 : 50;
+    const oScore = score(sig, regAlg, momC);
+    const status = latestRatio >= 75 ? "ACTIVE" : latestRatio >= 65 ? "WATCHLIST" : "NO TRADE";
+    ideas.push({
+      name: "Gold/Silver Mean Reversion",
+      asset: "SIL / AGQ",
+      type: "Mean Reversion",
+      direction: "LONG SILVER",
+      score: oScore,
+      status,
+      signal: sig,
+      regime: regAlg,
+      momentum: momC,
+      note: `G/S ratio ${latestRatio.toFixed(1)} (entry ≥75). ${status === "ACTIVE" ? "Setup active." : status === "WATCHLIST" ? "Approaching trigger." : "Not in setup zone."} SLV 5D: ${slvR5 !== null ? (slvR5>=0?"+":"")+slvR5.toFixed(1)+"%" : "—"}`,
+      hypothesis: "When gold/silver ratio stretches to extremes (>75), silver is historically cheap vs gold. Mean reversion = silver outperforms gold. Vehicle = SIL/AGQ for leveraged exposure.",
+      trigger: "Ratio (GLD×10/SLV) closes ≥ 75",
+      invalidation: "Ratio continues rising above 85+ with no reversal. Silver macro story breaks down.",
+      labTab: "gs",
+    });
+  }
+
+  // ── Idea 2: VIX Spike Entry ──
+  if (latestVix !== null) {
+    const sig    = clamp((latestVix - 15) / (40 - 15) * 100, 0, 100);
+    const regAlg = 70; // VIX strategy is self-confirming by regime
+    const momC   = (spyR5 !== null && spyR5 < -2) ? 80 : (spyR5 !== null && spyR5 < 0) ? 60 : 35;
+    const oScore = score(sig, regAlg, momC);
+    const status = latestVix >= 30 ? "ACTIVE" : latestVix >= 22 ? "WATCHLIST" : "NO TRADE";
+    ideas.push({
+      name: "VIX Spike Entry",
+      asset: "SPY",
+      type: "Contrarian / Mean Reversion",
+      direction: "LONG SPY",
+      score: oScore,
+      status,
+      signal: sig,
+      regime: regAlg,
+      momentum: momC,
+      note: `VIX ${latestVix.toFixed(1)} (trigger ≥30). SPY 5D: ${spyR5 !== null ? (spyR5>=0?"+":"")+spyR5.toFixed(1)+"%" : "—"}. ${status === "ACTIVE" ? "Fear spike — setup active." : status === "WATCHLIST" ? "VIX elevated, watch for further spike." : "VIX below alert level."}`,
+      hypothesis: "Extreme implied vol spikes (VIX >30) reflect panic that historically overshoots. Forward equity returns in the 5–20D window after VIX spikes have been above average.",
+      trigger: "VIX closes ≥ 30",
+      invalidation: "VIX keeps rising above 40 with no stabilization. SPY breaks major support.",
+      labTab: "vix",
+    });
+  }
+
+  // ── Idea 3: AGQ Daily Drop Bounce ──
+  if (agqR1 !== null) {
+    const sig    = agqR1 < 0 ? clamp(Math.abs(agqR1) / 5 * 100, 0, 100) : 0;
+    const regAlg = latestVix !== null && latestVix < 35 ? 70 : latestVix < 50 ? 40 : 15;
+    const momC   = agqRsi !== null && agqRsi < 40 ? 85 : agqRsi < 50 ? 55 : 25;
+    const oScore = score(sig, regAlg, momC);
+    const status = agqR1 <= -3 ? "ACTIVE" : agqR1 <= -1.5 ? "WATCHLIST" : "NO TRADE";
+    ideas.push({
+      name: "AGQ Daily Drop Bounce",
+      asset: "AGQ",
+      type: "Short-Term Reversal",
+      direction: "LONG AGQ (intraday)",
+      score: oScore,
+      status,
+      signal: sig,
+      regime: regAlg,
+      momentum: momC,
+      note: `AGQ today: ${agqR1>=0?"+":""}${agqR1.toFixed(1)}% (trigger ≤−3%). RSI-14: ${agqRsi ?? "—"}. ${status === "ACTIVE" ? "Bounce setup active — intraday only." : status === "WATCHLIST" ? "Moderate drop — watch if continues." : "No drop trigger."}`,
+      hypothesis: "AGQ is 2× silver. Sharp single-day drops often see partial intraday recovery due to mean reversion in leveraged instruments. Same-day exit only — no overnight holding.",
+      trigger: "AGQ daily close ≤ −3% vs prior close",
+      invalidation: "Drop accelerates and holds into close. Broader silver downtrend confirmed.",
+      labTab: "momentum",
+    });
+  }
+
+  // ── Idea 4: SLV/GLD Momentum Divergence ──
+  if (slvR20 !== null && gldR20 !== null) {
+    const spread = slvR20 - gldR20;
+    const sig    = clamp(Math.abs(spread) / 15 * 100, 0, 100);
+    const regAlg = gldR20 > 0 ? 70 : 45; // metals broadly rising = setup better
+    const momC   = slvR5 !== null && gldR5 !== null ? clamp(((slvR5 - gldR5) + 5) / 10 * 100, 0, 100) : 50;
+    const oScore = score(sig, regAlg, momC);
+    const status = spread > 5 ? "WATCHLIST" : spread < -5 ? "WATCHLIST" : "NO TRADE";
+    ideas.push({
+      name: "Silver/Gold Divergence",
+      asset: "SLV vs GLD",
+      type: "Relative Value",
+      direction: spread > 5 ? "LONG SLV" : "LONG GLD",
+      score: oScore,
+      status,
+      signal: sig,
+      regime: regAlg,
+      momentum: momC,
+      note: `SLV 20D: ${slvR20>=0?"+":""}${slvR20.toFixed(1)}% | GLD 20D: ${gldR20>=0?"+":""}${gldR20.toFixed(1)}% | Spread: ${spread>=0?"+":""}${spread.toFixed(1)} pp. ${Math.abs(spread) > 5 ? (spread > 0 ? "Silver outperforming — risk-on metals signal." : "Silver underperforming — defensive metals positioning.") : "Metals moving in sync — no divergence."}`,
+      hypothesis: "Silver has higher beta than gold in risk-on environments. Sustained SLV/GLD divergence reveals regime character: wide positive = risk appetite, wide negative = flight to safety in gold.",
+      trigger: "|SLV 20D return − GLD 20D return| ≥ 5 percentage points",
+      invalidation: "Spread collapses as both metals move together again.",
+      labTab: null,
+    });
+  }
+
+  // ── Idea 5: Miners vs Metal Dislocation ──
+  if (ringR20 !== null && gldR20 !== null) {
+    const spread = ringR20 - gldR20;
+    const isLag  = spread < -5;
+    const sig    = isLag ? clamp(Math.abs(spread) / 20 * 100, 0, 100) : 10;
+    const regAlg = gldR20 > 0 ? 75 : 40; // gold must be rising for miners to catch up
+    const ringR5 = pct5(ringS);
+    const momC   = ringR5 !== null ? clamp((ringR5 + 5) / 10 * 100, 0, 100) : 50;
+    const oScore = score(sig, regAlg, momC);
+    const status = isLag ? "WATCHLIST" : "NO TRADE";
+    ideas.push({
+      name: "Miners vs Metal Dislocation",
+      asset: "RING vs GLD",
+      type: "Hard Assets / Catch-up",
+      direction: "LONG RING",
+      score: oScore,
+      status,
+      signal: sig,
+      regime: regAlg,
+      momentum: momC,
+      note: `RING 20D: ${ringR20>=0?"+":""}${ringR20.toFixed(1)}% | GLD 20D: ${gldR20>=0?"+":""}${gldR20.toFixed(1)}% | Gap: ${spread>=0?"+":""}${spread.toFixed(1)} pp. ${isLag ? "Miners lagging gold — potential catch-up if gold holds." : "Miners tracking gold — no dislocation."}`,
+      hypothesis: "Gold miners (RING) should have positive operating leverage to gold price. When miners materially lag the metal, it signals either margin pressure or temporary dislocation — creating a catch-up opportunity if gold sustains.",
+      trigger: "RING 20D return lags GLD 20D return by >5 pp while gold is in uptrend",
+      invalidation: "Gold price reverses. Miner margins deteriorate (cost inflation, labor issues).",
+      labTab: null,
+    });
+  }
+
+  // ── Idea 6: SPY/VIX Regime Quality ──
+  if (spyNow !== null && spy20High !== null && latestVix !== null) {
+    const nearHigh = spyNow >= spy20High * 0.99;
+    const vixElev  = latestVix >= 20;
+    const sig    = nearHigh && vixElev ? 80 : nearHigh && !vixElev ? 30 : 20;
+    const regAlg = vixElev ? 70 : 30;
+    const momC   = spyR5 !== null && spyR5 > 0 ? 70 : 40;
+    const oScore = score(sig, regAlg, momC);
+    const status = nearHigh && vixElev ? "WATCHLIST" : "NO TRADE";
+    ideas.push({
+      name: "SPY Fragile Rally Monitor",
+      asset: "SPY / VIX",
+      type: "Regime / Risk Monitor",
+      direction: nearHigh && vixElev ? "REDUCE RISK" : "HOLD",
+      score: oScore,
+      status,
+      signal: sig,
+      regime: regAlg,
+      momentum: momC,
+      note: `SPY ${spyNow !== null && spy20High ? ((spyNow/spy20High-1)*100).toFixed(1)+"% vs 20D high" : "—"} | VIX ${latestVix.toFixed(1)}. ${nearHigh && vixElev ? "Fragile: rally with elevated vol — quality is low." : nearHigh ? "Quality rally: SPY high + VIX normalized." : "SPY not at highs — no fragility concern."}`,
+      hypothesis: "SPY near 20D high with VIX still elevated indicates the market is pricing upside but not pricing in a vol-normalized environment. These rallies statistically have weaker follow-through.",
+      trigger: "SPY within 1% of 20D high while VIX ≥ 20",
+      invalidation: "VIX drops below 15 confirming risk-on sentiment. Or SPY breaks down from current levels.",
+      labTab: null,
+    });
+  }
+
+  // Sort by score descending
+  ideas.sort((a, b) => b.score - a.score);
+
+  const scorePillCls = (s) => s >= 70 ? "lab-stat__value--positive" : s >= 45 ? "" : "lab-stat__value--muted";
+  const statusStyle  = (s) => s === "ACTIVE" ? "color:var(--positive);font-weight:600" : s === "WATCHLIST" ? "color:#fbbf24;font-weight:600" : "color:var(--text-muted)";
+
+  const rows = ideas.map((idea) => `
+    <tr>
+      <td>
+        <div style="font-weight:500;font-size:0.82rem">${escapeHtml(idea.name)}</div>
+        <div style="font-size:0.68rem;color:var(--text-muted);margin-top:1px">${escapeHtml(idea.asset)} · ${escapeHtml(idea.type)}</div>
+      </td>
+      <td class="right"><strong class="${scorePillCls(idea.score)}" style="font-size:1rem">${idea.score}</strong></td>
+      <td style="${statusStyle(idea.status)};font-size:0.75rem">${escapeHtml(idea.status)}</td>
+      <td style="font-size:0.72rem;color:var(--text-secondary)">${idea.direction !== "HOLD" && idea.direction !== "REDUCE RISK" ? escapeHtml(idea.direction) : `<span style="color:var(--text-muted)">${escapeHtml(idea.direction)}</span>`}</td>
+      <td style="font-size:0.72rem;color:var(--text-muted);max-width:320px;line-height:1.4">${escapeHtml(idea.note)}</td>
+      ${idea.labTab ? `<td><button type="button" class="trigger-tab" data-lab-strategy="${escapeHtml(idea.labTab)}" style="font-size:0.65rem;padding:2px 7px">Backtest →</button></td>` : "<td></td>"}
+    </tr>
+  `).join("");
+
+  const topIdea = ideas[0];
+  const topNoteHtml = topIdea ? `
+    <div class="verdict-bar ${topIdea.score >= 70 ? "verdict-no" : topIdea.score >= 45 ? "verdict-mixed" : "verdict-neutral"}" style="margin-bottom:0.75rem">
+      <strong>Top opportunity:</strong> ${escapeHtml(topIdea.name)} — score ${topIdea.score}/100 — ${escapeHtml(topIdea.note)}
+    </div>
+  ` : "";
+
+  // Score methodology legend
+  const scoreLegend = `
+    <p class="lab-block-sub" style="margin-top:0.5rem">
+      <strong>Score formula:</strong> 40% Signal Strength (proximity to trigger) + 30% Regime Alignment (is macro favorable?) + 30% Momentum Confirmation (is price action supporting?).
+      Max 100. ≥70 = high conviction, 45–70 = moderate, &lt;45 = watch only.
+    </p>
+  `;
+
   return `
     <section class="panel">
       <div class="panel-header">
         <div>
           <p class="scout-section-label">Alpha Research</p>
-          <h2>Opportunity Radar</h2>
-          <p class="panel-subtitle">Additional trade ideas computed live from price data. Each has a hypothesis, a trigger, and a current reading. These are research-grade ideas — not pre-backtested strategies.</p>
+          <h2>Idea Pipeline</h2>
+          <p class="panel-subtitle">All active trade ideas ranked by live Opportunity Score. Score = signal strength + regime + momentum. Updated every model refresh.</p>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem">
-        ${card1}${card2}${card3}
+      ${topNoteHtml}
+      <div class="table-wrap">
+        <table class="lab-trade-table">
+          <thead>
+            <tr>
+              <th>Idea</th>
+              <th class="right" title="Score = 40% Signal + 30% Regime + 30% Momentum, 0–100">Score /100</th>
+              <th>Status</th>
+              <th>Direction</th>
+              <th>Current reading</th>
+              <th>Lab</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
       </div>
+      ${scoreLegend}
     </section>
   `;
 }
