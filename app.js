@@ -399,7 +399,7 @@ function normalizeScoutState(rawScout) {
       exitRatio: Number(rawScout?.strategyLab?.gsParams?.exitRatio ?? 50),
       maxDays: Number(rawScout?.strategyLab?.gsParams?.maxDays ?? 180),
     },
-    activeStrategy: rawScout?.strategyLab?.activeStrategy || "macro",
+    activeStrategy: rawScout?.strategyLab?.activeStrategy || "vix",
     // Multi-timeframe: 5 | 20 | 60 | 120 | 250 (trading days, shown as 1Y for 250)
     activeTimeframe: Number(rawScout?.strategyLab?.activeTimeframe ?? 20),
     // Momentum backtest params
@@ -412,15 +412,16 @@ function normalizeScoutState(rawScout) {
 
   // Options calculator state — persisted so inputs survive tab switches
   const optionsCalc = {
-    type:      rawScout?.optionsCalc?.type || "put",
-    spot:      Number(rawScout?.optionsCalc?.spot     ?? 560),
-    strike:    Number(rawScout?.optionsCalc?.strike   ?? 530),
-    dte:       Number(rawScout?.optionsCalc?.dte      ?? 120),
-    iv:        Number(rawScout?.optionsCalc?.iv       ?? 27),
-    hv:        Number(rawScout?.optionsCalc?.hv       ?? 20),
-    rfr:       Number(rawScout?.optionsCalc?.rfr      ?? 4.4),
-    ivCrush:   Number(rawScout?.optionsCalc?.ivCrush  ?? 10),
-    contracts: Number(rawScout?.optionsCalc?.contracts ?? 1),
+    type:         rawScout?.optionsCalc?.type || "put",
+    spy:          Number(rawScout?.optionsCalc?.spy          ?? 560),
+    strike:       Number(rawScout?.optionsCalc?.strike       ?? 530),
+    premium:      Number(rawScout?.optionsCalc?.premium      ?? 10.00),
+    delta:        Number(rawScout?.optionsCalc?.delta        ?? -0.35),
+    gamma:        Number(rawScout?.optionsCalc?.gamma        ?? 0.015),
+    theta:        Number(rawScout?.optionsCalc?.theta        ?? -0.08),
+    vega:         Number(rawScout?.optionsCalc?.vega         ?? 0.20),
+    contracts:    Number(rawScout?.optionsCalc?.contracts    ?? 1),
+    expectedMove: Number(rawScout?.optionsCalc?.expectedMove ?? -5),
   };
 
   return {
@@ -1678,16 +1679,17 @@ function setupScout() {
       } else if (strategy === "options") {
         if (!state.scout.optionsCalc) state.scout.optionsCalc = {};
         const o = state.scout.optionsCalc;
-        o.type      = formData.get("opt-type") === "call" ? "call" : "put";
-        const _n    = (k, fb) => { const v = parseFloat(formData.get(k)); return Number.isFinite(v) ? v : fb; };
-        o.spot      = _n("opt-spot",    o.spot     ?? 560);
-        o.strike    = _n("opt-strike",  o.strike   ?? 530);
-        o.dte       = _n("opt-dte",     o.dte      ?? 120);
-        o.iv        = _n("opt-iv",      o.iv       ?? 27);
-        o.hv        = _n("opt-hv",      o.hv       ?? 20);
-        o.rfr       = _n("opt-rfr",     o.rfr      ?? 4.4);
-        o.ivCrush   = _n("opt-ivcrush", o.ivCrush  ?? 10);
-        o.contracts = Math.max(1, parseInt(formData.get("opt-contracts"), 10) || (o.contracts ?? 1));
+        o.type         = formData.get("opt-type") === "call" ? "call" : "put";
+        const _n       = (k, fb) => { const v = parseFloat(formData.get(k)); return Number.isFinite(v) ? v : fb; };
+        o.spy          = _n("opt-spy",      o.spy          ?? 560);
+        o.strike       = _n("opt-strike",   o.strike       ?? 530);
+        o.premium      = _n("opt-premium",  o.premium      ?? 10.00);
+        o.delta        = _n("opt-delta",    o.delta        ?? -0.35);
+        o.gamma        = _n("opt-gamma",    o.gamma        ?? 0.015);
+        o.theta        = _n("opt-theta",    o.theta        ?? -0.08);
+        o.vega         = _n("opt-vega",     o.vega         ?? 0.20);
+        o.contracts    = Math.max(1, parseInt(formData.get("opt-contracts"), 10) || (o.contracts ?? 1));
+        o.expectedMove = _n("opt-move",     o.expectedMove ?? -5);
         saveState();
         renderApp();
       }
@@ -1811,7 +1813,7 @@ function destroyScoutChart(id) {
 function renderScoutCharts(model) {
   const lab = model.strategyLab;
   if (!lab) return;
-  const activeStrategy = state.scout.strategyLab?.activeStrategy || "macro";
+  const activeStrategy = state.scout.strategyLab?.activeStrategy || "vix";
 
   if (activeStrategy === "vix") {
     renderVixChart(lab.vix, model);
@@ -3729,7 +3731,7 @@ function renderSynthesisMemo(model) {
 
 function renderStrategyLab(model) {
   const lab = model.strategyLab;
-  const activeStrategy = state.scout.strategyLab?.activeStrategy || "macro";
+  const activeStrategy = state.scout.strategyLab?.activeStrategy || "vix";
   const vixParams = state.scout.strategyLab?.vixParams || { threshold: 25, horizon: 20 };
   const gsParams = state.scout.strategyLab?.gsParams || { entryRatio: 75, exitRatio: 50, maxDays: 180 };
 
@@ -3754,13 +3756,13 @@ function renderStrategyLab(model) {
         <span class="status-pill ${getScoutStatusClass(model.dataStatus)}">${escapeHtml(model.dataStatus)}</span>
       </div>
       <div class="lab-tabs" style="margin-top:1rem">
-        <button type="button" class="${tab("macro")}"    data-lab-strategy="macro">Macro</button>
-        <button type="button" class="${tab("decision")}" data-lab-strategy="decision">Decision</button>
-        <button type="button" class="${tab("vix")}"      data-lab-strategy="vix">VIX Backtest</button>
+        <button type="button" class="${tab("vix")}"      data-lab-strategy="vix">VIX Spike Entry</button>
         <button type="button" class="${tab("gs")}"       data-lab-strategy="gs">Gold/Silver</button>
         <button type="button" class="${tab("momentum")}" data-lab-strategy="momentum">Momentum</button>
         <button type="button" class="${tab("options")}"  data-lab-strategy="options">Options</button>
         <button type="button" class="${tab("risk")}"     data-lab-strategy="risk">Risk</button>
+        <button type="button" class="${tab("macro")}"    data-lab-strategy="macro">Macro</button>
+        <button type="button" class="${tab("decision")}" data-lab-strategy="decision">Decision</button>
       </div>
       ${content}
     </section>
@@ -4537,226 +4539,32 @@ function _bsGreeks(type, S, K, T, r, sigma) {
 // ────────────────────────────────────────────────────────────────────────────
 
 function renderOptionsTab(model) {
-  const oc    = state.scout?.optionsCalc || {};
-  const type  = oc.type || "put";
-  const S     = Number(oc.spot      ?? 560);
-  const K     = Number(oc.strike    ?? 530);
-  const DTE   = Number(oc.dte       ?? 120);
-  const IV    = Number(oc.iv        ?? 27);
-  const HV    = Number(oc.hv        ?? 20);
-  const RFR   = Number(oc.rfr       ?? 4.4);
-  const crush = Number(oc.ivCrush   ?? 10);
-  const N     = Number(oc.contracts ?? 1);
+  const oc          = state.scout?.optionsCalc || {};
+  const type        = oc.type || "put";
+  const spy         = Number(oc.spy         ?? 560);
+  const strike      = Number(oc.strike      ?? 530);
+  const premium     = Number(oc.premium     ?? 10.00);
+  const delta       = Number(oc.delta       ?? -0.35);
+  const gamma       = Number(oc.gamma       ?? 0.015);
+  const theta       = Number(oc.theta       ?? -0.08);
+  const vega        = Number(oc.vega        ?? 0.20);
+  const contracts   = Number(oc.contracts   ?? 1);
+  const expectedMove = Number(oc.expectedMove ?? -5);
 
-  const T     = DTE / 365;
-  const sigma = IV / 100;
-  const r     = RFR / 100;
-
-  // ── BS theoretical price and Greeks ──────────────────────────────────────
-  const bsVal    = _bsPrice(type, S, K, T, r, sigma);
-  const greeks   = _bsGreeks(type, S, K, T, r, sigma);
-  const intrinsic= type === "put" ? Math.max(0, K - S) : Math.max(0, S - K);
-  const timeVal  = Math.max(0, bsVal - intrinsic);
-  const ivHvPrem = IV - HV;
-
-  // IV crush: reprice at IV − crush pts
-  const sigmaPost= Math.max(0.01, (IV - crush) / 100);
-  const ivCrushLoss = (_bsPrice(type, S, K, T, r, sigmaPost) - bsVal) * 100 * N;
-
-  // ── P&L scenario matrix: spot moves × time horizons ──────────────────────
-  const spotMoves  = [-0.20, -0.15, -0.10, -0.05, 0, 0.05, 0.10];
-  const horizonDays= [30, 60, 90, DTE];
-
-  const scenMatrix = spotMoves.map((mv) => {
-    const newS = S * (1 + mv);
-    return horizonDays.map((hDays) => {
-      const remT    = Math.max(0, (DTE - hDays)) / 365;
-      // apply IV crush post-move (vol often compresses after move resolves)
-      const sigmaH  = hDays >= DTE ? sigma : sigmaPost;
-      const newPrice= _bsPrice(type, newS, K, remT, r, sigmaH);
-      const pnl     = (newPrice - bsVal) * 100 * N;
-      return pnl;
-    });
-  });
-
-  const horizonLabels = horizonDays.map((d, i) => i === horizonDays.length - 1 ? `${d}d (expiry)` : `${d}d`);
-
-  const matrixRows = spotMoves.map((mv, ri) => {
-    const pctLabel = (mv >= 0 ? "+" : "") + (mv * 100).toFixed(0) + "%";
-    const cells = scenMatrix[ri].map((pnl, ci) => {
-      const cls = pnl > 0 ? "pos" : pnl < 0 ? "neg" : "";
-      const pnlFmt = (pnl >= 0 ? "+" : "") + "$" + Math.abs(Math.round(pnl)).toLocaleString();
-      const pctFmt = bsVal > 0 ? ` (${((pnl / (bsVal * 100 * N)) * 100).toFixed(0)}%)` : "";
-      return `<td class="right ${cls}" style="white-space:nowrap">${pnlFmt}<span style="font-size:0.65rem;opacity:0.7">${pctFmt}</span></td>`;
-    }).join("");
-    const rowStyle = mv === 0 ? ' style="background:var(--bg-softer)"' : "";
-    return `<tr${rowStyle}><td style="font-weight:600">${pctLabel}</td>${cells}</tr>`;
-  }).join("");
-
-  // ── Vol assessment ────────────────────────────────────────────────────────
-  let volVerdict, volCls;
-  if (ivHvPrem > 15)      { volVerdict = `IV is ${ivHvPrem.toFixed(1)} pts above realized vol — options are expensive. You're paying a significant premium over historical vol. IV crush risk is high.`; volCls = "verdict-go"; }
-  else if (ivHvPrem > 7)  { volVerdict = `IV is moderately above realized vol (${ivHvPrem.toFixed(1)} pts). This is within normal territory for SPX puts given persistent demand for downside protection. Entry is not cheap, but not extreme either.`; volCls = "verdict-mixed"; }
-  else if (ivHvPrem > 0)  { volVerdict = `IV is only slightly above HV (${ivHvPrem.toFixed(1)} pts). Options are fairly priced vs recent realized vol. Relatively attractive entry if you have directional conviction.`; volCls = "verdict-no"; }
-  else                    { volVerdict = `IV (${IV}%) is BELOW realized HV (${HV}%). Options are cheap vs realized. This is rare — strong entry for option buyers.`; volCls = "verdict-no"; }
-
-  // ── Greeks explanations ───────────────────────────────────────────────────
-  const isPut = type === "put";
-  const perContract = 100 * N;
-  const dailyTheta  = greeks.theta * perContract;
-  const weeklyTheta = dailyTheta * 7;
-  const vegaDollar  = greeks.vega * perContract;
-
-  return `
-    <div class="lab-layout">
-      <div class="lab-sidebar">
-        <div class="lab-params">
-          <p class="lab-params__title">Inputs</p>
-          <form data-lab-form="options">
-            <div class="lab-field">
-              <label>Option type</label>
-              <select name="opt-type">
-                <option value="put"  ${type === "put"  ? "selected" : ""}>Put — bearish / hedge</option>
-                <option value="call" ${type === "call" ? "selected" : ""}>Call — bullish</option>
-              </select>
-            </div>
-            <div class="lab-field">
-              <label>Underlying price (SPY/SPX)</label>
-              <input type="number" name="opt-spot"    value="${S}"     step="1"    min="100"  max="10000" />
-            </div>
-            <div class="lab-field">
-              <label>Strike price</label>
-              <input type="number" name="opt-strike"  value="${K}"     step="1"    min="100"  max="10000" />
-            </div>
-            <div class="lab-field">
-              <label>Days to expiration (DTE)</label>
-              <input type="number" name="opt-dte"     value="${DTE}"   step="1"    min="1"    max="730" />
-            </div>
-            <div class="lab-field">
-              <label>Implied vol — IV (%)</label>
-              <input type="number" name="opt-iv"      value="${IV}"    step="0.5"  min="1"    max="200" />
-            </div>
-            <div class="lab-field">
-              <label>Historical / realized vol — HV (%)</label>
-              <input type="number" name="opt-hv"      value="${HV}"    step="0.5"  min="1"    max="200" />
-            </div>
-            <div class="lab-field">
-              <label>Risk-free rate (%)</label>
-              <input type="number" name="opt-rfr"     value="${RFR}"   step="0.1"  min="0"    max="20" />
-            </div>
-            <div class="lab-field">
-              <label>IV crush scenario (−pts)</label>
-              <input type="number" name="opt-ivcrush" value="${crush}" step="1"    min="0"    max="50" />
-            </div>
-            <div class="lab-field">
-              <label>Contracts (1 = 100× multiplier)</label>
-              <input type="number" name="opt-contracts" value="${N}"   step="1"    min="1"    max="1000" />
-            </div>
-            <button type="submit" class="button button--primary button--small" style="width:100%;margin-top:0.75rem">Price &amp; Calculate</button>
-          </form>
-        </div>
-      </div>
-
-      <div class="lab-results">
-        <p class="lab-block-title" style="margin-bottom:0.5rem">Use this to stress-test your specific strike/expiry before sizing.</p>
-
-        <div class="lab-stats-row" style="margin-bottom:1rem">
-          <div class="lab-stat">
-            <span class="lab-stat__label">BS theoretical value</span>
-            <span class="lab-stat__value" style="font-size:1.1rem;font-weight:700">$${bsVal.toFixed(2)}</span>
-          </div>
-          <div class="lab-stat">
-            <span class="lab-stat__label">Intrinsic value</span>
-            <span class="lab-stat__value lab-stat__value--muted">$${intrinsic.toFixed(2)}</span>
-          </div>
-          <div class="lab-stat">
-            <span class="lab-stat__label">Time value</span>
-            <span class="lab-stat__value lab-stat__value--muted">$${timeVal.toFixed(2)}</span>
-          </div>
-          <div class="lab-stat">
-            <span class="lab-stat__label">IV vs HV premium</span>
-            <span class="lab-stat__value ${ivHvPrem > 0 ? "lab-stat__value--negative" : "lab-stat__value--positive"}">${ivHvPrem >= 0 ? "+" : ""}${ivHvPrem.toFixed(1)} pts</span>
-          </div>
-        </div>
-
-        <div class="lab-stats-row" style="margin-bottom:1rem">
-          <div class="lab-stat">
-            <span class="lab-stat__label">Delta</span>
-            <span class="lab-stat__value lab-stat__value--muted">${greeks.delta.toFixed(3)}</span>
-          </div>
-          <div class="lab-stat">
-            <span class="lab-stat__label">Theta ($/day)</span>
-            <span class="lab-stat__value lab-stat__value--negative">${(dailyTheta).toFixed(2)}/day</span>
-          </div>
-          <div class="lab-stat">
-            <span class="lab-stat__label">Vega (per 1pt IV)</span>
-            <span class="lab-stat__value lab-stat__value--muted">$${vegaDollar.toFixed(2)}</span>
-          </div>
-          <div class="lab-stat">
-            <span class="lab-stat__label">IV crush loss (−${crush}pts)</span>
-            <span class="lab-stat__value lab-stat__value--negative">${ivCrushLoss.toFixed(2) > 0 ? "+" : ""}$${ivCrushLoss.toFixed(2)}</span>
-          </div>
-        </div>
-
-        <div style="margin-bottom:1rem">
-          <p class="lab-block-title">P&amp;L Scenarios — value at each time horizon (per ${N} contract${N !== 1 ? "s" : ""} × 100 multiplier)</p>
-          <p class="lab-block-sub">Rows = SPX/SPY move. Columns = days elapsed. P&amp;L already includes IV crush to ${(IV - crush).toFixed(0)}% for horizon columns. At expiry: intrinsic value only (no IV). The key insight: without a move, theta bleed dominates — use this table to find the minimum required decline to break even at your intended hold period.</p>
-          <div class="table-wrap" style="margin-top:0.5rem;overflow-x:auto">
-            <table class="lab-trade-table">
-              <thead>
-                <tr>
-                  <th>SPX move</th>
-                  ${horizonLabels.map((h) => `<th class="right">${h}</th>`).join("")}
-                </tr>
-              </thead>
-              <tbody>${matrixRows}</tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="verdict-bar ${volCls}" style="margin-bottom:1rem">
-          <strong>Vol assessment:</strong> ${volVerdict}
-        </div>
-
-        <div>
-          <p class="lab-block-title">What the Greeks mean for your position</p>
-          <div style="display:grid;gap:0.6rem;margin-top:0.5rem">
-            <div style="padding:0.75rem;background:var(--bg-softer);border-radius:6px;font-size:0.75rem;line-height:1.6">
-              <strong>Delta ${greeks.delta.toFixed(3)}:</strong>
-              For every $1 move in the underlying, your option changes by $${Math.abs(greeks.delta * 100 * N).toFixed(0)} (${N} contract${N !== 1 ? "s" : ""}).
-              ${isPut ? "Negative delta means you profit when the underlying drops." : "Positive delta means you profit when the underlying rises."}
-              A ${isPut ? "10% SPY drop" : "10% SPY rise"} moves the underlying by $${(S * 0.1).toFixed(0)} — delta alone contributes $${Math.abs(greeks.delta * S * 0.1 * 100 * N).toFixed(0)} in P&amp;L.
-            </div>
-            <div style="padding:0.75rem;background:var(--bg-softer);border-radius:6px;font-size:0.75rem;line-height:1.6">
-              <strong>Theta ${dailyTheta.toFixed(2)}/day:</strong>
-              Your position loses $${Math.abs(dailyTheta).toFixed(2)}/day from time decay alone, even if the underlying doesn't move.
-              Over a week that's $${Math.abs(weeklyTheta).toFixed(0)}. At ${DTE} DTE with IV at ${IV}%, this is the minimum daily hurdle you need the underlying to overcome.
-              <span style="color:var(--negative)">Time works against option buyers.</span>
-            </div>
-            <div style="padding:0.75rem;background:var(--bg-softer);border-radius:6px;font-size:0.75rem;line-height:1.6">
-              <strong>Vega $${vegaDollar.toFixed(2)} per 1pt IV:</strong>
-              If IV rises 5 points (e.g. VIX spikes from ${IV} to ${IV + 5}), your position gains +$${(vegaDollar * 5).toFixed(0)}.
-              If IV falls 5 points (market calms), you lose −$${(vegaDollar * 5).toFixed(0)}.
-              The IV crush scenario (−${crush}pts) costs $${Math.abs(ivCrushLoss).toFixed(0)} even if you're directionally right.
-              <span style="color:var(--text-muted)">This is why timing matters: buying protection after IV is already elevated is expensive.</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-  // ── Compute P&L at expected move ──────────────────────────────────────────
-  const spyChg       = spy * (expectedMove / 100);          // $ change in SPY
-  const deltaChg     = delta * spyChg;                      // 1st-order price change
-  const gammaAdj     = 0.5 * gamma * spyChg * spyChg;      // 2nd-order (convexity)
+  // Compute P&L at expected move
+  const spyChg       = spy * (expectedMove / 100);
+  const deltaChg     = delta * spyChg;
+  const gammaAdj     = 0.5 * gamma * spyChg * spyChg;
   const optionChgEst = deltaChg + gammaAdj;
   const newPremium   = Math.max(0, premium + optionChgEst);
-  const pnlPerContr  = (newPremium - premium) * 100;        // each contract = 100 shares
+  const pnlPerContr  = (newPremium - premium) * 100;
   const totalPnl     = pnlPerContr * contracts;
 
-  // ── Scenarios: −5% to +5% SPY move ────────────────────────────────────────
+  // Break-even
+  const breakEvenUnderlying = type === "put" ? strike - premium : strike + premium;
+  const breakEvenPct = ((breakEvenUnderlying / spy) - 1) * 100;
+
+  // Scenarios: -5% to +5%
   const scenarios = [-5, -3, -2, -1, 0, 1, 2, 3, 5].map((pct) => {
     const chg  = spy * (pct / 100);
     const dChg = delta * chg + 0.5 * gamma * chg * chg;
@@ -4777,43 +4585,42 @@ function renderOptionsTab(model) {
   }).join("");
 
   const pnlCls = totalPnl >= 0 ? "lab-stat__value--positive" : "lab-stat__value--negative";
-  const isPut = type === "put";
-  const isCall = type === "call";
+  const isPut  = type === "put";
 
-  // ── Greeks guide ────────────────────────────────────────────────────────────
   const greeksGuide = `
     <div style="margin-top:1.25rem">
-      <p class="lab-block-title">Understanding the Greeks — what each number means</p>
+      <p class="lab-block-title">What the Greeks mean for your position</p>
       <div style="display:grid;gap:0.75rem;margin-top:0.5rem">
         <div style="padding:0.75rem;background:var(--bg-softer);border-radius:6px">
           <p style="font-weight:600;font-size:0.82rem;margin-bottom:0.3rem">Delta (δ) = ${delta >= 0 ? "+" : ""}${delta}</p>
           <p style="font-size:0.75rem;color:var(--text-secondary);line-height:1.6">
-            <strong>What it is:</strong> how much the option price moves for every $1 move in ${isPut ? "SPY (negative for puts — they gain when SPY drops)" : "SPY (positive for calls — they gain when SPY rises)"}.
-            <br><strong>Your position:</strong> With delta = ${delta}, if SPY moves $1, your option changes by ~$${Math.abs(delta).toFixed(2)}.
-            With ${contracts} contract${contracts !== 1 ? "s" : ""} (${contracts * 100} shares), that's ~$${(Math.abs(delta) * contracts * 100).toFixed(0)} per $1 SPY move.
-            <br><strong>Range:</strong> ${isPut ? "0 to −1 for puts (deep ITM = −1, far OTM ≈ 0)" : "0 to +1 for calls (deep ITM = +1, far OTM ≈ 0)"}.
+            <strong>What it is:</strong> how much the option price moves per $1 in SPY.
+            ${isPut ? "Negative for puts — they gain when SPY drops." : "Positive for calls — they gain when SPY rises."}
+            <br><strong>Your position (${contracts} contract${contracts !== 1 ? "s" : ""}):</strong> each $1 SPY move = ~$${(Math.abs(delta) * contracts * 100).toFixed(0)}.
+            A 5% SPY drop ($${(spy * 0.05).toFixed(0)}) gives delta P&amp;L of $${(Math.abs(delta) * spy * 0.05 * 100 * contracts).toFixed(0)} ${isPut ? "gain" : "loss"}.
           </p>
         </div>
         <div style="padding:0.75rem;background:var(--bg-softer);border-radius:6px">
           <p style="font-weight:600;font-size:0.82rem;margin-bottom:0.3rem">Gamma (γ) = ${gamma}</p>
           <p style="font-size:0.75rem;color:var(--text-secondary);line-height:1.6">
-            <strong>What it is:</strong> how fast delta changes as SPY moves. If SPY drops $10, gamma tells you delta won't stay at ${delta} — it will get more negative (put gains more).
-            <br><strong>Practical impact:</strong> Gamma is why big moves are <em>better than expected</em> for option buyers. On a $10 SPY drop, your put doesn't just gain ${delta} × 10 = $${(delta * 10).toFixed(2)} — it gains more because delta grows. The extra is ½ × ${gamma} × 10² = $${(0.5 * gamma * 100).toFixed(2)}.
+            <strong>What it is:</strong> how fast delta accelerates as SPY moves. Big moves pay better than expected for option buyers.
+            <br><strong>Practical impact:</strong> On a 5% SPY drop, gamma adds ~$${(0.5 * gamma * Math.pow(spy * 0.05, 2) * 100 * contracts).toFixed(0)} on top of delta P&amp;L.
           </p>
         </div>
         <div style="padding:0.75rem;background:var(--bg-softer);border-radius:6px">
-          <p style="font-weight:600;font-size:0.82rem;margin-bottom:0.3rem">Theta (θ) = ${theta} per day</p>
+          <p style="font-weight:600;font-size:0.82rem;margin-bottom:0.3rem">Theta (θ) = ${theta}/day</p>
           <p style="font-size:0.75rem;color:var(--text-secondary);line-height:1.6">
-            <strong>What it is:</strong> time decay — how much the option loses in value every calendar day just from time passing, with everything else held constant.
-            <br><strong>Your position:</strong> This option loses $${Math.abs(theta * 100 * contracts).toFixed(0)}/day across your ${contracts} contract${contracts !== 1 ? "s" : ""}. Over a week: −$${Math.abs(theta * 100 * contracts * 7).toFixed(0)}. <strong>Time works against option buyers.</strong>
+            <strong>What it is:</strong> daily time decay — the option loses this amount every day with no movement.
+            <br><strong>Your position:</strong> $${Math.abs(theta * 100 * contracts).toFixed(0)}/day. Weekly: $${Math.abs(theta * 100 * contracts * 7).toFixed(0)}.
+            <br><span style="color:var(--negative)"><strong>Time works against option buyers</strong> — you must move fast enough to outrun decay.</span>
           </p>
         </div>
         <div style="padding:0.75rem;background:var(--bg-softer);border-radius:6px">
           <p style="font-weight:600;font-size:0.82rem;margin-bottom:0.3rem">Vega (ν) = ${vega}</p>
           <p style="font-size:0.75rem;color:var(--text-secondary);line-height:1.6">
-            <strong>What it is:</strong> how much the option price changes per 1 percentage point move in implied volatility (IV).
-            <br><strong>Your position:</strong> If IV rises +5 pp (e.g., VIX spikes), your option gains +$${(vega * 5 * 100 * contracts).toFixed(0)}. If IV falls −5 pp (calm market), you lose −$${(vega * 5 * 100 * contracts).toFixed(0)}.
-            <br><strong>Why it matters:</strong> When you buy ${isPut ? "a put" : "a call"} expecting a move, volatility compression can kill P&L even if you're directionally right.
+            <strong>What it is:</strong> change in option price per 1pp move in implied volatility.
+            <br><strong>Your position:</strong> IV +5pts → +$${(vega * 5 * 100 * contracts).toFixed(0)} gain. IV −5pts → −$${(vega * 5 * 100 * contracts).toFixed(0)} loss.
+            <br>Being directionally right isn’t enough — if vol collapses on the move, vega erases gains.
           </p>
         </div>
       </div>
@@ -4872,27 +4679,28 @@ function renderOptionsTab(model) {
             <button type="submit" class="button button--primary button--small" style="width:100%;margin-top:0.6rem">Calculate P&amp;L</button>
           </form>
           <div style="margin-top:1rem;padding:0.75rem;background:var(--bg-softer);border-radius:6px;font-size:0.72rem;line-height:1.6">
-            <p style="font-weight:600;margin-bottom:0.3rem">How the calculation works</p>
+            <p style="font-weight:600;margin-bottom:0.3rem">How this works</p>
             <p>Option value change ≈ <strong>Delta × ΔSPY + ½ × Gamma × ΔSPY²</strong></p>
-            <p style="color:var(--text-muted);margin-top:0.3rem">This is the 2nd-order Taylor approximation. Accurate for moderate moves (&lt;5%). For larger moves, actual results diverge.</p>
+            <p style="color:var(--text-muted);margin-top:0.3rem">2nd-order Taylor approximation. Accurate for moves &lt;5%. Larger moves will diverge.</p>
           </div>
         </div>
       </div>
       <div class="lab-results">
         <div class="verdict-bar ${totalPnl >= 0 ? "verdict-no" : "verdict-go"}" style="margin-bottom:1rem">
-          If SPY moves ${expectedMove >= 0 ? "+" : ""}${expectedMove}%, your ${contracts} contract${contracts !== 1 ? "s" : ""} should ${totalPnl >= 0 ? "gain" : "lose"} approximately <strong>${totalPnl >= 0 ? "+" : ""}$${Math.abs(totalPnl).toFixed(0)}</strong>.
-          Option price: $${premium.toFixed(2)} → ~$${newPremium.toFixed(2)}.
+          If SPY moves ${expectedMove >= 0 ? "+" : ""}${expectedMove}%, your ${contracts} contract${contracts !== 1 ? "s" : ""} should ${totalPnl >= 0 ? "gain" : "lose"} ≈ <strong>${totalPnl >= 0 ? "+" : ""}$${Math.abs(totalPnl).toFixed(0)}</strong>.
+          Option: $${premium.toFixed(2)} → ~$${newPremium.toFixed(2)}.
         </div>
         <div class="lab-stats-row" style="margin-bottom:1rem">
           <div class="lab-stat"><span class="lab-stat__label">Type</span><span class="lab-stat__value lab-stat__value--muted">${escapeHtml(type.toUpperCase())}</span></div>
           <div class="lab-stat"><span class="lab-stat__label">Strike</span><span class="lab-stat__value lab-stat__value--muted">$${strike.toFixed(0)}</span></div>
           <div class="lab-stat"><span class="lab-stat__label">Premium paid</span><span class="lab-stat__value lab-stat__value--muted">$${premium.toFixed(2)}</span></div>
-          <div class="lab-stat"><span class="lab-stat__label">Est. new premium</span><span class="lab-stat__value">${newPremium >= premium ? "lab-stat__value--positive" : "lab-stat__value--negative"}">${newPremium >= premium ? "▲" : "▼"} $${newPremium.toFixed(2)}</span></div>
+          <div class="lab-stat"><span class="lab-stat__label">Est. new premium</span><span class="lab-stat__value ${newPremium >= premium ? "lab-stat__value--positive" : "lab-stat__value--negative"}">${newPremium >= premium ? "▲" : "▼"} $${newPremium.toFixed(2)}</span></div>
           <div class="lab-stat"><span class="lab-stat__label">Total P&amp;L</span><span class="lab-stat__value ${pnlCls}">${totalPnl >= 0 ? "+" : ""}$${totalPnl.toFixed(0)}</span></div>
-          <div class="lab-stat"><span class="lab-stat__label">Max loss (if expires worthless)</span><span class="lab-stat__value lab-stat__value--negative">−$${(premium * 100 * contracts).toFixed(0)}</span></div>
+          <div class="lab-stat"><span class="lab-stat__label">Break-even</span><span class="lab-stat__value lab-stat__value--muted">$${breakEvenUnderlying.toFixed(2)} (${breakEvenPct >= 0 ? "+" : ""}${breakEvenPct.toFixed(1)}%)</span></div>
+          <div class="lab-stat"><span class="lab-stat__label">Max loss (if worthless)</span><span class="lab-stat__value lab-stat__value--negative">−$${(premium * 100 * contracts).toFixed(0)}</span></div>
         </div>
         <p class="lab-block-title">P&amp;L across SPY scenarios</p>
-        <p class="lab-block-sub">Each row = what happens at that SPY move. Highlighted row = your expected move. P&amp;L = (new option price − premium paid) × 100 × contracts.</p>
+        <p class="lab-block-sub">Highlighted row = your expected move. P&amp;L = (new premium − premium paid) × 100 × contracts.</p>
         <div class="table-wrap">
           <table class="lab-trade-table">
             <thead><tr><th>SPY move</th><th class="right">SPY price</th><th class="right">Est. option value</th><th class="right">P&amp;L</th></tr></thead>
@@ -4904,6 +4712,7 @@ function renderOptionsTab(model) {
     </div>
   `;
 }
+
 
 // ---------------------------------------------------------------------------
 // RISK TAB — Correlation matrix + cluster identification
