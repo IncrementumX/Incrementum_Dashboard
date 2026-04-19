@@ -43,6 +43,7 @@
         <button class="tab-button" data-tab-target="transactions-tab">Transactions</button>
         <button class="tab-button" data-tab-target="summary-returns-tab">Summary Returns</button>
         <button class="tab-button" data-tab-target="scout-tab">Scout</button>
+        <button class="tab-button" data-tab-target="atlas-tab">Atlas</button>
       </nav>
 
       <main class="content-grid">
@@ -543,9 +544,186 @@
             </div>
           </section>
         </section>
+
+        <!-- ═══════════════════════════════════════════════════════════
+             Atlas tab — Incrementum light palette
+             Data loaded from atlas-manifest.json (built by
+             tools/build-atlas-manifest.js).
+             ═══════════════════════════════════════════════════════════ -->
+        <section id="atlas-tab" class="tab-panel atlas-shell">
+          <div class="atlas-topbar">
+            <div>
+              <h2 class="atlas-title">Atlas</h2>
+              <p class="atlas-subtitle">Investment research system — 3-agent, Druckenmiller-style.</p>
+            </div>
+            <div class="atlas-topbar-actions">
+              <span id="atlas-generated-at" class="atlas-pill">Loading…</span>
+              <button id="atlas-refresh-btn" class="atlas-btn">Refresh manifest</button>
+            </div>
+          </div>
+
+          <!-- positions row -->
+          <div class="atlas-section-header">
+            <h3>Positions</h3>
+            <span class="atlas-section-note">Fill via PARO 3 (Eduardo). Templates are scaffolded.</span>
+          </div>
+          <div id="atlas-positions" class="atlas-card-row"></div>
+
+          <!-- two-column: work queues + issues -->
+          <div class="atlas-two-col">
+            <div>
+              <div class="atlas-section-header"><h3>Work Queues</h3></div>
+              <div id="atlas-queues" class="atlas-card-stack"></div>
+            </div>
+            <div>
+              <div class="atlas-section-header"><h3>Open Issues</h3></div>
+              <div id="atlas-issues" class="atlas-card-stack"></div>
+            </div>
+          </div>
+
+          <!-- skills -->
+          <div class="atlas-section-header">
+            <h3>Skills</h3>
+          </div>
+          <div id="atlas-skills" class="atlas-card-row atlas-card-row--skills"></div>
+
+          <!-- activity log -->
+          <div class="atlas-section-header">
+            <h3>Activity Log</h3>
+            <span class="atlas-section-note">Last 30 INGEST / QUERY / LINT / DECISION operations from wiki/log.md.</span>
+          </div>
+          <div id="atlas-log" class="atlas-log-box"></div>
+        </section>
       </main>
     </div>
 
     <script type="module" src="./src/bootstrap.js?v=2"></script>
+    <script type="module">
+      /* Atlas tab — loads atlas-manifest.json and populates the tab */
+      async function loadAtlasManifest() {
+        try {
+          const res = await fetch("./atlas-manifest.json?t=" + Date.now());
+          if (!res.ok) throw new Error("atlas-manifest.json not found (" + res.status + ")");
+          return await res.json();
+        } catch (err) {
+          return { _error: err.message };
+        }
+      }
+
+      function escHtml(s) {
+        return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
+
+      function renderAtlas(manifest) {
+        if (manifest._error) {
+          document.getElementById("atlas-positions").innerHTML =
+            '<p class="atlas-empty">Could not load atlas-manifest.json: ' + escHtml(manifest._error) + '<br>Run <code>node tools/build-atlas-manifest.js</code> to generate it.</p>';
+          return;
+        }
+
+        // generated at
+        const genAt = document.getElementById("atlas-generated-at");
+        if (genAt) {
+          genAt.textContent = "Generated " + new Date(manifest.generated_at).toLocaleString();
+        }
+
+        // positions
+        const posEl = document.getElementById("atlas-positions");
+        if (posEl) {
+          if (!manifest.positions?.length) {
+            posEl.innerHTML = '<p class="atlas-empty">No positions found.</p>';
+          } else {
+            posEl.innerHTML = manifest.positions.map((p) => {
+              const badge = p.is_template
+                ? '<span class="atlas-badge atlas-badge--template">Template</span>'
+                : '<span class="atlas-badge atlas-badge--live">Live</span>';
+              return `
+                <article class="atlas-card atlas-card--position">
+                  <div class="atlas-card-header">
+                    <strong class="atlas-ticker">${escHtml(p.ticker)}</strong>
+                    ${badge}
+                  </div>
+                  <p class="atlas-card-title">${escHtml(p.title)}</p>
+                  ${p.tldr ? '<p class="atlas-card-body">' + escHtml(p.tldr) + '</p>' : '<p class="atlas-card-body atlas-muted">TL;DR pending Eduardo.</p>'}
+                  <p class="atlas-card-meta">${p.last_updated ? "Updated " + escHtml(p.last_updated) : "No date"} &middot; <a class="atlas-link" href="${escHtml(p.file)}" target="_blank">view</a></p>
+                </article>`;
+            }).join("");
+          }
+        }
+
+        // queues
+        const queuesEl = document.getElementById("atlas-queues");
+        if (queuesEl && manifest.work_queues) {
+          const queueCards = Object.entries(manifest.work_queues).map(([name, q]) => {
+            const count = q.entries?.length || 0;
+            return `
+              <article class="atlas-card">
+                <div class="atlas-card-header">
+                  <strong>${escHtml(name)}</strong>
+                  <span class="atlas-badge">${count} entr${count === 1 ? "y" : "ies"}</span>
+                </div>
+                <p class="atlas-card-meta"><a class="atlas-link" href="${escHtml(q.file)}" target="_blank">work_queues/${escHtml(name)}.md</a></p>
+                ${count ? '<ul class="atlas-queue-list">' + (q.entries || []).slice(0, 5).map((e) => `<li><span class="atlas-queue-status atlas-queue-status--${escHtml(e.status)}">${escHtml(e.status)}</span> ${escHtml(e.label || e.id)}</li>`).join("") + '</ul>' : '<p class="atlas-muted">Queue empty.</p>'}
+              </article>`;
+          });
+          queuesEl.innerHTML = queueCards.join("");
+        }
+
+        // issues
+        const issuesEl = document.getElementById("atlas-issues");
+        if (issuesEl) {
+          const issues = manifest.issues || [];
+          if (!issues.length) {
+            issuesEl.innerHTML = '<p class="atlas-empty">No open issues.</p>';
+          } else {
+            issuesEl.innerHTML = issues.map((i) => `
+              <article class="atlas-card atlas-card--issue">
+                <div class="atlas-card-header">
+                  <strong>${escHtml(i.title)}</strong>
+                  <span class="atlas-badge atlas-badge--sev-${escHtml(i.severity)}">${escHtml(i.severity)}</span>
+                </div>
+                <p class="atlas-card-meta">${i.date ? escHtml(i.date) : ""} &middot; ${escHtml(i.status)}</p>
+              </article>`).join("");
+          }
+        }
+
+        // skills
+        const skillsEl = document.getElementById("atlas-skills");
+        if (skillsEl) {
+          const skills = manifest.skills || [];
+          skillsEl.innerHTML = skills.map((s) => `
+            <article class="atlas-card atlas-card--skill">
+              <div class="atlas-card-header">
+                <strong>${escHtml(s.name)}</strong>
+                <span class="atlas-badge atlas-badge--type">${escHtml(s.type)}</span>
+              </div>
+              ${s.description ? '<p class="atlas-card-body">' + escHtml(s.description) + '</p>' : ""}
+              ${s.has_skill_md ? '<p class="atlas-card-meta"><a class="atlas-link" href="' + escHtml(s.file) + '" target="_blank">SKILL.md</a></p>' : '<p class="atlas-card-meta atlas-warn">Missing SKILL.md</p>'}
+            </article>`).join("");
+        }
+
+        // activity log
+        const logEl = document.getElementById("atlas-log");
+        if (logEl) {
+          const lines = manifest.wiki_log?.recent_operations || [];
+          if (!lines.length) {
+            logEl.innerHTML = '<p class="atlas-empty">No log entries yet. Activity will appear here after the first ingest or briefing run.</p>';
+          } else {
+            logEl.innerHTML = lines.map((l) => '<div class="atlas-log-line">' + escHtml(l) + '</div>').join("");
+          }
+        }
+      }
+
+      async function initAtlas() {
+        const manifest = await loadAtlasManifest();
+        renderAtlas(manifest);
+      }
+
+      // init on tab activation or immediately if atlas is the active tab
+      document.addEventListener("DOMContentLoaded", () => {
+        initAtlas();
+        document.getElementById("atlas-refresh-btn")?.addEventListener("click", initAtlas);
+      });
+    </script>
   </body>
 </html>
