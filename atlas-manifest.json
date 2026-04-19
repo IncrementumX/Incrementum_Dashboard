@@ -1,0 +1,179 @@
+{
+  "generated_at": "2026-04-19T15:30:07.605Z",
+  "generated_by": "tools/build-atlas-manifest.js",
+  "atlas_root": "Atlas/",
+  "positions": [
+    {
+      "ticker": "AGQ",
+      "file": "Atlas/wiki/positions/agq.md",
+      "title": "AGQ — ProShares Ultra Silver — position page (HEDGE)",
+      "tldr": null,
+      "last_updated": "2026-04-18",
+      "is_template": true
+    },
+    {
+      "ticker": "BESI",
+      "file": "Atlas/wiki/positions/besi.md",
+      "title": "BESI — BE Semiconductor Industries — position page",
+      "tldr": "_3 lines. Eduardo writes._ <central thesis in one line> <what's priced in vs what's not>",
+      "last_updated": "2026-04-18",
+      "is_template": true
+    },
+    {
+      "ticker": "HII",
+      "file": "Atlas/wiki/positions/hii.md",
+      "title": "HII — Huntington Ingalls Industries — position page",
+      "tldr": "_3 lines. Eduardo writes._ <central thesis in one line> <what's priced in vs what's not>",
+      "last_updated": "2026-04-18",
+      "is_template": true
+    }
+  ],
+  "work_queues": {
+    "briefing": {
+      "file": "Atlas/work_queues/briefing.md",
+      "entries": [
+        {
+          "id": "<task_id>",
+          "label": "<task_id> — <YYYY-MM-DD> daily briefing",
+          "status": "queued | in-flight | done | failed",
+          "assigned_to": "atlas_underwriter (briefing skill)",
+          "requested_at": "<YYYY-MM-DD HH:MM>",
+          "target": "list of tickers / themes to cross-reference"
+        }
+      ],
+      "raw_tail": "\n- English: WSJ, Barron's, FT, Bloomberg terminal export if available.\n- BR: Valor, Estadão, Pipeline, BJ, NeoFeed.\n- IR: company pages for each live position + top-10 watchlist.\n- Sell-side digests: whatever Eduardo forwards that week.\n\n## Queue\n\n_Empty — Perplexity not yet wired, no manual briefing yet._\n"
+    },
+    "analysis": {
+      "file": "Atlas/work_queues/analysis.md",
+      "entries": [
+        {
+          "id": "<task_id>",
+          "label": "<task_id> — <short description>",
+          "status": "queued | in-flight | review | done | blocked",
+          "assigned_to": "atlas_underwriter",
+          "requested_at": "<YYYY-MM-DD HH:MM>",
+          "target": "<ticker / theme / macro page>"
+        }
+      ],
+      "raw_tail": "```\n\n## Queue\n\n_Empty — Atlas in bootstrap phase. First real tasks arrive once the three position pages are seeded (post-PARO 3)._\n\n## Completed tail (last 10)\n\n_None yet._\n"
+    },
+    "monitor": {
+      "file": "Atlas/work_queues/monitor.md",
+      "entries": [
+        {
+          "id": "<flag_id>",
+          "label": "<flag_id> — <ticker or theme> — <YYYY-MM-DD HH:MM>",
+          "status": "open | triaged | closed",
+          "assigned_to": null,
+          "requested_at": null,
+          "target": null
+        }
+      ],
+      "raw_tail": "`high` / `medium` / `low` are priority hints for weekly review.\n\n## Open flags\n\n_None yet — Atlas in bootstrap phase._\n\n## Closed tail (last 10)\n\n_None yet._\n"
+    }
+  },
+  "wiki_log": {
+    "file": "Atlas/wiki/log.md",
+    "recent_operations": [
+      "INGEST  2026-04-18 02:15  paro-2-agents   skills/atlas-cio/SKILL.md + atlas-underwriter/SKILL.md + atlas-associate/SKILL.md -> 3 agent constitutions",
+      "INGEST  2026-04-18 02:22  paro-2-skills   skills/atlas-briefing/ + snapshot/ + assessment/ + model/ + monitor/ SKILL.md -> 5 Underwriter skills",
+      "INGEST  2026-04-18 02:28  paro-2-princ    wiki/principles/{druckenmiller, source_hierarchy, kill_shot, review_cadence, open_harness}.md + README -> 5 principles + index",
+      "INGEST  2026-04-18 02:32  paro-3-seed     wiki/positions/{besi, hii, agq}.md -> templates seeded (PARO 3 fields pending Eduardo)",
+      "INGEST  2026-04-18 02:35  index-refresh   wiki/index.md -> updated with principles + position template status"
+    ]
+  },
+  "decisions": {
+    "file": "Atlas/agents_context/decisions.md",
+    "recent": "# Atlas — decisions.md\n\n_Append-only log of CIO verdicts. Newest at the bottom. One entry per verdict. Never edit a past entry — write a new entry if the view changes._\n\n_Each verdict also has a full companion page under `wiki/decisions/<YYYY-MM-DD>-<slug>.md`. This file is the tail; the wiki page is the detail._\n\n## Schema\n\n```\n### <YYYY-MM-DD> <ticker-or-theme> — <verdict>\nTask: <task_id>\nDriver: <one-line thesis or trigger that forced the verdict>\nSizing: <pre → post, if relevant>\nCompanion: wiki/decisions/<YYYY-MM-DD>-<slug>.md\n```\n\nVerdict values: `PASS` (take position / size up), `WATCH` (promote to watchlist / hold), `REJECT` (pass / trim / exit), `HOLD` (no change, thesis still valid).\n\n---\n\n## Log\n\n_2026-04-17 — Atlas governance bootstrapped. No verdicts yet. First entries come after PARO 3 (seeding the three live positions with their existing thesis, sizing, and triggers)._\n"
+  },
+  "issues": [
+    {
+      "title": "Schema",
+      "severity": "blocker | high | medium | low",
+      "status": "open",
+      "date": null
+    },
+    {
+      "title": "Open",
+      "severity": "unknown",
+      "status": "open",
+      "date": null
+    },
+    {
+      "title": "Resolved",
+      "severity": "unknown",
+      "status": "open",
+      "date": null
+    }
+  ],
+  "state": {
+    "file": "Atlas/agents_context/state.md",
+    "raw": "# Atlas — state.md\n\n_Lightweight index into the wiki. What is live right now. Not bulk content — just pointers._\n\n_Last updated: 2026-04-17 by initial seed._\n\n## Book\n\nIncrementum, Eduardo. Druckenmiller-style concentration. Three live positions + one hedge.\n\n## Live positions\n\n| Ticker | Role | Wiki page | Last reviewed | Status |\n|---|---|---|---|---|\n| BESI | High-conviction moonshot — advanced packaging / hybrid bonding for AI | [`wiki/positions/besi.md`](../wiki/positions/besi.md) | _pending seed_ | live |\n| HII | Small defense/shipbuilding — US naval cycle | [`wiki/positions/hii.md`](../wiki/positions/hii.md) | _pending seed_ | live |\n| AGQ | Silver hedge against macro-regime shift | [`wiki/positions/agq.md`](../wiki/positions/agq.md) | _pending seed_ | hedge |\n\n_Seed note: sizing, stop, and kill-shot per-position to be filled by Eduardo at PARO 3 (agents_context/decisions.md seeding step)._\n\n## Active watchlist\n\n_To be seeded by Eduardo or by the first weekly review._\n\nSee [`wiki/watchlist/`](../wiki/watchlist/).\n\n## Active themes\n\n_Seed the first themes after the first briefing cycle:_\n\n- _AI capex / advanced packaging_ — anchors BESI.\n- _US defense cycle_ — anchors HII.\n- _Sovereign credit / reserve regime_ — anchors AGQ.\n\nSee [`wiki/themes/`](../wiki/themes/).\n\n## Macro regime snapshot\n\n_To be seeded by the first macro page ingest._\n\nSee [`wiki/macro/`](../wiki/macro/).\n\n## Open issues\n\nSee [`agents_context/issues.md`](./issues.md).\n\n## Open contradictions\n\nSee [`agents_context/contradictions.md`](./contradictions.md).\n\n## Most recent verdicts\n\nSee [`agents_context/decisions.md`](./decisions.md) (tail).\n\n---\n\n**Schema:** this file is a router, not a document. Never put prose or analysis here — put it in `wiki/`. This file exists so agents can orient in one screenful at session start.\n"
+  },
+  "skills": [
+    {
+      "folder": "atlas-assessment",
+      "file": "Atlas/skills/atlas-assessment/SKILL.md",
+      "name": "atlas-assessment",
+      "type": "skill",
+      "description": "Full Incrementum framework read on a company. 2-4 hours of Underwriter work. Produces a durable wiki/positions/<ticker>.",
+      "has_skill_md": true
+    },
+    {
+      "folder": "atlas-associate",
+      "file": "Atlas/skills/atlas-associate/SKILL.md",
+      "name": "atlas-associate",
+      "type": "agent",
+      "description": "Associate agent — source QA, quantitative sanity, adversarial review. Has VETO POWER on source credibility and quant san",
+      "has_skill_md": true
+    },
+    {
+      "folder": "atlas-briefing",
+      "file": "Atlas/skills/atlas-briefing/SKILL.md",
+      "name": "atlas-briefing",
+      "type": "skill",
+      "description": "Daily news briefing. Cross-references live positions + themes against a fixed source set (Valor, Estadão, Pipeline, BJ, ",
+      "has_skill_md": true
+    },
+    {
+      "folder": "atlas-cio",
+      "file": "Atlas/skills/atlas-cio/SKILL.md",
+      "name": "atlas-cio",
+      "type": "agent",
+      "description": "CIO agent — the team lead of Atlas. Druckenmiller-style discipline, capital preservation obsession, final verdict author",
+      "has_skill_md": true
+    },
+    {
+      "folder": "atlas-model",
+      "file": "Atlas/skills/atlas-model/SKILL.md",
+      "name": "atlas-model",
+      "type": "skill",
+      "description": "Numeric work for Atlas. Comps tables, DCF, reverse-DCF, SOTP, sensitivity analysis, peer-comp scorecards, consensus revi",
+      "has_skill_md": true
+    },
+    {
+      "folder": "atlas-monitor",
+      "file": "Atlas/skills/atlas-monitor/SKILL.md",
+      "name": "atlas-monitor",
+      "type": "skill",
+      "description": "Thesis-drift detection on live positions. Reads wiki/positions/*.md, checks the page's kill-shot triggers + freshness wi",
+      "has_skill_md": true
+    },
+    {
+      "folder": "atlas-snapshot",
+      "file": "Atlas/skills/atlas-snapshot/SKILL.md",
+      "name": "atlas-snapshot",
+      "type": "skill",
+      "description": "Fast first-read on a company. 15-20 minutes of work. Answers \"is this worth deeper work?\" Output is either a structured ",
+      "has_skill_md": true
+    },
+    {
+      "folder": "atlas-underwriter",
+      "file": "Atlas/skills/atlas-underwriter/SKILL.md",
+      "name": "atlas-underwriter",
+      "type": "agent",
+      "description": "Underwriter agent — the analyst. Macro + bottom-up research, produces Word/PPT deliverables, orchestrates the 5 skills (",
+      "has_skill_md": true
+    }
+  ]
+}
