@@ -14,7 +14,7 @@ _Setup type: HEDGE — 2x leveraged silver ETF. Macro cover, not a conviction lo
 
 1. A hedge does not carry a thesis memo. It carries a hedge rationale.
 2. A hedge's "triggers" are de-hedging triggers, not kill-shot triggers in the same sense as a long.
-3. A hedge cannot become alpha storytelling. If silver rallies 40% and Eduardo catches himself thinking "maybe this is actually the trade", that is a failure mode — re-read this page.
+3. A hedge cannot become alpha storytelling. If silver rallies `40%` and Eduardo catches himself thinking "maybe this is actually the trade", that is a failure mode — re-read this page.
 4. Hedge sizing is calibrated to portfolio beta exposure, not to own-conviction.
 
 ## TL;DR (hedge framing)
@@ -25,7 +25,10 @@ _3 lines. Eduardo writes._
 2. `<why AGQ specifically — 2x leverage, liquid, cheap convexity vs put options>`
 3. `<what de-hedges look like>`
 
-## Rationale
+## Thesis / Framing
+
+_For hedges, this section holds the hedge rationale, not an investment thesis.
+See WIKI_POLICY.md — section heading retained for cross-hedge consistency._
 
 _Why Atlas holds AGQ as a hedge. Likely themes:_
 - Sovereign-credit / reserve-regime risk (wiki/themes/sovereign_credit.md when seeded).
@@ -50,7 +53,18 @@ _Why Atlas holds AGQ as a hedge. Likely themes:_
 - _vs options: AGQ avoids time decay over multi-quarter horizons; roll cost of 2x ETF lower than rolling puts/calls across expiries for hedge-scale exposures._
 - _vs GDX / miners: AGQ tracks spot silver more cleanly; miners add operational risk that dilutes the macro signal._
 
-## De-hedging triggers (NOT kill-shots)
+## Valuation
+
+_Not applicable for a hedge. AGQ is sized to portfolio beta, not to intrinsic value.
+See the Sizing section for the sizing methodology._
+
+---
+
+## Triggers
+
+_For hedges, triggers are de-hedging conditions, not kill-shots. See WIKI_POLICY.md._
+
+### De-hedging conditions (NOT kill-shots)
 
 When to REMOVE the hedge, not to cut as a loss:
 
@@ -82,3 +96,4 @@ _Eduardo writes. Must be calibrated against total book beta / drawdown exposure.
 ## Log
 
 - 2026-04-18 — Template seeded. PARO 3 pending — Eduardo writes sizing, de-hedge triggers, entry band.
+- 2026-04-19 — atlas-selftest.py flagged 3 issues: added Thesis/Framing (alias for hedge rationale), Valuation (N/A stub), and Triggers (de-hedging conditions) sections to comply with 9-section invariant. Wrapped illustrative `40%` in backtick to distinguish from sourced claim (fix: Claude Code overnight build).
