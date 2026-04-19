@@ -14,14 +14,21 @@ This skill is dispatched by `atlas-assessment` whenever quantitative work is req
 
 ## Do not start from scratch
 
-`anthropics/financial-services-plugins` provides validated implementations for:
-- DCF (standard and reverse)
-- Comps tables with automatic peer pulling
-- Earnings models with line-item editability
-- IC memo skeletons
-- Consensus revision tracking
+`anthropics/financial-services-plugins` is vendored at `Atlas/vendor/financial-services-plugins/` (git subtree, inline). The `equity-research` plugin provides the base layer:
 
-**Rule:** before writing any model logic yourself, check the plugin repo. If the tool exists, use it and customize on top. If it doesn't, implement cleanly enough to upstream.
+| Task | Vendored skill to load first |
+|---|---|
+| Earnings analysis / post-print memo | `Atlas/vendor/financial-services-plugins/equity-research/skills/earnings-analysis/SKILL.md` |
+| Initiating coverage / IC memo skeleton | `Atlas/vendor/financial-services-plugins/equity-research/skills/initiating-coverage/SKILL.md` |
+| Earnings preview (pre-print setup) | `Atlas/vendor/financial-services-plugins/equity-research/skills/earnings-preview/SKILL.md` |
+| Catalyst-date tracking | `Atlas/vendor/financial-services-plugins/equity-research/skills/catalyst-calendar/SKILL.md` |
+| First-pass snapshot / idea generation | `Atlas/vendor/financial-services-plugins/equity-research/skills/idea-generation/SKILL.md` |
+| IC memo structure (PE-style cross-check) | `Atlas/vendor/financial-services-plugins/private-equity/skills/ic-memo/SKILL.md` |
+| Deal-screening framework | `Atlas/vendor/financial-services-plugins/private-equity/skills/deal-screening/SKILL.md` |
+
+Additional vendor context: `Atlas/vendor/README.md` — describes the full plugin inventory and upgrade procedure.
+
+**Rule:** before writing any model logic yourself, check the vendored skill. If the tool exists, read its SKILL.md and customize on top. If it doesn't exist in the vendor, implement cleanly enough to upstream.
 
 ## Tasks this skill handles
 
