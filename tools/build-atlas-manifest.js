@@ -86,10 +86,17 @@ function tailLines(content, n = 20) {
   return content.split("\n").slice(-n).join("\n");
 }
 
+/** Strip fenced code blocks (``` ... ```) from markdown content so that
+ *  schema examples inside ``` fences are not parsed as real entries. */
+function stripFencedCodeBlocks(content) {
+  return content.replace(/^```[\s\S]*?^```/gm, "");
+}
+
 /** Parse work_queue entries from a work-queue markdown file. */
 function parseWorkQueue(content) {
   const entries = [];
-  const blocks = content.split(/^###\s+/m).slice(1);
+  const stripped = stripFencedCodeBlocks(content);
+  const blocks = stripped.split(/^###\s+/m).slice(1);
   for (const block of blocks) {
     const lines = block.split("\n");
     const header = lines[0].trim();
@@ -182,21 +189,29 @@ function buildDecisions() {
 function buildIssues() {
   const path = join(ATLAS_ROOT, "agents_context", "issues.md");
   const content = readFile(path) || "";
-  // Parse ## Issue blocks
-  const blocks = content.split(/^##\s+/m).slice(1);
-  return blocks.map((block) => {
-    const lines = block.split("\n");
-    const title = lines[0].trim();
-    const severityMatch = block.match(/^Severity:\s*(.+)$/im);
-    const statusMatch = block.match(/^Status:\s*(.+)$/im);
-    const dateMatch = block.match(/^Date:\s*(.+)$/im);
-    return {
-      title,
-      severity: severityMatch ? severityMatch[1].trim() : "unknown",
-      status: statusMatch ? statusMatch[1].trim() : "open",
-      date: dateMatch ? dateMatch[1].trim() : null,
-    };
-  });
+  // Strip fenced code blocks so schema examples don't get picked up.
+  const stripped = stripFencedCodeBlocks(content);
+  // Real issue entries start with `### <issue_id> — <title>` — not `##`.
+  const blocks = stripped.split(/^###\s+/m).slice(1);
+  return blocks
+    .map((block) => {
+      const lines = block.split("\n");
+      const title = lines[0].trim();
+      const severityMatch = block.match(/^Severity:\s*(.+)$/im);
+      const statusMatch = block.match(/^Status:\s*(.+)$/im);
+      const dateMatch =
+        block.match(/^Date:\s*(.+)$/im) || block.match(/^Opened:\s*(.+)$/im);
+      return {
+        title,
+        severity: severityMatch ? severityMatch[1].trim() : "unknown",
+        status: statusMatch ? statusMatch[1].trim() : "open",
+        date: dateMatch ? dateMatch[1].trim() : null,
+      };
+    })
+    // Filter out blocks that clearly are not real issues (no severity + no opener).
+    .filter(
+      (i) => i.severity !== "unknown" || i.date !== null || /^[A-Z0-9-]+\s+—/.test(i.title)
+    );
 }
 
 // ─── state ──────────────────────────────────────────────────────────────────
