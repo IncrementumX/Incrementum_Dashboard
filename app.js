@@ -87,17 +87,6 @@ const syncUiState = {
 const elements = {
   tabButtons: [...document.querySelectorAll(".tab-button")],
   tabPanels: [...document.querySelectorAll(".tab-panel")],
-  transactionForm: document.getElementById("transaction-form"),
-  transactionType: document.getElementById("transaction-type"),
-  tickerInput: document.getElementById("ticker-input"),
-  quantityInput: document.getElementById("quantity-input"),
-  priceInput: document.getElementById("price-input"),
-  fxRateInput: document.getElementById("fx-rate-input"),
-  currencyInput: document.getElementById("currency-input"),
-  amountInput: document.getElementById("amount-input"),
-  transactionFormTip: document.getElementById("transaction-form-tip"),
-  tradeFields: [...document.querySelectorAll("[data-trade-field]")],
-  amountFields: [...document.querySelectorAll("[data-amount-field]")],
   transactionsBody: document.getElementById("transactions-body"),
   dashboardPositionsBody: document.getElementById("dashboard-positions-body"),
   allocationList: document.getElementById("allocation-list"),
@@ -125,17 +114,12 @@ const elements = {
   summaryNetContributionReturn: document.getElementById("summary-net-contribution-return"),
   summaryYtd: document.getElementById("summary-ytd"),
   summaryItd: document.getElementById("summary-itd"),
-  returnsNetInvested: document.getElementById("returns-net-invested"),
-  returnsPortfolioValue: document.getElementById("returns-portfolio-value"),
-  returnsRealizedPnl: document.getElementById("returns-realized-pnl"),
-  returnsUnrealizedPnl: document.getElementById("returns-unrealized-pnl"),
-  returnsTotalPnl: document.getElementById("returns-total-pnl"),
-  returnsMtmPnl: document.getElementById("returns-mtm-pnl"),
-  returnsIrr: document.getElementById("returns-irr"),
-  returnsTwr: document.getElementById("returns-twr"),
-  returnsNetContributionReturn: document.getElementById("returns-net-contribution-return"),
-  returnsYtd: document.getElementById("returns-ytd"),
-  returnsItd: document.getElementById("returns-itd"),
+  exposureLong: document.getElementById("exposure-long"),
+  exposureShort: document.getElementById("exposure-short"),
+  exposureGross: document.getElementById("exposure-gross"),
+  exposureGrossPct: document.getElementById("exposure-gross-pct"),
+  exposureNet: document.getElementById("exposure-net"),
+  exposureNetPct: document.getElementById("exposure-net-pct"),
   benchmarkSelect: document.getElementById("benchmark-select"),
   benchmarkComparisonBody: document.getElementById("benchmark-comparison-body"),
   historyStatus: document.getElementById("history-status"),
@@ -172,7 +156,6 @@ const elements = {
   importStatusDetailsBody: document.getElementById("import-status-details-body"),
   statementHistoryBody: document.getElementById("statement-history-body"),
   statementModeIndicator: document.getElementById("statement-mode-indicator"),
-  useManualModeButton: document.getElementById("use-manual-mode-button"),
   filterType: document.getElementById("filter-type"),
   filterTicker: document.getElementById("filter-ticker"),
   filterSearch: document.getElementById("filter-search"),
@@ -182,7 +165,7 @@ const elements = {
 };
 
 setupTabs();
-setupTransactionForm();
+setupDashboardInteractions();
 setupImport();
 setupFilters();
 setupPreferences();
@@ -696,51 +679,8 @@ function activateTab(tabId, persist = true) {
   }
 }
 
-function setupTransactionForm() {
-  elements.transactionForm.date.value = new Date().toISOString().slice(0, 10);
-  elements.transactionType.addEventListener("change", syncTransactionFormMode);
-  syncTransactionFormMode();
-
-  elements.transactionForm.addEventListener("submit", (event) => {
-    event.preventDefault();
-
-    const formData = new FormData(elements.transactionForm);
-    const type = String(formData.get("type")).toUpperCase();
-    const ticker = String(formData.get("ticker") || "").trim().toUpperCase();
-    const quantity = sanitizeNumber(formData.get("quantity"));
-    const price = sanitizeNumber(formData.get("price"));
-    const fxRate = sanitizeNumber(formData.get("fxRate") || 1) || 1;
-    const amount = Math.abs(sanitizeSignedNumber(formData.get("amount")));
-
-    const transaction = normalizeTransaction({
-      id: makeId(),
-      date: String(formData.get("date")),
-      type,
-      ticker,
-      quantity,
-      price,
-      fxRate,
-      currency: String(formData.get("currency") || "USD"),
-      amount: TRADE_TYPES.has(type) ? quantity * price * fxRate : amount,
-      notes: String(formData.get("notes") || "").trim(),
-    });
-
-    if (!isValidTransaction(transaction)) {
-      alert("Please fill in the required fields for the selected transaction type.");
-      return;
-    }
-
-    if (TRADE_TYPES.has(transaction.type)) {
-      ensureTickerPriceEntry(transaction.ticker, transaction.currency);
-    }
-
-    state.manual.transactions = [...state.manual.transactions, transaction].sort((left, right) => left.date.localeCompare(right.date));
-    saveState();
-    resetTransactionForm(type);
-    renderApp();
-  });
-
-  elements.transactionsBody.addEventListener("click", (event) => {
+function setupDashboardInteractions() {
+  elements.transactionsBody?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-delete-transaction-id]");
     if (!button) return;
 
@@ -794,48 +734,6 @@ function setupTransactionForm() {
       renderApp();
     });
   }
-
-  if (elements.useManualModeButton) {
-    elements.useManualModeButton.addEventListener("click", () => {
-      state.activeSnapshotId = null;
-      uiContextService?.set?.("activeSnapshotId", null);
-      saveState();
-      renderApp();
-    });
-  }
-}
-
-function syncTransactionFormMode() {
-  const type = elements.transactionType.value;
-  const isTrade = TRADE_TYPES.has(type);
-  const snapshotActive = Boolean(getActiveSnapshot());
-
-  elements.tradeFields.forEach((field) => field.classList.toggle("is-hidden", !isTrade));
-  elements.amountFields.forEach((field) => field.classList.toggle("is-hidden", isTrade));
-
-  elements.tickerInput.required = isTrade;
-  elements.quantityInput.required = isTrade;
-  elements.priceInput.required = isTrade;
-  elements.amountInput.required = !isTrade;
-
-  if (isTrade) {
-    elements.transactionFormTip.textContent = "Trade mode: ticker, quantity, and price affect holdings and cash. Amount is calculated automatically.";
-  } else {
-    elements.transactionFormTip.textContent = "Cash-flow mode: amount affects invested capital, cash, and returns depending on the transaction type.";
-  }
-
-  if (snapshotActive) {
-    elements.transactionFormTip.textContent += " Imported snapshot mode is active, so manual entries are saved in Manual Mode and will appear when no snapshot is active.";
-  }
-}
-
-function resetTransactionForm(type) {
-  elements.transactionForm.reset();
-  elements.transactionForm.date.value = new Date().toISOString().slice(0, 10);
-  elements.transactionType.value = type || "BUY";
-  elements.fxRateInput.value = "1";
-  elements.currencyInput.value = "USD";
-  syncTransactionFormMode();
 }
 
 function setupImport() {
@@ -1277,11 +1175,10 @@ function renderApp() {
   renderDebugPanel();
   renderTransactions(filteredTransactions, context.mode);
   renderPortfolioPositions(analytics.holdings);
-  renderDashboard(analytics.positionsForAllocation, summary);
+  renderDashboard(analytics.positionsForAllocation, summary, analytics.exposure);
   renderSummaryReturns(summary, analytics.assetPerformance);
   renderStatementHistory();
   renderScout(context, analytics, summary);
-  syncTransactionFormMode();
 }
 
 function renderTransactions(transactions, mode) {
@@ -1319,16 +1216,18 @@ function renderPortfolioPositions(holdings) {
   if (!elements.dashboardPositionsBody) return;
 
   if (!holdings.length) {
-    elements.dashboardPositionsBody.innerHTML = buildEmptyRow("Your portfolio is empty. Import IBKR data or add transactions manually.", 10);
+    elements.dashboardPositionsBody.innerHTML = buildEmptyRow("Your portfolio is empty. Import an IBKR Activity Statement CSV.", 10);
     return;
   }
 
   elements.dashboardPositionsBody.innerHTML = holdings
     .map((holding) => {
+      const isCash = holding.ticker === "CASH";
+      const isOption = holding.assetClass === "OPTION";
+      const isShort = holding.isShort;
       const priceCell =
-        holding.ticker === "CASH" || holding.isStatementPrice
-          ? `<span class="static-price">1.00</span>`
-              .replace("1.00", formatNumber(holding.currentPrice))
+        isCash || holding.isStatementPrice
+          ? `<span class="static-price">${escapeHtml(formatNumber(holding.currentPrice))}</span>`
           : `
             <input
               class="price-input"
@@ -1340,18 +1239,27 @@ function renderPortfolioPositions(holdings) {
             />
           `;
 
+      const subLabelParts = [];
+      if (isCash) subLabelParts.push("Liquidity");
+      else {
+        if (isOption) subLabelParts.push("Option");
+        else subLabelParts.push("Open position");
+        if (isShort) subLabelParts.push("Short");
+      }
+      const subLabel = subLabelParts.join(" · ");
+
       return `
         <tr>
           <td class="ticker-cell">
             <div class="position-name">
               <strong>${escapeHtml(getDisplayTicker(holding.ticker))}</strong>
-              <span>${holding.ticker === "CASH" ? "Liquidity" : "Open position"}</span>
+              <span>${escapeHtml(subLabel)}</span>
             </div>
           </td>
-          <td class="numeric-cell">${holding.ticker === "CASH" ? "-" : formatNumber(holding.shares)}</td>
+          <td class="numeric-cell ${isShort ? "is-negative" : ""}">${isCash ? "-" : formatNumber(holding.shares)}</td>
           <td class="numeric-cell">${formatCurrency(holding.averageCost)}</td>
           <td class="numeric-cell">${priceCell}</td>
-          <td class="numeric-cell">${formatCurrency(holding.marketValue)}</td>
+          <td class="numeric-cell ${getValueClass(holding.marketValue)}">${formatCurrency(holding.marketValue)}</td>
           <td class="numeric-cell">${formatCurrency(holding.totalCostBasis)}</td>
           <td class="numeric-cell">${formatPercent(holding.portfolioWeight)}</td>
           <td class="numeric-cell">${formatPercent(holding.costWeight)}</td>
@@ -1368,12 +1276,7 @@ function renderStatementHistory() {
     const activeSnapshot = getActiveSnapshot();
     elements.statementModeIndicator.textContent = activeSnapshot
       ? `Snapshot mode is active. Showing ${activeSnapshot.fileName}${activeSnapshot.statementPeriodEndDate ? ` (${activeSnapshot.statementPeriodEndDate})` : ""}.`
-      : "Manual mode is active. Dashboard, Transactions, and Summary Returns are using the live manual ledger.";
-  }
-
-  if (elements.useManualModeButton) {
-    elements.useManualModeButton.classList.toggle("button--primary", !state.activeSnapshotId);
-    elements.useManualModeButton.classList.toggle("button--secondary", Boolean(state.activeSnapshotId));
+      : "No active snapshot. Import an IBKR statement to populate the dashboard.";
   }
 
   if (!elements.statementHistoryBody) return;
@@ -1423,7 +1326,7 @@ function renderStatementHistory() {
     .join("");
 }
 
-function renderDashboard(positionsForAllocation, summary) {
+function renderDashboard(positionsForAllocation, summary, exposure) {
   setElementText(elements.headerPositions, String(summary.positionCount));
   setElementText(elements.headerNetInvested, formatCurrency(summary.netContributions));
   setElementText(elements.headerPortfolioValue, formatCurrency(summary.portfolioValue));
@@ -1433,6 +1336,17 @@ function renderDashboard(positionsForAllocation, summary) {
   setElementText(elements.summaryCommittedCapital, formatCurrency(summary.committedCapital));
   setElementText(elements.summaryNetContributions, formatCurrency(summary.netContributions));
   setElementText(elements.summaryNetInvestedCard, formatCurrency(summary.netContributions));
+  if (exposure) {
+    setElementText(elements.exposureLong, formatCurrency(exposure.longExposure));
+    setElementText(elements.exposureShort, formatCurrency(exposure.shortExposure));
+    setElementText(elements.exposureGross, formatCurrency(exposure.grossExposure));
+    setElementText(elements.exposureNet, formatCurrency(exposure.netExposure));
+    setElementText(elements.exposureGrossPct, `${formatPercent(exposure.grossExposurePct)} of portfolio`);
+    setElementText(elements.exposureNetPct, `${formatPercent(exposure.netExposurePct)} of portfolio`);
+    if (elements.exposureNet) {
+      elements.exposureNet.className = `panel-value ${getValueClass(exposure.netExposure)}`.trim();
+    }
+  }
   setElementText(elements.summaryDeployedCapital, formatCurrency(summary.deployedCapital));
   setElementText(elements.summaryDeployedShare, summary.deployedShareLabel);
   setElementText(elements.summaryTotalPnl, formatCurrency(summary.totalPnL));
@@ -1469,22 +1383,6 @@ function renderDashboard(positionsForAllocation, summary) {
 }
 
 function renderSummaryReturns(summary, assetPerformance) {
-  elements.returnsNetInvested.textContent = formatCurrency(summary.netContributions);
-  elements.returnsPortfolioValue.textContent = formatCurrency(summary.portfolioValue);
-  elements.returnsRealizedPnl.textContent = formatCurrency(summary.realizedPnL);
-  elements.returnsRealizedPnl.className = `panel-value ${getValueClass(summary.realizedPnL)}`;
-  elements.returnsUnrealizedPnl.textContent = formatCurrency(summary.unrealizedPnL);
-  elements.returnsUnrealizedPnl.className = `panel-value ${getValueClass(summary.unrealizedPnL)}`;
-  elements.returnsTotalPnl.textContent = formatCurrency(summary.totalPnL);
-  elements.returnsTotalPnl.className = `panel-value ${getValueClass(summary.totalPnL)}`;
-  elements.returnsMtmPnl.textContent = formatCurrency(summary.markToMarketPnL);
-  elements.returnsMtmPnl.className = `panel-value ${getValueClass(summary.markToMarketPnL)}`;
-  elements.returnsIrr.textContent = summary.irrLabel;
-  elements.returnsTwr.textContent = summary.twrLabel;
-  setElementText(elements.returnsNetContributionReturn, summary.netContributionReturnLabel);
-  setElementText(elements.returnsYtd, summary.ytdLabel);
-  setElementText(elements.returnsItd, summary.itdLabel);
-
   if (elements.reconciliationStatus) {
     if (!summary.reconciliationRows.length) {
       elements.reconciliationStatus.textContent = "No reconciliation data available.";
@@ -6410,7 +6308,7 @@ function exportWorkbook({ context, analytics, summary, historySeries, benchmarkR
       ],
     },
     {
-      name: "Performance by Asset",
+      name: "Realized Attribution per Asset",
       rows: [
         ["Ticker", "Realized P&L", "Unrealized P&L", "Total P&L", "Market Value", "Return %"],
         ...analytics.assetPerformance.map((asset) => [
@@ -6823,6 +6721,8 @@ function calculatePortfolioAnalytics(transactions, prices, statement) {
   const openHoldingsSource = statementOpenPositions.length
     ? statementOpenPositions.map((position) => ({
         ticker: position.ticker,
+        assetClass: position.assetClass || "STOCK",
+        multiplier: position.multiplier || 1,
         shares: roundNumber(position.shares),
         averageCost: roundNumber(position.averageCost),
         totalCostBasis: roundNumber(position.totalCostBasis),
@@ -6832,34 +6732,42 @@ function calculatePortfolioAnalytics(transactions, prices, statement) {
         unrealizedPnL: roundNumber(position.unrealizedPnL),
         totalPnL: roundNumber((statementPerformanceMap.get(position.ticker)?.realizedPnL || 0) + position.unrealizedPnL),
         returnPct: roundNumber(
-          position.totalCostBasis > 0
-            ? (((statementPerformanceMap.get(position.ticker)?.totalPnL || position.unrealizedPnL) / position.totalCostBasis) * 100)
+          Math.abs(position.totalCostBasis) > 0
+            ? (((statementPerformanceMap.get(position.ticker)?.totalPnL || position.unrealizedPnL) / Math.abs(position.totalCostBasis)) * 100)
             : 0
         ),
         isStatementPrice: true,
       }))
-    : ledgerAssetPerformance.filter((asset) => asset.shares > 0.0000001).map((asset) => ({ ...asset, isStatementPrice: false }));
+    : ledgerAssetPerformance
+        .filter((asset) => Math.abs(asset.shares) > 0.0000001)
+        .map((asset) => ({ ...asset, assetClass: "STOCK", multiplier: 1, isStatementPrice: false }));
 
   const cash = statement?.netAssetValue?.cash ?? calculateCashBalance(transactions);
   const stockValue = statement?.netAssetValue?.stockValue ?? openHoldingsSource.reduce((sum, holding) => sum + holding.marketValue, 0);
   const deployedCapital = statement?.openPositionsTotals?.costBasis ?? openHoldingsSource.reduce((sum, holding) => sum + holding.totalCostBasis, 0);
   const portfolioValue = statement?.changeInNav?.endingValue ?? statement?.netAssetValue?.endingValue ?? roundNumber(stockValue + cash);
-  const allocationBase = roundNumber(openHoldingsSource.reduce((sum, holding) => sum + holding.marketValue, 0) + cash);
-  const costBaseForWeights = deployedCapital + Math.max(cash, 0);
+
+  // Allocation base uses absolute market value so weights sum to ~100% even with shorts present.
+  const grossPositionsValue = openHoldingsSource.reduce((sum, holding) => sum + Math.abs(holding.marketValue), 0);
+  const allocationBase = roundNumber(grossPositionsValue + Math.max(cash, 0));
+  const costBaseForWeights = Math.abs(deployedCapital) + Math.max(cash, 0);
 
   const holdings = openHoldingsSource
-    .filter((holding) => holding.shares > 0.0000001)
+    .filter((holding) => Math.abs(holding.shares) > 0.0000001)
     .map((holding) => ({
       ...holding,
-      portfolioWeight: allocationBase !== 0 ? roundNumber((holding.marketValue / allocationBase) * 100) : 0,
-      costWeight: costBaseForWeights > 0 ? roundNumber((holding.totalCostBasis / costBaseForWeights) * 100) : 0,
+      isShort: holding.shares < 0,
+      portfolioWeight: allocationBase !== 0 ? roundNumber((Math.abs(holding.marketValue) / allocationBase) * 100) : 0,
+      costWeight: costBaseForWeights > 0 ? roundNumber((Math.abs(holding.totalCostBasis) / costBaseForWeights) * 100) : 0,
     }))
-    .sort((left, right) => right.marketValue - left.marketValue);
+    .sort((left, right) => Math.abs(right.marketValue) - Math.abs(left.marketValue));
 
   const holdingsWithCash = [...holdings];
   if (statement || Math.abs(cash) > 0.0000001) {
     holdingsWithCash.push({
       ticker: "CASH",
+      assetClass: "CASH",
+      multiplier: 1,
       shares: roundNumber(cash),
       averageCost: 1,
       totalCostBasis: roundNumber(Math.max(cash, 0)),
@@ -6869,13 +6777,30 @@ function calculatePortfolioAnalytics(transactions, prices, statement) {
       unrealizedPnL: 0,
       totalPnL: 0,
       returnPct: 0,
+      isShort: false,
       isStatementPrice: true,
-      portfolioWeight: allocationBase !== 0 ? roundNumber((cash / allocationBase) * 100) : 0,
+      portfolioWeight: allocationBase !== 0 ? roundNumber((Math.abs(cash) / allocationBase) * 100) : 0,
       costWeight: costBaseForWeights > 0 ? roundNumber((Math.max(cash, 0) / costBaseForWeights) * 100) : 0,
     });
   }
-  holdingsWithCash.sort((left, right) => right.marketValue - left.marketValue);
+  holdingsWithCash.sort((left, right) => Math.abs(right.marketValue) - Math.abs(left.marketValue));
   const positionsForAllocation = holdingsWithCash.filter((position) => Math.abs(position.marketValue) > 0.0000001);
+
+  // Long/Short/Gross/Net exposure — non-cash positions only. Options use signed market value (no delta adjustment in V1).
+  const longExposure = holdings.reduce((sum, holding) => (holding.marketValue > 0 ? sum + holding.marketValue : sum), 0);
+  const shortExposure = holdings.reduce((sum, holding) => (holding.marketValue < 0 ? sum + Math.abs(holding.marketValue) : sum), 0);
+  const grossExposure = longExposure + shortExposure;
+  const netExposure = longExposure - shortExposure;
+  const grossExposurePct = portfolioValue > 0 ? (grossExposure / portfolioValue) * 100 : 0;
+  const netExposurePct = portfolioValue > 0 ? (netExposure / portfolioValue) * 100 : 0;
+  const exposure = {
+    longExposure: roundNumber(longExposure),
+    shortExposure: roundNumber(shortExposure),
+    grossExposure: roundNumber(grossExposure),
+    netExposure: roundNumber(netExposure),
+    grossExposurePct: roundNumber(grossExposurePct),
+    netExposurePct: roundNumber(netExposurePct),
+  };
 
   const assetTickers = new Set([
     ...ledgerAssetPerformance.map((asset) => asset.ticker),
@@ -6895,10 +6820,13 @@ function calculatePortfolioAnalytics(transactions, prices, statement) {
         : statementPosition?.unrealizedPnL || ledgerAsset?.unrealizedPnL || 0;
       const totalPnL = statementAsset ? statementAsset.totalPnL : ledgerAsset?.totalPnL || realizedPnL + unrealizedPnL;
       const marketValue = statementPosition ? statementPosition.marketValue : ledgerAsset?.marketValue || 0;
-      const returnBase = statementPosition?.totalCostBasis || ledgerAsset?.totalCostBasis || ledgerAsset?.grossInvested || 0;
+      const returnBaseRaw = statementPosition?.totalCostBasis || ledgerAsset?.totalCostBasis || ledgerAsset?.grossInvested || 0;
+      const returnBase = Math.abs(returnBaseRaw);
+      const assetClass = statementAsset?.assetClass || statementPosition?.assetClass || "STOCK";
 
       return {
         ticker,
+        assetClass,
         realizedPnL: roundNumber(realizedPnL),
         unrealizedPnL: roundNumber(unrealizedPnL),
         totalPnL: roundNumber(totalPnL),
@@ -6919,6 +6847,7 @@ function calculatePortfolioAnalytics(transactions, prices, statement) {
     stockValue: roundNumber(stockValue),
     tradeRealizedPnL: roundNumber(tradeRealizedPnL),
     otherReturnPnL: roundNumber(otherReturnPnL),
+    exposure,
   };
 }
 
@@ -7385,7 +7314,8 @@ function parseIbkrFxRates(rows) {
 function parseIbkrOpenPositionsSection(rows, fxRates) {
   const positions = [];
   let header = [];
-  let latestUsdTotals = null;
+  let latestStocksUsdTotals = null;
+  let latestOptionsUsdTotals = null;
 
   for (const row of rows) {
     const kind = String(row[1] || "").trim();
@@ -7394,22 +7324,32 @@ function parseIbkrOpenPositionsSection(rows, fxRates) {
       continue;
     }
 
-    if (kind === "Data" && String(row[2] || "").trim() === "Summary" && String(row[3] || "").trim() === "Stocks") {
+    const discriminator = String(row[2] || "").trim();
+    const assetCategory = String(row[3] || "").trim();
+    const isStock = assetCategory === "Stocks";
+    const isOption = assetCategory === "Equity and Index Options";
+
+    if (kind === "Data" && discriminator === "Summary" && (isStock || isOption)) {
       const record = buildRecord(header, row.slice(2));
       const currency = String(record.currency || "USD").trim().toUpperCase();
       const fxRate = fxRates[currency] || 1;
-      const shares = sanitizeNumber(record.quantity);
-      const localCostBasis = sanitizeNumber(record["cost basis"]);
-      const localClosePrice = sanitizeNumber(record["close price"]);
-      const localValue = sanitizeNumber(record.value);
+      const shares = sanitizeSignedNumber(record.quantity);
+      const multiplier = sanitizeNumber(record.mult || record.multiplier) || 1;
+      const localCostBasis = sanitizeSignedNumber(record["cost basis"]);
+      const localClosePrice = sanitizeSignedNumber(record["close price"]);
+      const localValue = sanitizeSignedNumber(record.value);
       const localUnrealized = sanitizeSignedNumber(record["unrealized p/l"]);
+      const ticker = String(record.symbol || "").trim().toUpperCase();
+      const absShares = Math.abs(shares);
 
       positions.push({
-        ticker: String(record.symbol || "").trim().toUpperCase(),
+        ticker,
+        assetClass: isOption ? "OPTION" : "STOCK",
+        multiplier: roundNumber(multiplier),
         currency,
         fxRate: roundNumber(fxRate),
         shares: roundNumber(shares),
-        averageCost: roundNumber(shares > 0 ? (localCostBasis * fxRate) / shares : 0),
+        averageCost: roundNumber(absShares > 0 ? (Math.abs(localCostBasis) * fxRate) / absShares : 0),
         totalCostBasis: roundNumber(localCostBasis * fxRate),
         currentPrice: roundNumber(localClosePrice * fxRate),
         marketValue: roundNumber(localValue * fxRate),
@@ -7418,25 +7358,35 @@ function parseIbkrOpenPositionsSection(rows, fxRates) {
       continue;
     }
 
-    if (kind === "Total" && String(row[3] || "").trim() === "Stocks" && String(row[4] || "").trim() === "USD") {
+    if (kind === "Total" && String(row[4] || "").trim() === "USD") {
       const record = buildRecord(header, row.slice(2));
-      latestUsdTotals = {
-        costBasis: roundNumber(sanitizeNumber(record["cost basis"])),
-        marketValue: roundNumber(sanitizeNumber(record.value)),
+      const totals = {
+        costBasis: roundNumber(sanitizeSignedNumber(record["cost basis"])),
+        marketValue: roundNumber(sanitizeSignedNumber(record.value)),
         unrealizedPnL: roundNumber(sanitizeSignedNumber(record["unrealized p/l"])),
       };
+      if (isStock) latestStocksUsdTotals = totals;
+      else if (isOption) latestOptionsUsdTotals = totals;
     }
   }
 
-  const totals =
-    latestUsdTotals || {
-      costBasis: roundNumber(positions.reduce((sum, position) => sum + position.totalCostBasis, 0)),
-      marketValue: roundNumber(positions.reduce((sum, position) => sum + position.marketValue, 0)),
-      unrealizedPnL: roundNumber(positions.reduce((sum, position) => sum + position.unrealizedPnL, 0)),
-    };
+  const stocksTotal = latestStocksUsdTotals || { costBasis: 0, marketValue: 0, unrealizedPnL: 0 };
+  const optionsTotal = latestOptionsUsdTotals || { costBasis: 0, marketValue: 0, unrealizedPnL: 0 };
+  const haveAnyParsedTotal = latestStocksUsdTotals || latestOptionsUsdTotals;
+  const totals = haveAnyParsedTotal
+    ? {
+        costBasis: roundNumber(stocksTotal.costBasis + optionsTotal.costBasis),
+        marketValue: roundNumber(stocksTotal.marketValue + optionsTotal.marketValue),
+        unrealizedPnL: roundNumber(stocksTotal.unrealizedPnL + optionsTotal.unrealizedPnL),
+      }
+    : {
+        costBasis: roundNumber(positions.reduce((sum, position) => sum + position.totalCostBasis, 0)),
+        marketValue: roundNumber(positions.reduce((sum, position) => sum + position.marketValue, 0)),
+        unrealizedPnL: roundNumber(positions.reduce((sum, position) => sum + position.unrealizedPnL, 0)),
+      };
 
   return {
-    positions: positions.filter((position) => position.ticker && position.shares > 0.0000001),
+    positions: positions.filter((position) => position.ticker && Math.abs(position.shares) > 0.0000001),
     totals,
   };
 }
@@ -7526,9 +7476,13 @@ function parseIbkrRealizedUnrealizedSection(rows) {
     const unrealizedTotal = sanitizeSignedNumber(record["unrealized total"]);
     const total = sanitizeSignedNumber(record.total);
 
-    if (assetCategory === "Stocks" && symbol) {
+    const isStock = assetCategory === "Stocks";
+    const isOption = assetCategory === "Equity and Index Options";
+
+    if ((isStock || isOption) && symbol) {
       assets.push({
         ticker: symbol,
+        assetClass: isOption ? "OPTION" : "STOCK",
         realizedPnL: roundNumber(realizedTotal),
         unrealizedPnL: roundNumber(unrealizedTotal),
         totalPnL: roundNumber(total),

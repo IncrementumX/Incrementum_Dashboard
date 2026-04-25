@@ -40,9 +40,8 @@
 
       <nav class="tab-nav" aria-label="Main navigation">
         <button class="tab-button is-active" data-tab-target="dashboard-tab">Dashboard</button>
-        <button class="tab-button" data-tab-target="transactions-tab">Transactions</button>
-        <button class="tab-button" data-tab-target="summary-returns-tab">Summary Returns</button>
         <button class="tab-button" data-tab-target="scout-tab">Scout</button>
+        <button class="tab-button" data-tab-target="atlas-tab">Atlas</button>
       </nav>
 
       <main class="content-grid">
@@ -125,11 +124,34 @@
             </div>
           </div>
 
+          <div class="panel-grid panel-grid--summary">
+            <article class="panel stat-panel">
+              <p class="panel-label">Long Exposure</p>
+              <strong id="exposure-long" class="panel-value">$0.00</strong>
+              <p class="metric-footnote">Sum of market values of long positions (excludes cash).</p>
+            </article>
+            <article class="panel stat-panel">
+              <p class="panel-label">Short Exposure</p>
+              <strong id="exposure-short" class="panel-value">$0.00</strong>
+              <p class="metric-footnote">Absolute market value of short positions, displayed as a positive magnitude.</p>
+            </article>
+            <article class="panel stat-panel">
+              <p class="panel-label">Gross Exposure</p>
+              <strong id="exposure-gross" class="panel-value">$0.00</strong>
+              <p id="exposure-gross-pct" class="metric-footnote">0.0% of portfolio</p>
+            </article>
+            <article class="panel stat-panel">
+              <p class="panel-label">Net Exposure</p>
+              <strong id="exposure-net" class="panel-value">$0.00</strong>
+              <p id="exposure-net-pct" class="metric-footnote">0.0% of portfolio</p>
+            </article>
+          </div>
+
           <section class="panel">
             <div class="panel-header">
               <div>
                 <h2>Portfolio Positions</h2>
-                <p class="panel-subtitle">Consolidated portfolio view based on current open holdings and cash balance.</p>
+                <p class="panel-subtitle">Consolidated portfolio view based on current open holdings and cash balance. Signed quantities are preserved — negative quantity = short.</p>
               </div>
             </div>
             <div class="table-wrap table-wrap--positions">
@@ -137,7 +159,7 @@
                 <thead>
                   <tr>
                     <th>Position</th>
-                    <th class="numeric-cell">Shares</th>
+                    <th class="numeric-cell">Quantity</th>
                     <th class="numeric-cell">Average Cost</th>
                     <th class="numeric-cell">Current Price</th>
                     <th class="numeric-cell">Market Value</th>
@@ -157,10 +179,182 @@
             <div class="panel-header">
               <div>
                 <h2>Allocation by Position</h2>
-                <p class="panel-subtitle">Allocation includes open holdings and cash balance.</p>
+                <p class="panel-subtitle">Allocation uses absolute market value so weights remain sensible when shorts or options are present.</p>
               </div>
             </div>
             <div id="allocation-list" class="allocation-list"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Realized Attribution per Asset</h2>
+                <p class="panel-subtitle">Includes traded assets, open positions, and income-linked symbols when available.</p>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Ticker</th>
+                    <th class="numeric-cell">Realized P&amp;L</th>
+                    <th class="numeric-cell">Unrealized P&amp;L</th>
+                    <th class="numeric-cell">Total P&amp;L</th>
+                    <th class="numeric-cell">Market Value</th>
+                    <th class="numeric-cell">Return %</th>
+                  </tr>
+                </thead>
+                <tbody id="asset-performance-body"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Summary Returns &mdash; Reconciliation</h2>
+                <p id="reconciliation-status" class="panel-subtitle">No reconciliation data available.</p>
+              </div>
+            </div>
+            <details id="reconciliation-details" class="reconciliation-details">
+              <summary>Review mismatches</summary>
+              <div class="table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Metric</th>
+                      <th>App Value</th>
+                      <th>IBKR Value</th>
+                      <th>Difference</th>
+                    </tr>
+                  </thead>
+                  <tbody id="reconciliation-body"></tbody>
+                </table>
+              </div>
+            </details>
+          </section>
+
+          <section class="panel panel--ledger">
+            <div class="panel-header">
+              <div>
+                <h2>Transaction History</h2>
+                <p class="panel-subtitle">Filter the ledger by type, ticker, notes, or date range. Shows imported transactions from active snapshot.</p>
+              </div>
+            </div>
+
+            <div class="filter-bar">
+              <label class="filter-field">
+                <span>Type</span>
+                <select id="filter-type">
+                  <option value="">All types</option>
+                </select>
+              </label>
+              <label class="filter-field">
+                <span>Ticker / Symbol</span>
+                <input id="filter-ticker" type="text" placeholder="AAPL" />
+              </label>
+              <label class="filter-field">
+                <span>Search</span>
+                <input id="filter-search" type="text" placeholder="Notes or ticker" />
+              </label>
+              <label class="filter-field">
+                <span>From</span>
+                <input id="filter-date-from" type="date" />
+              </label>
+              <label class="filter-field">
+                <span>To</span>
+                <input id="filter-date-to" type="date" />
+              </label>
+            </div>
+
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Ticker</th>
+                    <th>Quantity</th>
+                    <th>Price</th>
+                    <th>Amount</th>
+                    <th>Currency</th>
+                    <th>Notes</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="transactions-body"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Import Interactive Brokers File</h2>
+                <p class="panel-subtitle">Upload an IBKR Activity Statement CSV to refresh portfolio, positions, transactions, and contributions.</p>
+              </div>
+            </div>
+
+            <div class="import-box">
+              <input id="import-file-input" class="visually-hidden" type="file" accept=".csv,.pdf,text/csv,application/pdf" />
+              <div id="import-dropzone" class="dropzone" role="button" tabindex="0" aria-label="Attach Interactive Brokers statement file">
+                <p class="dropzone-title">Drop your Interactive Brokers Activity Statement CSV here</p>
+                <p class="dropzone-subtitle">or click to attach file.</p>
+              </div>
+
+              <div id="file-preview" class="file-preview is-hidden">
+                <div class="file-preview__main">
+                  <p id="file-preview-name" class="file-preview__name"></p>
+                  <p id="file-preview-size" class="file-preview__size"></p>
+                </div>
+                <button id="remove-file-button" type="button" class="button button--ghost button--small">Remove</button>
+              </div>
+
+              <div class="import-actions">
+                <div class="import-step">
+                  <span class="import-step-label">Step 1</span>
+                  <button id="attach-file-button" type="button" class="button button--primary">Attach File</button>
+                </div>
+                <div class="import-step">
+                  <span class="import-step-label">Step 2</span>
+                  <button id="import-button" type="button" class="button button--primary">Import File</button>
+                </div>
+              </div>
+              <div id="import-status" class="import-status">
+                <div id="import-status-summary">No file selected yet.</div>
+                <div id="import-status-meta" class="import-status-meta is-hidden"></div>
+                <details id="import-status-details" class="import-status-details is-hidden">
+                  <summary>Show details</summary>
+                  <div id="import-status-details-body" class="import-status-details__body"></div>
+                </details>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Imported Statements</h2>
+                <p id="statement-mode-indicator" class="panel-subtitle">Snapshot mode is active.</p>
+              </div>
+            </div>
+
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>File</th>
+                    <th>Statement Date</th>
+                    <th>Imported</th>
+                    <th>Portfolio Value</th>
+                    <th>Cash</th>
+                    <th>Net Contributions</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="statement-history-body"></tbody>
+              </table>
+            </div>
           </section>
 
           <div class="panel-grid panel-grid--analytics">
@@ -245,302 +439,10 @@
           <div id="scout-root"></div>
         </section>
 
-        <section id="transactions-tab" class="tab-panel">
-          <div class="transactions-layout">
-            <section class="panel">
-              <div class="panel-header">
-                <div>
-                  <h2>Add Transaction</h2>
-                  <p class="panel-subtitle">Manual entry stays available alongside IBKR imports.</p>
-                </div>
-              </div>
-
-              <form id="transaction-form" class="transaction-form">
-                <label>
-                  <span>Date</span>
-                  <input name="date" type="date" required />
-                </label>
-                <label>
-                  <span>Type</span>
-                  <select name="type" id="transaction-type" required>
-                    <option value="BUY">BUY</option>
-                    <option value="SELL">SELL</option>
-                    <option value="DEPOSIT">DEPOSIT</option>
-                    <option value="WITHDRAWAL">WITHDRAWAL</option>
-                    <option value="DIVIDEND">DIVIDEND</option>
-                    <option value="INTEREST">INTEREST</option>
-                    <option value="FEE">FEE</option>
-                    <option value="TAX">TAX</option>
-                    <option value="INCOME">INCOME</option>
-                  </select>
-                </label>
-
-                <label>
-                  <span>Ticker</span>
-                  <input name="ticker" id="ticker-input" type="text" placeholder="AAPL" maxlength="16" />
-                </label>
-                <label data-trade-field>
-                  <span>Quantity</span>
-                  <input name="quantity" id="quantity-input" type="number" min="0.0001" step="0.0001" />
-                </label>
-                <label data-trade-field>
-                  <span>Price per Share</span>
-                  <input name="price" id="price-input" type="number" min="0.0001" step="0.0001" />
-                </label>
-                <label>
-                  <span>FX Rate</span>
-                  <input name="fxRate" id="fx-rate-input" type="number" min="0.0001" step="0.0001" value="1" required />
-                </label>
-                <label>
-                  <span>Currency</span>
-                  <input name="currency" id="currency-input" type="text" placeholder="USD" maxlength="8" value="USD" required />
-                </label>
-                <label data-amount-field>
-                  <span>Amount</span>
-                  <input name="amount" id="amount-input" type="number" min="0.01" step="0.01" />
-                </label>
-                <label class="transaction-form__notes">
-                  <span>Notes</span>
-                  <textarea name="notes" rows="3" placeholder="Optional notes"></textarea>
-                </label>
-
-                <div class="form-tip" id="transaction-form-tip"></div>
-
-                <div class="form-actions">
-                  <button type="submit" class="button button--primary">Save Transaction</button>
-                </div>
-              </form>
-            </section>
-
-            <section class="panel">
-              <div class="panel-header">
-                <div>
-                  <h2>Import Interactive Brokers File</h2>
-                  <p class="panel-subtitle">Built for the real IBKR Activity Statement CSV structure. PDF upload is still not parsed in this version.</p>
-                </div>
-              </div>
-
-              <div class="import-box">
-                <input id="import-file-input" class="visually-hidden" type="file" accept=".csv,.pdf,text/csv,application/pdf" />
-                <div id="import-dropzone" class="dropzone" role="button" tabindex="0" aria-label="Attach Interactive Brokers statement file">
-                  <p class="dropzone-title">Drop your Interactive Brokers Activity Statement CSV here</p>
-                  <p class="dropzone-subtitle">or click to attach file.</p>
-                </div>
-
-                <div id="file-preview" class="file-preview is-hidden">
-                  <div class="file-preview__main">
-                    <p id="file-preview-name" class="file-preview__name"></p>
-                    <p id="file-preview-size" class="file-preview__size"></p>
-                  </div>
-                  <button id="remove-file-button" type="button" class="button button--ghost button--small">Remove</button>
-                </div>
-
-                <div class="import-actions">
-                  <div class="import-step">
-                    <span class="import-step-label">Step 1</span>
-                    <button id="attach-file-button" type="button" class="button button--primary">Attach File</button>
-                  </div>
-                  <div class="import-step">
-                    <span class="import-step-label">Step 2</span>
-                    <button id="import-button" type="button" class="button button--primary">Import File</button>
-                  </div>
-                </div>
-                <div id="import-status" class="import-status">
-                  <div id="import-status-summary">No file selected yet.</div>
-                  <div id="import-status-meta" class="import-status-meta is-hidden"></div>
-                  <details id="import-status-details" class="import-status-details is-hidden">
-                    <summary>Show details</summary>
-                    <div id="import-status-details-body" class="import-status-details__body"></div>
-                  </details>
-                </div>
-              </div>
-            </section>
-          </div>
-
-          <section class="panel panel--ledger">
-            <div class="panel-header">
-              <div>
-                <h2>Transaction History</h2>
-                <p class="panel-subtitle">Filter the ledger by type, ticker, notes, or date range.</p>
-              </div>
-            </div>
-
-            <div class="filter-bar">
-              <label class="filter-field">
-                <span>Type</span>
-                <select id="filter-type">
-                  <option value="">All types</option>
-                </select>
-              </label>
-              <label class="filter-field">
-                <span>Ticker / Symbol</span>
-                <input id="filter-ticker" type="text" placeholder="AAPL" />
-              </label>
-              <label class="filter-field">
-                <span>Search</span>
-                <input id="filter-search" type="text" placeholder="Notes or ticker" />
-              </label>
-              <label class="filter-field">
-                <span>From</span>
-                <input id="filter-date-from" type="date" />
-              </label>
-              <label class="filter-field">
-                <span>To</span>
-                <input id="filter-date-to" type="date" />
-              </label>
-            </div>
-
-            <div class="table-wrap">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Type</th>
-                    <th>Ticker</th>
-                    <th>Quantity</th>
-                    <th>Price</th>
-                    <th>Amount</th>
-                    <th>Currency</th>
-                    <th>Notes</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody id="transactions-body"></tbody>
-              </table>
-            </div>
-          </section>
-
-          <section class="panel">
-            <div class="panel-header">
-              <div>
-                <h2>Imported Statements</h2>
-                <p id="statement-mode-indicator" class="panel-subtitle">Manual mode is active.</p>
-              </div>
-              <button id="use-manual-mode-button" type="button" class="button button--secondary">Switch to Manual Mode</button>
-            </div>
-
-            <div class="table-wrap">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>File</th>
-                    <th>Statement Date</th>
-                    <th>Imported</th>
-                    <th>Portfolio Value</th>
-                    <th>Cash</th>
-                    <th>Net Contributions</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody id="statement-history-body"></tbody>
-              </table>
-            </div>
-          </section>
-        </section>
-
-        <section id="summary-returns-tab" class="tab-panel">
-          <div class="panel-grid panel-grid--summary">
-            <article class="panel stat-panel">
-              <p class="panel-label">Net Contributions</p>
-              <strong id="returns-net-invested" class="panel-value">$0.00</strong>
-              <p class="metric-footnote">Net external capital contributed to the portfolio after withdrawals.</p>
-            </article>
-            <article class="panel stat-panel">
-              <p class="panel-label">Total P&amp;L</p>
-              <strong id="returns-total-pnl" class="panel-value">$0.00</strong>
-              <p class="metric-footnote">Aggregate result across realized gains and the remaining open-position P&amp;L.</p>
-            </article>
-            <article class="panel stat-panel">
-              <p class="panel-label">Realized P&amp;L</p>
-              <strong id="returns-realized-pnl" class="panel-value">$0.00</strong>
-            </article>
-            <article class="panel stat-panel">
-              <p class="panel-label">Unrealized P&amp;L</p>
-              <strong id="returns-unrealized-pnl" class="panel-value">$0.00</strong>
-            </article>
-            <article class="panel stat-panel">
-              <p class="panel-label">Current Portfolio Value</p>
-              <strong id="returns-portfolio-value" class="panel-value">$0.00</strong>
-            </article>
-            <article class="panel stat-panel">
-              <p class="panel-label">Mark-to-Market P&amp;L</p>
-              <strong id="returns-mtm-pnl" class="panel-value">$0.00</strong>
-              <p class="metric-footnote">Statement-date valuation change of the portfolio based on market prices at the statement date.</p>
-            </article>
-            <article class="panel stat-panel">
-              <p class="panel-label">IRR</p>
-              <strong id="returns-irr" class="panel-value">Pending</strong>
-              <p class="metric-footnote">Money-weighted annualized return based on external cash flows and the ending portfolio value.</p>
-            </article>
-            <article class="panel stat-panel is-hidden">
-              <p class="panel-label">Time-Weighted Return</p>
-              <strong id="returns-twr" class="panel-value">Pending</strong>
-              <p class="metric-footnote">Return measure that neutralizes deposits and withdrawals to isolate investment performance.</p>
-            </article>
-            <article class="panel stat-panel">
-              <p class="panel-label">Net Contribution Return</p>
-              <strong id="returns-net-contribution-return" class="panel-value">Pending</strong>
-              <p class="metric-footnote">Current portfolio value relative to net contributed capital, without time-weighting.</p>
-            </article>
-            <article class="panel stat-panel">
-              <p class="panel-label">Year-to-Date Return</p>
-              <strong id="returns-ytd" class="panel-value">Pending</strong>
-              <p class="metric-footnote">Return since the start of the current calendar year through the active valuation date.</p>
-            </article>
-            <article class="panel stat-panel">
-              <p class="panel-label">Inception-to-Date Return</p>
-              <strong id="returns-itd" class="panel-value">Pending</strong>
-              <p class="metric-footnote">Return since the first portfolio transaction date in the active ledger history.</p>
-            </article>
-          </div>
-
-          <section class="panel">
-            <div class="panel-header">
-              <div>
-                <h2>Reconciliation Status</h2>
-                <p id="reconciliation-status" class="panel-subtitle">No reconciliation data available.</p>
-              </div>
-            </div>
-            <details id="reconciliation-details" class="reconciliation-details">
-              <summary>Review mismatches</summary>
-              <div class="table-wrap">
-                <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th>Metric</th>
-                      <th>App Value</th>
-                      <th>IBKR Value</th>
-                      <th>Difference</th>
-                    </tr>
-                  </thead>
-                  <tbody id="reconciliation-body"></tbody>
-                </table>
-              </div>
-            </details>
-          </section>
-
-          <section class="panel">
-            <div class="panel-header">
-              <div>
-                <h2>Performance by Asset</h2>
-                <p class="panel-subtitle">Includes traded assets, open positions, and income-linked symbols when available.</p>
-              </div>
-            </div>
-            <div class="table-wrap">
-                <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th>Ticker</th>
-                      <th class="numeric-cell">Realized P&amp;L</th>
-                      <th class="numeric-cell">Unrealized P&amp;L</th>
-                      <th class="numeric-cell">Total P&amp;L</th>
-                      <th class="numeric-cell">Market Value</th>
-                      <th class="numeric-cell">Return %</th>
-                    </tr>
-                  </thead>
-                <tbody id="asset-performance-body"></tbody>
-              </table>
-            </div>
+        <section id="atlas-tab" class="tab-panel">
+          <section class="panel atlas-placeholder">
+            <h2>Atlas</h2>
+            <p>Atlas will map IncrementumOS workflows, agents, rules, and operating procedures. Under construction.</p>
           </section>
         </section>
       </main>
