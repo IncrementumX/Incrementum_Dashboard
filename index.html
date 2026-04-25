@@ -46,88 +46,87 @@
 
       <main class="content-grid">
         <section id="dashboard-tab" class="tab-panel is-active">
-          <div class="panel-grid panel-grid--summary">
-            <article class="panel stat-panel">
+          <header class="section-heading">
+            <h2>Portfolio Summary</h2>
+          </header>
+          <div class="panel-grid kpi-grid kpi-grid--primary">
+            <article class="panel stat-panel kpi-card kpi-card--primary">
               <p class="panel-label">Net Contributions</p>
               <strong id="summary-net-invested-card" class="panel-value">$0.00</strong>
-              <p class="metric-footnote">Net external capital contributed to the portfolio after withdrawals.</p>
             </article>
-            <article class="panel stat-panel">
+            <article class="panel stat-panel kpi-card kpi-card--primary">
               <p class="panel-label">Total P&amp;L</p>
               <strong id="summary-total-pnl" class="panel-value">$0.00</strong>
-              <p class="metric-footnote">Aggregate result across realized gains and the remaining open-position P&amp;L.</p>
             </article>
-            <article class="panel stat-panel">
+            <article class="panel stat-panel kpi-card kpi-card--primary">
               <p class="panel-label">Realized P&amp;L</p>
               <strong id="summary-realized-pnl" class="panel-value">$0.00</strong>
             </article>
-            <article class="panel stat-panel">
+            <article class="panel stat-panel kpi-card kpi-card--primary">
               <p class="panel-label">Unrealized P&amp;L</p>
               <strong id="summary-unrealized-pnl" class="panel-value">$0.00</strong>
             </article>
-            <article class="panel stat-panel">
+            <article class="panel stat-panel kpi-card kpi-card--primary">
               <p class="panel-label">Current Portfolio Value</p>
               <strong id="summary-portfolio-value" class="panel-value">$0.00</strong>
             </article>
-            <article class="panel stat-panel">
+          </div>
+
+          <div class="panel-grid kpi-grid kpi-grid--secondary">
+            <article class="panel stat-panel kpi-card kpi-card--secondary">
               <p class="panel-label">Mark-to-Market P&amp;L</p>
               <strong id="summary-mtm-pnl" class="panel-value">$0.00</strong>
-              <p class="metric-footnote">Statement-date valuation change of the portfolio based on market prices at the statement date.</p>
             </article>
-            <article class="panel stat-panel">
+            <article class="panel stat-panel kpi-card kpi-card--secondary">
               <p class="panel-label">IRR</p>
               <strong id="summary-irr" class="panel-value">Pending</strong>
-              <p class="metric-footnote">Money-weighted annualized return based on external cash flows and the ending portfolio value.</p>
             </article>
             <article class="panel stat-panel is-hidden">
               <p class="panel-label">Time-Weighted Return</p>
               <strong id="summary-twr" class="panel-value">Pending</strong>
-              <p class="metric-footnote">Return measure that neutralizes deposits and withdrawals to isolate investment performance.</p>
             </article>
-            <article class="panel stat-panel">
+            <article class="panel stat-panel kpi-card kpi-card--secondary">
               <p class="panel-label">Net Contribution Return</p>
               <strong id="summary-net-contribution-return" class="panel-value">Pending</strong>
-              <p class="metric-footnote">Current portfolio value relative to net contributed capital, without time-weighting.</p>
             </article>
-            <article class="panel stat-panel">
-              <p class="panel-label">Year-to-Date Return</p>
+            <article class="panel stat-panel kpi-card kpi-card--secondary">
+              <p class="panel-label">YTD Return</p>
               <strong id="summary-ytd" class="panel-value">Pending</strong>
-              <p class="metric-footnote">Return since the start of the current calendar year through the active valuation date.</p>
             </article>
-            <article class="panel stat-panel">
+            <article class="panel stat-panel kpi-card kpi-card--secondary">
               <p class="panel-label">Inception-to-Date Return</p>
               <strong id="summary-itd" class="panel-value">Pending</strong>
-              <p class="metric-footnote">Return since the first portfolio transaction date in the active ledger history.</p>
             </article>
           </div>
 
-          <div class="panel-grid panel-grid--summary">
-            <article class="panel stat-panel">
+          <header class="section-heading">
+            <h2>Capital &amp; Exposure</h2>
+          </header>
+          <div class="panel-grid kpi-grid kpi-grid--exposure">
+            <article class="panel stat-panel kpi-card kpi-card--secondary">
               <p class="panel-label">Net Invested Capital</p>
               <strong id="summary-deployed-capital" class="panel-value">$0.00</strong>
               <p id="summary-deployed-share" class="metric-footnote">0.0% of portfolio</p>
             </article>
-            <article class="panel stat-panel">
+            <article class="panel stat-panel kpi-card kpi-card--secondary">
               <p class="panel-label">Cash Balance</p>
               <strong id="summary-cash" class="panel-value">$0.00</strong>
               <p id="summary-cash-share" class="metric-footnote">0.0% of portfolio</p>
             </article>
-            <article class="panel stat-panel">
+            <article class="panel stat-panel kpi-card kpi-card--secondary">
               <p class="panel-label">Long Exposure</p>
               <strong id="exposure-long" class="panel-value">$0.00</strong>
-              <p class="metric-footnote">Sum of long market values (excludes cash).</p>
             </article>
-            <article class="panel stat-panel">
+            <article class="panel stat-panel kpi-card kpi-card--secondary">
               <p class="panel-label">Short Exposure</p>
               <strong id="exposure-short" class="panel-value">$0.00</strong>
-              <p class="metric-footnote">Absolute MV of short positions.</p>
             </article>
-            <article class="panel stat-panel">
+            <article class="panel stat-panel kpi-card kpi-card--secondary">
               <p class="panel-label">Gross Exposure</p>
               <strong id="exposure-gross" class="panel-value">$0.00</strong>
               <p id="exposure-gross-pct" class="metric-footnote">0.0% of portfolio</p>
             </article>
-            <article class="panel stat-panel">
+            <article class="panel stat-panel kpi-card kpi-card--secondary">
               <p class="panel-label">Net Exposure</p>
               <strong id="exposure-net" class="panel-value">$0.00</strong>
               <p id="exposure-net-pct" class="metric-footnote">0.0% of portfolio</p>
@@ -138,7 +137,6 @@
             <div class="panel-header">
               <div>
                 <h2>Portfolio Positions</h2>
-                <p class="panel-subtitle">Consolidated portfolio view based on current open holdings and cash balance. Signed quantities are preserved — negative quantity = short.</p>
               </div>
             </div>
             <div class="table-wrap table-wrap--positions">
@@ -162,33 +160,29 @@
             </div>
           </section>
 
-          <section class="panel">
-            <div class="panel-header">
-              <div>
-                <h2>Allocation by Position</h2>
-                <p class="panel-subtitle">Allocation uses absolute market value so weights remain sensible when shorts or options are present.</p>
-              </div>
-            </div>
-            <div id="allocation-list" class="allocation-list"></div>
-          </section>
+          <details class="panel exposure-panel">
+            <summary>
+              <span class="exposure-panel__title">Exposure by Position</span>
+              <span class="exposure-panel__hint">Click to expand</span>
+            </summary>
+            <div id="allocation-list" class="exposure-list"></div>
+          </details>
 
           <section class="panel">
             <div class="panel-header">
               <div>
-                <h2>Realized Attribution per Asset</h2>
-                <p class="panel-subtitle">Includes traded assets, open positions, and income-linked symbols when available.</p>
+                <h2>Attribution per Asset</h2>
               </div>
             </div>
             <div class="table-wrap">
               <table class="data-table">
                 <thead>
                   <tr>
-                    <th>Ticker</th>
+                    <th>Asset</th>
                     <th class="numeric-cell">Realized P&amp;L</th>
                     <th class="numeric-cell">Unrealized P&amp;L</th>
                     <th class="numeric-cell">Total P&amp;L</th>
-                    <th class="numeric-cell">Market Value</th>
-                    <th class="numeric-cell">Return %</th>
+                    <th class="numeric-cell">Contribution %</th>
                   </tr>
                 </thead>
                 <tbody id="asset-performance-body"></tbody>
@@ -221,64 +215,14 @@
             </details>
           </section>
 
-          <section class="panel panel--ledger">
-            <div class="panel-header">
-              <div>
-                <h2>Transaction History</h2>
-                <p class="panel-subtitle">Filter the ledger by type, ticker, notes, or date range. Shows imported transactions from active snapshot.</p>
-              </div>
-            </div>
-
-            <div class="filter-bar">
-              <label class="filter-field">
-                <span>Type</span>
-                <select id="filter-type">
-                  <option value="">All types</option>
-                </select>
-              </label>
-              <label class="filter-field">
-                <span>Ticker / Symbol</span>
-                <input id="filter-ticker" type="text" placeholder="AAPL" />
-              </label>
-              <label class="filter-field">
-                <span>Search</span>
-                <input id="filter-search" type="text" placeholder="Notes or ticker" />
-              </label>
-              <label class="filter-field">
-                <span>From</span>
-                <input id="filter-date-from" type="date" />
-              </label>
-              <label class="filter-field">
-                <span>To</span>
-                <input id="filter-date-to" type="date" />
-              </label>
-            </div>
-
-            <div class="table-wrap">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Type</th>
-                    <th>Ticker</th>
-                    <th>Quantity</th>
-                    <th>Price</th>
-                    <th>Amount</th>
-                    <th>Currency</th>
-                    <th>Notes</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody id="transactions-body"></tbody>
-              </table>
-            </div>
-          </section>
+          <header class="section-heading">
+            <h2>Data &amp; Imports</h2>
+          </header>
 
           <section class="panel">
             <div class="panel-header">
               <div>
-                <h2>Import Interactive Brokers File</h2>
-                <p class="panel-subtitle">Upload an IBKR Activity Statement CSV to refresh portfolio, positions, transactions, and contributions.</p>
+                <h2>Import IBKR File</h2>
               </div>
             </div>
 
@@ -340,6 +284,59 @@
                   </tr>
                 </thead>
                 <tbody id="statement-history-body"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel panel--ledger">
+            <div class="panel-header">
+              <div>
+                <h2>Transaction History</h2>
+                <p class="panel-subtitle">Imported transactions from active snapshot.</p>
+              </div>
+            </div>
+
+            <div class="filter-bar">
+              <label class="filter-field">
+                <span>Type</span>
+                <select id="filter-type">
+                  <option value="">All types</option>
+                </select>
+              </label>
+              <label class="filter-field">
+                <span>Ticker / Symbol</span>
+                <input id="filter-ticker" type="text" placeholder="AAPL" />
+              </label>
+              <label class="filter-field">
+                <span>Search</span>
+                <input id="filter-search" type="text" placeholder="Notes or ticker" />
+              </label>
+              <label class="filter-field">
+                <span>From</span>
+                <input id="filter-date-from" type="date" />
+              </label>
+              <label class="filter-field">
+                <span>To</span>
+                <input id="filter-date-to" type="date" />
+              </label>
+            </div>
+
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Ticker</th>
+                    <th>Quantity</th>
+                    <th>Price</th>
+                    <th>Amount</th>
+                    <th>Currency</th>
+                    <th>Notes</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="transactions-body"></tbody>
               </table>
             </div>
           </section>

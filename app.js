@@ -96,8 +96,6 @@ const elements = {
   summaryPortfolioValue: document.getElementById("summary-portfolio-value"),
   summaryCash: document.getElementById("summary-cash"),
   summaryCashShare: document.getElementById("summary-cash-share"),
-  summaryCommittedCapital: document.getElementById("summary-committed-capital"),
-  summaryNetContributions: document.getElementById("summary-net-contributions"),
   summaryNetInvestedCard: document.getElementById("summary-net-invested-card"),
   summaryDeployedCapital: document.getElementById("summary-deployed-capital"),
   summaryDeployedShare: document.getElementById("summary-deployed-share"),
@@ -1289,8 +1287,6 @@ function renderDashboard(positionsForAllocation, summary, exposure) {
   setElementText(elements.summaryPortfolioValue, formatCurrency(summary.portfolioValue));
   setElementText(elements.summaryCash, formatCurrency(summary.cash));
   setElementText(elements.summaryCashShare, summary.cashShareLabel);
-  setElementText(elements.summaryCommittedCapital, formatCurrency(summary.committedCapital));
-  setElementText(elements.summaryNetContributions, formatCurrency(summary.netContributions));
   setElementText(elements.summaryNetInvestedCard, formatCurrency(summary.netContributions));
   if (exposure) {
     setElementText(elements.exposureLong, formatCurrency(exposure.longExposure));
@@ -1320,20 +1316,51 @@ function renderDashboard(positionsForAllocation, summary, exposure) {
   setElementText(elements.summaryItd, summary.itdLabel);
 
   if (!positionsForAllocation.length) {
-    elements.allocationList.innerHTML = `<div class="empty-state">Allocation will appear once you add transactions or import your IBKR statement.</div>`;
+    elements.allocationList.innerHTML = `<div class="empty-state">Exposure will appear once you import your IBKR statement.</div>`;
   } else {
+    const maxWeight = positionsForAllocation.reduce(
+      (m, p) => Math.max(m, Math.abs(p.portfolioWeight) || 0),
+      0
+    );
     elements.allocationList.innerHTML = positionsForAllocation
-      .map((position) => `
-        <div class="allocation-row">
-          <div class="allocation-meta">
-            <strong>${escapeHtml(getDisplayTicker(position.ticker))}</strong>
-            <span>${formatCurrency(position.marketValue)} | ${formatPercent(position.portfolioWeight)}</span>
+      .map((position) => {
+        const isCash = position.ticker === "CASH";
+        const isOption = position.assetClass === "OPTION";
+        const isShort = position.marketValue < 0;
+        let badgeLabel = "Long";
+        let badgeClass = "exposure-badge--long";
+        if (isCash) {
+          badgeLabel = "Cash";
+          badgeClass = "exposure-badge--cash";
+        } else if (isOption) {
+          badgeLabel = isShort ? "Option · Short" : "Option";
+          badgeClass = "exposure-badge--option";
+        } else if (isShort) {
+          badgeLabel = "Short";
+          badgeClass = "exposure-badge--short";
+        }
+        const weight = Math.abs(position.portfolioWeight) || 0;
+        const barWidth = maxWeight > 0 ? Math.min(100, (weight / maxWeight) * 100) : 0;
+        const barClass = isShort ? "exposure-bar--short" : "exposure-bar--long";
+        const mvClass = getValueClass(position.marketValue);
+        return `
+          <div class="exposure-row">
+            <div class="exposure-row__head">
+              <div class="exposure-row__ident">
+                <strong>${escapeHtml(getDisplayTicker(position.ticker))}</strong>
+                <span class="exposure-badge ${badgeClass}">${escapeHtml(badgeLabel)}</span>
+              </div>
+              <div class="exposure-row__nums">
+                <span class="exposure-row__mv ${mvClass}">${formatCurrency(position.marketValue)}</span>
+                <span class="exposure-row__weight">${formatPercent(weight)}</span>
+              </div>
+            </div>
+            <div class="exposure-bar">
+              <span class="${barClass}" style="width: ${barWidth}%"></span>
+            </div>
           </div>
-          <div class="allocation-bar">
-            <span style="width: ${Math.max(position.portfolioWeight, 0)}%"></span>
-          </div>
-        </div>
-      `)
+        `;
+      })
       .join("");
   }
 }
@@ -1372,7 +1399,7 @@ function renderSummaryReturns(summary, assetPerformance) {
   }
 
   if (!assetPerformance.length) {
-    elements.assetPerformanceBody.innerHTML = buildEmptyRow("Performance by asset will appear once you have imported or entered transactions.", 6);
+    elements.assetPerformanceBody.innerHTML = buildEmptyRow("Attribution will appear once you import your IBKR statement.", 5);
     return;
   }
 
@@ -1381,14 +1408,13 @@ function renderSummaryReturns(summary, assetPerformance) {
       realizedPnL: sum.realizedPnL + asset.realizedPnL,
       unrealizedPnL: sum.unrealizedPnL + asset.unrealizedPnL,
       totalPnL: sum.totalPnL + asset.totalPnL,
-      marketValue: sum.marketValue + asset.marketValue,
     }),
-    { realizedPnL: 0, unrealizedPnL: 0, totalPnL: 0, marketValue: 0 }
+    { realizedPnL: 0, unrealizedPnL: 0, totalPnL: 0 }
   );
 
-  // Compare per-asset sums to the IBKR-reported all-assets totals (which include FX / forex / other
-  // items not attributable to a stock/option symbol). Any difference is surfaced as a residual row
-  // so the table sum is honest and reconciles to the headline Realized / Unrealized / Total P&L.
+  // Reconcile per-asset sums to the IBKR-reported all-assets totals. Anything that doesn't tie out
+  // (FX / forex / fees / other) appears in a residual row so the table sums to the headline
+  // Realized / Unrealized / Total P&L from the statement.
   const residualRealized = roundNumber((summary.realizedPnL || 0) - perAssetSums.realizedPnL);
   const residualUnrealized = roundNumber((summary.unrealizedPnL || 0) - perAssetSums.unrealizedPnL);
   const residualTotal = roundNumber((summary.totalPnL || 0) - perAssetSums.totalPnL);
@@ -1401,6 +1427,17 @@ function renderSummaryReturns(summary, assetPerformance) {
   const finalUnrealized = perAssetSums.unrealizedPnL + (hasResidual ? residualUnrealized : 0);
   const finalTotal = perAssetSums.totalPnL + (hasResidual ? residualTotal : 0);
 
+  // Contribution % uses Total Portfolio P&L as denominator. If it is near zero, individual %
+  // figures explode misleadingly, so we suppress them and show N/A for the whole column.
+  const totalPortfolioPnL = summary.totalPnL || 0;
+  const denominator = Math.abs(totalPortfolioPnL);
+  const contributionAvailable = denominator >= 1;
+  const fmtContribution = (value) => {
+    if (!contributionAvailable) return "N/A";
+    const pct = (value / totalPortfolioPnL) * 100;
+    return formatPercent(pct);
+  };
+
   const rowsHtml = assetPerformance
     .map((asset) => `
       <tr>
@@ -1408,8 +1445,7 @@ function renderSummaryReturns(summary, assetPerformance) {
         <td class="numeric-cell ${getValueClass(asset.realizedPnL)}">${formatCurrency(asset.realizedPnL)}</td>
         <td class="numeric-cell ${getValueClass(asset.unrealizedPnL)}">${formatCurrency(asset.unrealizedPnL)}</td>
         <td class="numeric-cell ${getValueClass(asset.totalPnL)}">${formatCurrency(asset.totalPnL)}</td>
-        <td class="numeric-cell">${formatCurrency(asset.marketValue)}</td>
-        <td class="numeric-cell ${getValueClass(asset.returnPct)}">${formatPercent(asset.returnPct)}</td>
+        <td class="numeric-cell ${getValueClass(asset.totalPnL)}">${fmtContribution(asset.totalPnL)}</td>
       </tr>
     `)
     .join("");
@@ -1417,12 +1453,11 @@ function renderSummaryReturns(summary, assetPerformance) {
   const residualRow = hasResidual
     ? `
       <tr class="table-residual-row">
-        <td class="ticker-cell"><em>Other / FX / Residual</em></td>
+        <td class="ticker-cell"><em>Other / FX / Fees / Residual</em></td>
         <td class="numeric-cell ${getValueClass(residualRealized)}">${formatCurrency(residualRealized)}</td>
         <td class="numeric-cell ${getValueClass(residualUnrealized)}">${formatCurrency(residualUnrealized)}</td>
         <td class="numeric-cell ${getValueClass(residualTotal)}">${formatCurrency(residualTotal)}</td>
-        <td class="numeric-cell">-</td>
-        <td class="numeric-cell">-</td>
+        <td class="numeric-cell ${getValueClass(residualTotal)}">${fmtContribution(residualTotal)}</td>
       </tr>
     `
     : "";
@@ -1433,8 +1468,7 @@ function renderSummaryReturns(summary, assetPerformance) {
       <td class="numeric-cell ${getValueClass(finalRealized)}">${formatCurrency(finalRealized)}</td>
       <td class="numeric-cell ${getValueClass(finalUnrealized)}">${formatCurrency(finalUnrealized)}</td>
       <td class="numeric-cell ${getValueClass(finalTotal)}">${formatCurrency(finalTotal)}</td>
-      <td class="numeric-cell">${formatCurrency(perAssetSums.marketValue)}</td>
-      <td class="numeric-cell">-</td>
+      <td class="numeric-cell">${contributionAvailable ? "100.0%" : "N/A"}</td>
     </tr>
   `;
 
