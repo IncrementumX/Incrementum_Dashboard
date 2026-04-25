@@ -1,6 +1,8 @@
 # Portfolio State — IncrementumOS
 
-> **DUMMY POR ORA.** Eduardo popula com o portfólio real quando o sistema estiver maduro o suficiente para receber esse contexto.
+> Fonte canônica: Dashboard do projeto em `src/`
+> (live em `https://incrementumx.github.io/Incrementum_Dashboard/`).
+> Agentes leem daqui o estado atual do portfólio — posições, exposição, hedges.
 
 ## Última atualização
 

@@ -37,3 +37,24 @@
 - [ ] `claude-mem` instalado em 2026-04-25 (Eduardo confirmou). Validar funcionamento depois de algumas sessões.
 - [ ] `export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` — setar quando for ativar agent teams.
 - [ ] Obsidian vault: apontar para `../wiki/` quando Eduardo quiser começar a editar pelo Obsidian.
+
+## Pendência: referências ao state.md vs Dashboard
+
+`governance/CLAUDE.md` e `skills/incrementum-analista/SKILL.md` ainda mencionam
+`state.md` como fonte de portfólio. Com o Dashboard como fonte canônica,
+essas referências precisam ser atualizadas para "ler estado via Dashboard / src/".
+
+Resolver quando a integração state.md ↔ Dashboard estiver definida.
+
+## Pendência: surface dos agentes nos clientes Claude
+
+Os perfis dos agentes hoje vivem como SKILL.md em `IncrementumOS/skills/`. São documentação,
+não invocáveis automaticamente. Para Eduardo acessar `incrementum_analista` e
+`incrementum_associate` no dia a dia:
+
+- [ ] **Claude Code** (VS Code add-in): criar `.claude/agents/incrementum-analista.md` e
+  `.claude/agents/incrementum-associate.md` com frontmatter de subagente, derivados
+  dos SKILL.md correspondentes. PR separado: `feat: surface agents in Claude Code`.
+- [ ] **Claude.ai (web/desktop)**: subir cada agente como Project Skill no projeto
+  Incrementum (manual via UI, mesmo fluxo que Eduardo já usou para a skill de briefing).
+  Claude pode formatar o conteúdo pronto para colar.

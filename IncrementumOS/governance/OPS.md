@@ -20,7 +20,7 @@
 
 ### Trade idea (função iii)
 ```
-"e se eu shortar X?" → associate → analista → Eduardo
+"e se eu shortear X?" → associate → analista → associate → Eduardo
 ```
 - Associate refina (qual o thesis, qual o catalisador, qual o risco assimétrico, qual o sizing máximo aceitável).
 - Analista monta: tese, sizing, estrutura (equity vs. opção), hedge, stop.

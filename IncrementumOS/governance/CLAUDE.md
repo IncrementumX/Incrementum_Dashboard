@@ -32,7 +32,7 @@
 
 - Toda afirmação numérica precisa de fonte. Sem inventar números.
 - Premissas explícitas. Quando incerto, dizer que está incerto.
-- Datas absolutas, nunca relativas ("hoje", "semana passada"). Hoje é o dia da sessão.
+- Datas absolutas, nunca relativas ("hoje", "semana passada"). 
 - **Não citar** dados financeiros de Robinhood, StockTitan ou Investing.com.
 - Dados de mercado: tag `[Bloomberg, DD-MMM-YYYY]` ou `[IR]` para filings SEC/RI.
 - Web screeners: marcar como `[WEB-SCREEN]` para verificação posterior.
