@@ -1103,6 +1103,7 @@ button:focus-visible,
 .scout-proxy-note { color: #fbbf24; font-size: 11px; margin-top: 4px; }
 .scout-corr-pairs { list-style: none; padding: 0; margin: 6px 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px 16px; font-size: 13px; }
 .scout-corr-pairs li { padding: 4px 0; }
+.scout-why { margin-top: 8px; font-size: 12px; opacity: 0.85; }
 
 .scout-loading-steps {
   display: flex;

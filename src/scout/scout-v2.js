@@ -47,6 +47,23 @@ function underlyingOf(symbol) {
   return trimmed.split(/\s+/)[0].toUpperCase();
 }
 
+// Mirror of tools/generate_scout_data.py ASSET_TICKERS.
+// Used purely for display so the user can see the Yahoo ticker behind
+// non-US / international holdings.  Keep in sync with the Python generator.
+const YAHOO_TICKER_MAP = {
+  IVN: "IVN.TO",
+  ENR: "ENR.DE",
+  HY9H: "HYQ.DE",
+  DXY: "DX-Y.NYB",
+  VIX: "^VIX",
+  GOLD: "GC=F",
+  SILVER: "SI=F",
+};
+
+function yahooTickerFor(symbol) {
+  return YAHOO_TICKER_MAP[symbol] || symbol;
+}
+
 // ---------------------------------------------------------------------------
 // Dataset loader
 // ---------------------------------------------------------------------------
@@ -150,6 +167,15 @@ function daysBetween(isoA, isoB) {
   return Math.round((b - a) / (1000 * 60 * 60 * 24));
 }
 
+function prettifyFredSource(raw) {
+  if (!raw) return "FRED";
+  const s = String(raw).toLowerCase();
+  if (s === "fredapi") return "FRED API";
+  if (s.startsWith("csv-fallback")) return "FRED CSV fallback";
+  if (s === "failed") return "FRED (failed)";
+  return "FRED";
+}
+
 // ---------------------------------------------------------------------------
 // Panel 1 — Macro Regime
 // ---------------------------------------------------------------------------
@@ -170,7 +196,7 @@ function buildMacroPanel(dataset, meta) {
       value: last.value,
       change20d,
       asOf: last.date,
-      sourceDetail: meta.fredSources[code] || "FRED",
+      sourceDetail: prettifyFredSource(meta.fredSources[code]),
       available: true,
     };
   });
@@ -219,8 +245,16 @@ function buildMomentumPanel(dataset, tickers, meta) {
   const rows = tickers.map((rawTicker) => {
     const isOption = isOptionLabel(rawTicker);
     const lookup = isOption ? underlyingOf(rawTicker) : rawTicker;
+    const yahooTicker = yahooTickerFor(lookup);
     const series = dataset?.assets?.[lookup];
-    const proxyNote = isOption ? `using ${lookup} underlying` : null;
+    let proxyNote = null;
+    if (isOption) {
+      proxyNote = yahooTicker !== lookup
+        ? `using ${lookup} underlying (Yahoo: ${yahooTicker})`
+        : `using ${lookup} underlying`;
+    } else if (yahooTicker !== lookup) {
+      proxyNote = `Yahoo: ${yahooTicker}`;
+    }
 
     if (!Array.isArray(series) || series.length < 2) {
       const reason = isOption
@@ -305,44 +339,82 @@ function maxDrawdown(series, periods) {
 function buildCrossAssetPanel(dataset, meta) {
   const signals = [];
 
-  // Gold / Silver ratio (proxies: GLD / SLV)
+  // Gold / Silver ratio — real commodity prices (COMEX futures USD/oz).
+  // Falls back to "unavailable" if GOLD or SILVER series is missing.
+  // We never label GLD / SLV as the gold/silver ratio.
+  const hasCommodityGoldSilver =
+    Array.isArray(dataset?.assets?.GOLD) && dataset.assets.GOLD.length > 0 &&
+    Array.isArray(dataset?.assets?.SILVER) && dataset.assets.SILVER.length > 0;
+  if (hasCommodityGoldSilver) {
+    signals.push(buildRatioSignal({
+      dataset,
+      name: "Gold / Silver Ratio",
+      numerator: "GOLD",
+      denominator: "SILVER",
+      sourceLabel: "Yahoo Finance (GC=F / SI=F)",
+      whyItMatters: "Tracks the precious-metals regime; rising ratio = silver lagging (defensive), falling ratio = silver outperforming (risk-on / industrial demand).",
+      interpretation: (ratio, mean90, z) => {
+        if (z === null) return "Insufficient history.";
+        if (z > 1) return "Silver under-performing gold (defensive metal regime).";
+        if (z < -1) return "Silver out-performing gold (industrial / risk-on tilt).";
+        return "Gold/silver ratio near 90D average.";
+      },
+    }));
+  } else {
+    signals.push({
+      name: "Gold / Silver Ratio",
+      available: false,
+      reason: "True commodity series (GC=F gold, SI=F silver) not in dataset — would need regeneration.",
+    });
+  }
+
+  // Gold vs real yields — uses GOLD futures if available; otherwise GLD ETF as proxy.
+  if (hasCommodityGoldSilver) {
+    signals.push(buildLevelsSignal({
+      dataset,
+      name: "Gold vs Real Yields",
+      legA: { label: "Gold (USD/oz)", series: "GOLD", source: "Yahoo Finance (GC=F)", isAsset: true },
+      legB: { label: "10Y Real Yield (%)", series: "DFII10", source: "FRED", isAsset: false },
+      whyItMatters: "Gold typically inversely correlates with real yields. Gold rising while real yields fall is a supportive macro setup; the inverse is adverse.",
+      interpretation: (priceA, levelB, changeA20, changeB20) => {
+        if (changeA20 === null || changeB20 === null) return "Insufficient history for 20D comparison.";
+        const goldUp = changeA20 > 0;
+        const realDown = changeB20 < 0;
+        if (goldUp && realDown) return "Gold rising while real yields fall — supportive macro.";
+        if (!goldUp && !realDown) return "Gold falling while real yields rise — adverse macro.";
+        return "Mixed: gold and real yields moving in same direction.";
+      },
+    }));
+  } else {
+    signals.push(buildLevelsSignal({
+      dataset,
+      name: "Gold vs Real Yields",
+      legA: { label: "GLD ETF price (USD)", series: "GLD", source: "Yahoo Finance (GLD)", isAsset: true },
+      legB: { label: "10Y Real Yield (%)", series: "DFII10", source: "FRED", isAsset: false },
+      proxyNote: "GLD ETF used as gold proxy (no commodity series in dataset).",
+      whyItMatters: "Gold typically inversely correlates with real yields. Gold rising while real yields fall is a supportive macro setup.",
+      interpretation: (priceA, levelB, changeA20, changeB20) => {
+        if (changeA20 === null || changeB20 === null) return "Insufficient history for 20D comparison.";
+        const goldUp = changeA20 > 0;
+        const realDown = changeB20 < 0;
+        if (goldUp && realDown) return "Gold rising while real yields fall — supportive macro.";
+        if (!goldUp && !realDown) return "Gold falling while real yields rise — adverse macro.";
+        return "Mixed: gold and real yields moving in same direction.";
+      },
+    }));
+  }
+
+  // Miners vs Metal — gold-miners ETF vs gold (commodity if available).
   signals.push(buildRatioSignal({
     dataset,
-    name: "Gold / Silver Ratio",
-    numerator: "GLD",
-    denominator: "SLV",
-    proxyNote: "Spot gold/silver unavailable; using GLD / SLV ETF prices as proxy.",
-    interpretation: (ratio, mean90, z) => {
-      if (z === null) return "Insufficient history.";
-      if (z > 1) return "Silver under-performing gold (defensive metal regime).";
-      if (z < -1) return "Silver out-performing gold (industrial / risk-on tilt).";
-      return "Gold/silver ratio near 90D average.";
-    },
-  }));
-
-  // Gold vs real yields — show both levels with directional read
-  signals.push(buildLevelsSignal({
-    dataset,
-    name: "Gold vs Real Yields (GLD proxy)",
-    legA: { label: "GLD price (USD) — gold ETF proxy", series: "GLD", source: "Yahoo Finance", isAsset: true },
-    legB: { label: "10Y Real Yield (%)", series: "DFII10", source: "FRED", isAsset: false },
-    interpretation: (priceA, levelB, changeA20, changeB20) => {
-      if (changeA20 === null || changeB20 === null) return "Insufficient history for 20D comparison.";
-      const goldUp = changeA20 > 0;
-      const realDown = changeB20 < 0;
-      if (goldUp && realDown) return "Gold rising while real yields fall — supportive macro.";
-      if (!goldUp && !realDown) return "Gold falling while real yields rise — adverse macro.";
-      return "Mixed: gold and real yields moving in same direction.";
-    },
-  }));
-
-  // Miners vs Metal — RING (gold miners ETF) vs GLD
-  signals.push(buildRatioSignal({
-    dataset,
-    name: "Gold Miners vs Gold (RING / GLD proxies)",
+    name: "Gold Miners vs Gold",
     numerator: "RING",
-    denominator: "GLD",
-    proxyNote: "Using RING (miners ETF) and GLD (gold ETF) as proxies for the miners/metal relationship.",
+    denominator: hasCommodityGoldSilver ? "GOLD" : "GLD",
+    sourceLabel: hasCommodityGoldSilver ? "Yahoo Finance (RING / GC=F)" : "Yahoo Finance (RING / GLD)",
+    proxyNote: hasCommodityGoldSilver
+      ? "Numerator is the RING gold-miners ETF (proxy for the miner sector)."
+      : "RING (gold-miners ETF) divided by GLD (gold ETF, gold proxy).",
+    whyItMatters: "Operating leverage: when miners outpace gold, the sector is being rewarded; when they lag, miners face cost pressure or weak sentiment.",
     interpretation: (ratio, mean90, z) => {
       if (z === null) return "Insufficient history.";
       if (z > 1) return "Miners out-performing metal (operating leverage paying off).";
@@ -357,7 +429,7 @@ function buildCrossAssetPanel(dataset, meta) {
   return { signals, asOf: meta.lastDataDate };
 }
 
-function buildRatioSignal({ dataset, name, numerator, denominator, proxyNote, interpretation }) {
+function buildRatioSignal({ dataset, name, numerator, denominator, proxyNote, sourceLabel, whyItMatters, interpretation }) {
   const numSeries = dataset?.assets?.[numerator] || [];
   const denSeries = dataset?.assets?.[denominator] || [];
   if (!numSeries.length || !denSeries.length) {
@@ -367,6 +439,8 @@ function buildRatioSignal({ dataset, name, numerator, denominator, proxyNote, in
   if (aligned.length < 2) {
     return { name, available: false, reason: "No common dates between series." };
   }
+  // Some commodity ratios swing by 1+ digits (gold ~$4700/oz / silver ~$76/oz ≈ 62);
+  // others are sub-1. Pick decimals so we always show meaningful precision.
   const ratios = aligned.map(([a, b]) => a.value / b.value).filter(Number.isFinite);
   const last = ratios[ratios.length - 1];
   const window = ratios.slice(-90);
@@ -375,21 +449,23 @@ function buildRatioSignal({ dataset, name, numerator, denominator, proxyNote, in
   const std = Math.sqrt(variance);
   const z = std > 0 ? (last - mean) / std : null;
   const lastDate = aligned[aligned.length - 1][0].date;
+  const decimals = Math.abs(last) >= 10 ? 2 : 3;
   return {
     name,
     available: true,
     value: last,
-    valueLabel: last.toFixed(3),
+    valueLabel: last.toFixed(decimals),
     mean90: mean,
     z,
     asOf: lastDate,
-    source: `Yahoo Finance (${numerator} / ${denominator})`,
+    source: sourceLabel || `Yahoo Finance (${numerator} / ${denominator})`,
     proxyNote: proxyNote || null,
+    whyItMatters: whyItMatters || null,
     interpretation: interpretation(last, mean, z),
   };
 }
 
-function buildLevelsSignal({ dataset, name, legA, legB, interpretation }) {
+function buildLevelsSignal({ dataset, name, legA, legB, proxyNote, whyItMatters, interpretation }) {
   const a = legA.isAsset ? dataset?.assets?.[legA.series] : dataset?.macro?.[legA.series];
   const b = legB.isAsset ? dataset?.assets?.[legB.series] : dataset?.macro?.[legB.series];
   if (!a?.length || !b?.length) {
@@ -408,6 +484,8 @@ function buildLevelsSignal({ dataset, name, legA, legB, interpretation }) {
       { label: legA.label, value: aLast.value, change20d: changeA, asOf: aLast.date, source: legA.source },
       { label: legB.label, value: bLast.value, change20d: changeB, asOf: bLast.date, source: legB.source },
     ],
+    proxyNote: proxyNote || null,
+    whyItMatters: whyItMatters || null,
     interpretation: interpretation(aLast.value, bLast.value, changeA, changeB),
   };
 }
@@ -435,6 +513,7 @@ function buildVixContext(dataset) {
     percentile90d: percentile,
     asOf: last.date,
     source: "Yahoo Finance (^VIX)",
+    whyItMatters: "VIX is the market's expected 30-day S&P volatility. Compressed = complacency / risk-on; elevated = stress, defensive positioning.",
     interpretation: `${regime} 90D percentile: ${percentile.toFixed(0)}%.`,
   };
 }

@@ -1639,7 +1639,7 @@ function renderMacroPanel(macro, meta) {
         <p class="panel-label">${escapeHtml(item.label)}</p>
         <strong class="panel-value">${escapeHtml(valueLabel)}</strong>
         <p class="metric-footnote ${changeClass}">20D Δ: ${escapeHtml(changeStr)}${item.unit === "bps" ? " bps" : "%"}</p>
-        <p class="metric-footnote">${escapeHtml(item.source)} (${escapeHtml(item.sourceDetail || "fred")}) · As of ${escapeHtml(item.asOf)}</p>
+        <p class="metric-footnote">${escapeHtml(item.sourceDetail || item.source)} · As of ${escapeHtml(item.asOf)}</p>
       </article>
     `;
   }).join("");
@@ -1711,7 +1711,7 @@ function renderMomentumPanel(momentum, tickers) {
       <div class="panel-header">
         <div>
           <h2>2. Portfolio Momentum</h2>
-          <p class="panel-subtitle">Returns, volatility, and drawdown for current portfolio holdings only. Source: Yahoo Finance daily prices.</p>
+          <p class="panel-subtitle">Current portfolio holdings only. Source: Yahoo Finance daily prices. Returns are simple price returns over the trailing window. Vol 60D is annualized log-return standard deviation. Trend = <strong>Uptrend</strong> when both 20D and 60D returns are positive, <strong>Downtrend</strong> when both are negative, otherwise <strong>Neutral</strong>.</p>
         </div>
       </div>
       ${empty}
@@ -1741,6 +1741,14 @@ function renderMomentumPanel(momentum, tickers) {
 }
 
 function renderCrossAssetPanel(crossAsset) {
+  const whyHtml = (sig) =>
+    sig.whyItMatters
+      ? `<p class="panel-subtitle scout-why"><strong>Why it matters:</strong> ${escapeHtml(sig.whyItMatters)}</p>`
+      : "";
+  const proxyHtml = (sig) =>
+    sig.proxyNote
+      ? `<p class="metric-footnote scout-proxy-note">${escapeHtml(sig.proxyNote)}</p>`
+      : "";
   const cards = (crossAsset?.signals || []).map((sig) => {
     if (!sig.available) {
       return `
@@ -1762,7 +1770,9 @@ function renderCrossAssetPanel(crossAsset) {
         <article class="panel">
           <h3>${escapeHtml(sig.name)}</h3>
           <div class="dashboard-secondary panel" style="background:transparent;border:none;padding:0;">${legHtml}</div>
-          <p class="panel-subtitle"><strong>Read:</strong> ${escapeHtml(sig.interpretation)}</p>
+          ${proxyHtml(sig)}
+          ${whyHtml(sig)}
+          <p class="panel-subtitle"><strong>Interpretation:</strong> ${escapeHtml(sig.interpretation)}</p>
         </article>
       `;
     }
@@ -1773,8 +1783,9 @@ function renderCrossAssetPanel(crossAsset) {
         ${sig.percentile90d !== undefined ? `<p class="metric-footnote">90D percentile: ${escapeHtml(sig.percentile90d.toFixed(0))}%</p>` : ""}
         ${sig.z !== undefined && sig.z !== null ? `<p class="metric-footnote">90D z-score: ${escapeHtml(sig.z.toFixed(2))}σ (mean ${escapeHtml(sig.mean90.toFixed(3))})</p>` : ""}
         <p class="metric-footnote">${escapeHtml(sig.source)} · As of ${escapeHtml(sig.asOf)}</p>
-        ${sig.proxyNote ? `<p class="metric-footnote scout-proxy-note">⚠ ${escapeHtml(sig.proxyNote)}</p>` : ""}
-        <p class="panel-subtitle"><strong>Read:</strong> ${escapeHtml(sig.interpretation)}</p>
+        ${proxyHtml(sig)}
+        ${whyHtml(sig)}
+        <p class="panel-subtitle"><strong>Interpretation:</strong> ${escapeHtml(sig.interpretation)}</p>
       </article>
     `;
   }).join("");
@@ -1842,19 +1853,20 @@ function renderCorrelationPanel(correlation) {
       }</p>`
     : "";
 
+  // 90D is the primary (more stable) read; 30D is shown as a secondary panel.
   return `
     <section class="panel">
       <div class="panel-header">
         <div>
           <h2>4. Portfolio Correlation</h2>
-          <p class="panel-subtitle">Pearson correlation of daily log returns. ${escapeHtml(correlation.source)}. As of ${escapeHtml(correlation.asOf || "n/a")}. Highlights: |ρ| ≥ 0.7.</p>
+          <p class="panel-subtitle">Pearson correlation of daily log returns, current portfolio assets only. Options are mapped to their underlying. 90D is the primary (more stable) read; 30D shows the recent regime. ${escapeHtml(correlation.source)}. As of ${escapeHtml(correlation.asOf || "n/a")}. Highlights: |ρ| ≥ 0.7.</p>
         </div>
       </div>
       ${noteUnavail}
       ${proxyNote}
-      ${renderMatrix(correlation.matrix30, "30-day correlation", correlation.insufficient30)}
-      ${renderMatrix(correlation.matrix90, "90-day correlation", correlation.insufficient90)}
       ${renderCorrelationHighlights(correlation)}
+      ${renderMatrix(correlation.matrix90, "90-day correlation (primary)", correlation.insufficient90)}
+      ${renderMatrix(correlation.matrix30, "30-day correlation (recent regime)", correlation.insufficient30)}
     </section>
   `;
 }
@@ -1894,12 +1906,14 @@ function renderCalendarPanel(calendar) {
     </tr>
   `).join("");
 
+  const hasEstimated = (calendar?.events || []).some((e) => e.estimated);
   return `
     <section class="panel">
       <div class="panel-header">
         <div>
           <h2>5. Economic Calendar</h2>
-          <p class="panel-subtitle">${escapeHtml(calendar?.note || "")}</p>
+          <p class="panel-subtitle"><strong>Static event-risk calendar.</strong> Not a live feed. FOMC meeting dates are taken from the Federal Reserve's published schedule and are firm. Other entries (CPI, PCE, NFP, ISM) are recurring monthly releases shown on their typical release window — the actual release date is set by the publishing agency and may shift.</p>
+          ${hasEstimated ? `<p class="panel-subtitle">Rows marked <em>estimated</em> use a release-window date; verify against the publisher before trading around them.</p>` : ""}
         </div>
       </div>
       <div class="table-wrap">

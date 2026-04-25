@@ -36,6 +36,9 @@ ASSET_TICKERS = {
     "VIX": "^VIX",
     "SLV": "SLV",
     "SIL": "SIL",
+    # True commodity series for Gold/Silver ratio (no ETF proxying)
+    "GOLD": "GC=F",      # COMEX gold futures, USD/oz
+    "SILVER": "SI=F",    # COMEX silver futures, USD/oz
     # Current portfolio holdings (US-listed)
     "URNM": "URNM",
     "META": "META",
