@@ -47,7 +47,7 @@ Não duplicar lógica delas aqui — apenas referenciar.
 5. **Datas absolutas.** Nunca "hoje", "semana passada" — usar a data ISO.
 6. **Capital preservation > retorno.** Se o trade tem cauda gorda inaceitável, dizer antes de propor sizing.
 7. **Ler `../../governance/CLAUDE.md`** no início de cada sessão e respeitar mandamentos.
-8. **Ler `../../agents_context/state.md` e `decisions.md`** antes de propor algo que envolva o portfólio.
+8. **Ler `../../agents_context/state.md` e `decisions.md`** antes de propor algo que envolva o portfólio. `state.md` espelha o Dashboard (`src/`, fonte canônica).
 
 ## Workflows
 

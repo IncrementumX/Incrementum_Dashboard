@@ -45,7 +45,7 @@
 
 ## Memória
 
-- `../agents_context/state.md` — portfólio atual (dummy por ora).
+- `../agents_context/state.md` — espelho do estado do portfólio. Fonte canônica é o Dashboard (`src/`); `state.md` é o que os agentes leem.
 - `../agents_context/decisions.md` — decisões fixadas por Eduardo. Append-only com data.
 - `../agents_context/issues.md` — flags abertas, pendências, dúvidas não resolvidas.
 - `../work_queues/` — status por task. Atualizar quando começar/terminar trabalho.

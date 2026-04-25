@@ -15,8 +15,8 @@
 
 ## Dashboard (escopo separado, branch separada)
 
-- [ ] Net contributions erradas — corrigir.
-- [ ] Portfólio não puxando shorts e puts — corrigir.
+- [x] Net contributions — corrigido (Eduardo confirmou em 2026-04-25).
+- [x] Portfólio puxando shorts e puts — corrigido (Eduardo confirmou em 2026-04-25).
 
 ## Atlas (evolutivo)
 
@@ -40,11 +40,7 @@
 
 ## Pendência: referências ao state.md vs Dashboard
 
-`governance/CLAUDE.md` e `skills/incrementum-analista/SKILL.md` ainda mencionam
-`state.md` como fonte de portfólio. Com o Dashboard como fonte canônica,
-essas referências precisam ser atualizadas para "ler estado via Dashboard / src/".
-
-Resolver quando a integração state.md ↔ Dashboard estiver definida.
+- [x] Resolvido em 2026-04-25: `governance/CLAUDE.md` e `skills/incrementum-analista/SKILL.md` agora deixam claro que `state.md` é o **espelho** que os agentes leem, e que o Dashboard (`src/`) é a fonte canônica. Estrutura state.md ↔ Dashboard (como popular state.md a partir do Dashboard) fica em aberto até a integração ser definida.
 
 ## Pendência: surface dos agentes nos clientes Claude
 
