@@ -1,0 +1,62 @@
+# AGENT_REGISTRY — fonte canônica dos agentes do IncrementumOS
+# Atualizar aqui quando adicionar/remover agente, mudar papel ou skills.
+
+version: 1
+updated: 2026-04-25
+
+agents:
+  - id: incrementum_associate
+    role: front_door
+    description: |
+      Porta de entrada para trabalho importante (tese, memo, sizing, trade relevante).
+      Adversarial por padrão — não valida, desafia. Refina o escopo da pergunta antes
+      de despachar para o analista. Faz QA do output do analista antes de subir para Eduardo.
+    profile_file: ../skills/incrementum-associate/SKILL.md
+    invoked_when:
+      - tese de investimento nova
+      - memo formal
+      - decisão de sizing relevante
+      - trade material (short, hedge grande, opção)
+    handoffs:
+      - to: incrementum_analista
+        when: escopo refinado, despachar produção
+      - to: eduardo
+        when: review final aprovado, ou objeções não resolvidas
+
+  - id: incrementum_analista
+    role: production_engine
+    description: |
+      Motor de produção. Faz a análise, monta o material, pensa em trades.
+      Orquestra as skills de produção. SEMPRE pergunta "Word ou PPT?" antes de gerar
+      qualquer documento. Aprende framework e estilo do Eduardo via wiki/philosophy/
+      e wiki/framework/.
+    profile_file: ../skills/incrementum-analista/SKILL.md
+    skills:
+      - memo            # investment memo v2.1
+      - assessment      # framework de assessment
+      - snapshot        # first look
+      - briefing        # briefing diário (vive no Claude app do Eduardo)
+    invoked_when:
+      - despachado pelo associate
+      - chamado direto para análise simples/pontual
+    handoffs:
+      - to: incrementum_associate
+        when: output pronto para QA adversarial
+      - to: eduardo
+        when: análise simples/pontual sem necessidade de QA
+
+workflows:
+  - name: análise completa
+    function: i
+    chain: eduardo → associate → analista → associate → eduardo
+
+  - name: briefing diário
+    function: ii
+    chain: eduardo → analista → eduardo
+
+  - name: trade idea
+    function: iii
+    chain: eduardo → associate → analista → eduardo
+
+  - name: simples / pontual
+    chain: eduardo → analista → eduardo
