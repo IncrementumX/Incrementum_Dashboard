@@ -1104,6 +1104,11 @@ button:focus-visible,
 .scout-corr-pairs { list-style: none; padding: 0; margin: 6px 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px 16px; font-size: 13px; }
 .scout-corr-pairs li { padding: 4px 0; }
 .scout-why { margin-top: 8px; font-size: 12px; opacity: 0.85; }
+.scout-inputs { list-style: none; padding: 8px 10px; margin: 8px 0 0; border: 1px solid var(--border); border-radius: 8px; background: rgba(255,255,255,0.02); font-size: 12px; display: grid; gap: 4px; }
+.scout-inputs li { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.scout-inputs__label { color: var(--text-muted); }
+.scout-inputs__value { font-variant-numeric: tabular-nums; font-weight: 500; }
+.scout-inputs__meta { color: var(--text-muted); font-size: 11px; }
 
 .scout-loading-steps {
   display: flex;

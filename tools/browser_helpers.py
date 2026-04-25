@@ -46,10 +46,11 @@ ASSET_TICKERS = {
     "OIH": "OIH",
     "USO": "USO",
     "IBKR": "IBKR",
-    # Current portfolio holdings (international: IBKR symbol -> Yahoo ticker)
-    "IVN": "IVN.TO",     # Ivanhoe Mines, Toronto
-    "ENR": "ENR.DE",     # Siemens Energy AG, Frankfurt
-    "HY9H": "HYQ.DE",    # Hypoport SE, Frankfurt
+    # Current portfolio holdings (international: IBKR symbol -> Yahoo ticker).
+    # Closes on 2026-04-23 verified against IBKR statement to the cent.
+    "IVN": "IVN.TO",     # Ivanhoe Mines, Toronto (CAD)
+    "ENR": "ENR.DE",     # Siemens Energy AG, Frankfurt/Xetra (EUR)
+    "HY9H": "HY9H.F",    # SK Hynix Inc, Frankfurt (EUR) — NOT HYQ.DE (Hypoport)
 }
 
 load_dotenv(REPO_ROOT / ".env")

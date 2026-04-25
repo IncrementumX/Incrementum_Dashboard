@@ -47,10 +47,12 @@ ASSET_TICKERS = {
     "OIH": "OIH",
     "USO": "USO",
     "IBKR": "IBKR",
-    # Current portfolio holdings (international — IBKR symbol -> Yahoo ticker)
-    "IVN": "IVN.TO",     # Ivanhoe Mines, Toronto
-    "ENR": "ENR.DE",     # Siemens Energy AG, Frankfurt
-    "HY9H": "HYQ.DE",    # Hypoport SE, Frankfurt
+    # Current portfolio holdings (international — IBKR symbol -> Yahoo ticker).
+    # Closing prices on 2026-04-23 verified against IBKR statement to the cent
+    # for ENR (€182.80), IVN (CA$11.86) and HY9H (€706.00).
+    "IVN": "IVN.TO",     # Ivanhoe Mines, Toronto (CAD)
+    "ENR": "ENR.DE",     # Siemens Energy AG, Frankfurt/Xetra (EUR)
+    "HY9H": "HY9H.F",    # SK Hynix Inc, Frankfurt (EUR) — NOT HYQ.DE which is Hypoport SE
 }
 START_DATE = "2015-01-01"
 # Keep last N observations to keep file size manageable (<1.5MB)

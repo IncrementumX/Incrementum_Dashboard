@@ -1711,7 +1711,7 @@ function renderMomentumPanel(momentum, tickers) {
       <div class="panel-header">
         <div>
           <h2>2. Portfolio Momentum</h2>
-          <p class="panel-subtitle">Current portfolio holdings only. Source: Yahoo Finance daily prices. Returns are simple price returns over the trailing window. Vol 60D is annualized log-return standard deviation. Trend = <strong>Uptrend</strong> when both 20D and 60D returns are positive, <strong>Downtrend</strong> when both are negative, otherwise <strong>Neutral</strong>.</p>
+          <p class="panel-subtitle">Current portfolio holdings only. Source: Yahoo Finance daily prices in <strong>local currency</strong> — no FX conversion. Price column is the latest local-currency close (e.g. ENR in EUR, IVN in CAD). Returns are simple price returns over the trailing window. Vol 60D is annualized log-return standard deviation. Trend = <strong>Uptrend</strong> when both 20D and 60D returns are positive, <strong>Downtrend</strong> when both are negative, otherwise <strong>Neutral</strong>.</p>
         </div>
       </div>
       ${empty}
@@ -1776,12 +1776,20 @@ function renderCrossAssetPanel(crossAsset) {
         </article>
       `;
     }
+    const inputsHtml = (sig.inputs && sig.inputs.length)
+      ? `<ul class="scout-inputs">${sig.inputs.map((inp) => `
+          <li><span class="scout-inputs__label">${escapeHtml(inp.label)}</span>
+              <span class="scout-inputs__value">${escapeHtml(typeof inp.value === "number" ? inp.value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—")}</span>
+              <span class="scout-inputs__meta">${escapeHtml(inp.yahoo || "")} · ${escapeHtml(inp.asOf || "")}</span>
+          </li>`).join("")}</ul>`
+      : "";
     return `
       <article class="panel">
         <h3>${escapeHtml(sig.name)}</h3>
         <strong class="panel-value">${escapeHtml(sig.valueLabel || "")}</strong>
         ${sig.percentile90d !== undefined ? `<p class="metric-footnote">90D percentile: ${escapeHtml(sig.percentile90d.toFixed(0))}%</p>` : ""}
         ${sig.z !== undefined && sig.z !== null ? `<p class="metric-footnote">90D z-score: ${escapeHtml(sig.z.toFixed(2))}σ (mean ${escapeHtml(sig.mean90.toFixed(3))})</p>` : ""}
+        ${inputsHtml}
         <p class="metric-footnote">${escapeHtml(sig.source)} · As of ${escapeHtml(sig.asOf)}</p>
         ${proxyHtml(sig)}
         ${whyHtml(sig)}
@@ -1859,7 +1867,7 @@ function renderCorrelationPanel(correlation) {
       <div class="panel-header">
         <div>
           <h2>4. Portfolio Correlation</h2>
-          <p class="panel-subtitle">Pearson correlation of daily log returns, current portfolio assets only. Options are mapped to their underlying. 90D is the primary (more stable) read; 30D shows the recent regime. ${escapeHtml(correlation.source)}. As of ${escapeHtml(correlation.asOf || "n/a")}. Highlights: |ρ| ≥ 0.7.</p>
+          <p class="panel-subtitle">Pearson correlation of daily log returns, current portfolio assets only. Options are mapped to their underlying. Returns are computed from Yahoo local-currency adjusted closes — no FX conversion is applied. 90D is the primary (more stable) read; 30D shows the recent regime. ${escapeHtml(correlation.source)}. As of ${escapeHtml(correlation.asOf || "n/a")}. Highlights: |ρ| ≥ 0.7.</p>
         </div>
       </div>
       ${noteUnavail}

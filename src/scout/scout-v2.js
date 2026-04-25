@@ -47,21 +47,28 @@ function underlyingOf(symbol) {
   return trimmed.split(/\s+/)[0].toUpperCase();
 }
 
-// Mirror of tools/generate_scout_data.py ASSET_TICKERS.
-// Used purely for display so the user can see the Yahoo ticker behind
-// non-US / international holdings.  Keep in sync with the Python generator.
-const YAHOO_TICKER_MAP = {
-  IVN: "IVN.TO",
-  ENR: "ENR.DE",
-  HY9H: "HYQ.DE",
-  DXY: "DX-Y.NYB",
-  VIX: "^VIX",
-  GOLD: "GC=F",
-  SILVER: "SI=F",
+// Mirror of tools/generate_scout_data.py ASSET_TICKERS plus display metadata
+// (currency, exchange) so Momentum can render local-currency context.
+// Keep in sync with the Python generator.
+const ASSET_META = {
+  // International portfolio holdings
+  IVN:    { yahoo: "IVN.TO",  currency: "CAD", exchange: "Toronto",        name: "Ivanhoe Mines" },
+  ENR:    { yahoo: "ENR.DE",  currency: "EUR", exchange: "Frankfurt/Xetra", name: "Siemens Energy" },
+  HY9H:   { yahoo: "HY9H.F",  currency: "EUR", exchange: "Frankfurt",      name: "SK Hynix" },
+  // Macro proxies
+  DXY:    { yahoo: "DX-Y.NYB", currency: "USD", exchange: "ICE",            name: "US Dollar Index" },
+  VIX:    { yahoo: "^VIX",     currency: "USD", exchange: "CBOE",           name: "VIX" },
+  GOLD:   { yahoo: "GC=F",     currency: "USD", exchange: "COMEX",          name: "Gold (USD/oz)" },
+  SILVER: { yahoo: "SI=F",     currency: "USD", exchange: "COMEX",          name: "Silver (USD/oz)" },
 };
 
 function yahooTickerFor(symbol) {
-  return YAHOO_TICKER_MAP[symbol] || symbol;
+  return ASSET_META[symbol]?.yahoo || symbol;
+}
+
+function currencyFor(symbol) {
+  // Default to USD for plain US listings (META, MU, IBKR, OIH, RING, URNM, USO, etc.)
+  return ASSET_META[symbol]?.currency || "USD";
 }
 
 // ---------------------------------------------------------------------------
@@ -247,13 +254,14 @@ function buildMomentumPanel(dataset, tickers, meta) {
     const lookup = isOption ? underlyingOf(rawTicker) : rawTicker;
     const yahooTicker = yahooTickerFor(lookup);
     const series = dataset?.assets?.[lookup];
+    const ccy = currencyFor(lookup);
     let proxyNote = null;
     if (isOption) {
       proxyNote = yahooTicker !== lookup
-        ? `using ${lookup} underlying (Yahoo: ${yahooTicker})`
-        : `using ${lookup} underlying`;
+        ? `using ${lookup} underlying (Yahoo: ${yahooTicker} · ${ccy})`
+        : `using ${lookup} underlying · ${ccy}`;
     } else if (yahooTicker !== lookup) {
-      proxyNote = `Yahoo: ${yahooTicker}`;
+      proxyNote = `Yahoo: ${yahooTicker} · ${ccy}`;
     }
 
     if (!Array.isArray(series) || series.length < 2) {
@@ -346,7 +354,7 @@ function buildCrossAssetPanel(dataset, meta) {
     Array.isArray(dataset?.assets?.GOLD) && dataset.assets.GOLD.length > 0 &&
     Array.isArray(dataset?.assets?.SILVER) && dataset.assets.SILVER.length > 0;
   if (hasCommodityGoldSilver) {
-    signals.push(buildRatioSignal({
+    const ratioSig = buildRatioSignal({
       dataset,
       name: "Gold / Silver Ratio",
       numerator: "GOLD",
@@ -359,7 +367,18 @@ function buildCrossAssetPanel(dataset, meta) {
         if (z < -1) return "Silver out-performing gold (industrial / risk-on tilt).";
         return "Gold/silver ratio near 90D average.";
       },
-    }));
+    });
+    // Surface the input legs so the user can verify the ratio = gold / silver
+    // by eye and confirm the underlying commodity prices used.
+    if (ratioSig.available) {
+      const goldLast = dataset.assets.GOLD[dataset.assets.GOLD.length - 1];
+      const silverLast = dataset.assets.SILVER[dataset.assets.SILVER.length - 1];
+      ratioSig.inputs = [
+        { label: "Gold (USD/oz)",   value: goldLast.value,   asOf: goldLast.date,   yahoo: "GC=F" },
+        { label: "Silver (USD/oz)", value: silverLast.value, asOf: silverLast.date, yahoo: "SI=F" },
+      ];
+    }
+    signals.push(ratioSig);
   } else {
     signals.push({
       name: "Gold / Silver Ratio",
