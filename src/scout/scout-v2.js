@@ -27,6 +27,27 @@ const STALE_WARN_DAYS = 7;
 const STALE_BREAK_DAYS = 30;
 
 // ---------------------------------------------------------------------------
+// Option-symbol → underlying mapping
+//
+// IBKR option labels look like:  "USO 08MAY26 132 C", "SPY 30APR26 707 P".
+// The underlying is the first whitespace-delimited token. We never try to fetch
+// option-level price history; momentum/correlation always uses the underlying.
+// ---------------------------------------------------------------------------
+
+const OPTION_LABEL_RE = /^([A-Z][A-Z0-9.]{0,5})\s+\d{1,2}[A-Z]{3}\d{2,4}\s+[\d.]+\s+[CP]$/i;
+
+function isOptionLabel(symbol) {
+  return typeof symbol === "string" && OPTION_LABEL_RE.test(symbol.trim());
+}
+
+function underlyingOf(symbol) {
+  if (!symbol) return symbol;
+  const trimmed = symbol.trim();
+  if (!isOptionLabel(trimmed)) return trimmed;
+  return trimmed.split(/\s+/)[0].toUpperCase();
+}
+
+// ---------------------------------------------------------------------------
 // Dataset loader
 // ---------------------------------------------------------------------------
 
@@ -195,10 +216,17 @@ function buildMacroPanel(dataset, meta) {
 // ---------------------------------------------------------------------------
 
 function buildMomentumPanel(dataset, tickers, meta) {
-  const rows = tickers.map((ticker) => {
-    const series = dataset?.assets?.[ticker];
+  const rows = tickers.map((rawTicker) => {
+    const isOption = isOptionLabel(rawTicker);
+    const lookup = isOption ? underlyingOf(rawTicker) : rawTicker;
+    const series = dataset?.assets?.[lookup];
+    const proxyNote = isOption ? `using ${lookup} underlying` : null;
+
     if (!Array.isArray(series) || series.length < 2) {
-      return { ticker, available: false, reason: "No price series in scout-data.json for this ticker." };
+      const reason = isOption
+        ? `No price series for underlying ${lookup} in scout-data.json. Add ${lookup} to ASSET_TICKERS and regenerate.`
+        : `No price series in scout-data.json for ${rawTicker}. Add to ASSET_TICKERS and regenerate.`;
+      return { ticker: rawTicker, lookup, isOption, proxyNote, available: false, reason };
     }
     const last = series[series.length - 1];
     const price = last.value;
@@ -214,7 +242,10 @@ function buildMomentumPanel(dataset, tickers, meta) {
     else trend = "Neutral";
 
     return {
-      ticker,
+      ticker: rawTicker,
+      lookup,
+      isOption,
+      proxyNote,
       available: true,
       price,
       asOf: last.date,
@@ -292,8 +323,8 @@ function buildCrossAssetPanel(dataset, meta) {
   // Gold vs real yields — show both levels with directional read
   signals.push(buildLevelsSignal({
     dataset,
-    name: "Gold vs Real Yields",
-    legA: { label: "GLD price (USD)", series: "GLD", source: "Yahoo Finance", isAsset: true },
+    name: "Gold vs Real Yields (GLD proxy)",
+    legA: { label: "GLD price (USD) — gold ETF proxy", series: "GLD", source: "Yahoo Finance", isAsset: true },
     legB: { label: "10Y Real Yield (%)", series: "DFII10", source: "FRED", isAsset: false },
     interpretation: (priceA, levelB, changeA20, changeB20) => {
       if (changeA20 === null || changeB20 === null) return "Insufficient history for 20D comparison.";
@@ -308,9 +339,10 @@ function buildCrossAssetPanel(dataset, meta) {
   // Miners vs Metal — RING (gold miners ETF) vs GLD
   signals.push(buildRatioSignal({
     dataset,
-    name: "Gold Miners vs Gold (RING / GLD)",
+    name: "Gold Miners vs Gold (RING / GLD proxies)",
     numerator: "RING",
     denominator: "GLD",
+    proxyNote: "Using RING (miners ETF) and GLD (gold ETF) as proxies for the miners/metal relationship.",
     interpretation: (ratio, mean90, z) => {
       if (z === null) return "Insufficient history.";
       if (z > 1) return "Miners out-performing metal (operating leverage paying off).";
@@ -422,15 +454,33 @@ function alignSeries(a, b) {
 // ---------------------------------------------------------------------------
 
 function buildCorrelationPanel(dataset, tickers) {
-  const available = tickers.filter((t) => Array.isArray(dataset?.assets?.[t]) && dataset.assets[t].length >= 31);
-  const unavailable = tickers.filter((t) => !available.includes(t));
+  // Map options to underlyings, then dedupe — correlation works on underlyings.
+  const mapped = [];
+  const seen = new Set();
+  const proxiedFrom = {}; // underlying -> [option labels]
+  for (const raw of tickers) {
+    const u = underlyingOf(raw);
+    const isOption = isOptionLabel(raw);
+    if (isOption) {
+      proxiedFrom[u] = proxiedFrom[u] || [];
+      proxiedFrom[u].push(raw);
+    }
+    if (!seen.has(u)) {
+      seen.add(u);
+      mapped.push(u);
+    }
+  }
+
+  const available = mapped.filter((t) => Array.isArray(dataset?.assets?.[t]) && dataset.assets[t].length >= 31);
+  const unavailable = mapped.filter((t) => !available.includes(t));
   if (available.length < 2) {
     return {
       available: false,
       reason: available.length === 0
-        ? "None of the portfolio tickers have a price series in scout-data.json."
+        ? "None of the portfolio underlyings have a price series in scout-data.json."
         : `Only ${available[0]} has a price series. Need at least 2 for correlation.`,
       tickersWithoutData: unavailable,
+      proxiedFrom,
     };
   }
 
@@ -457,6 +507,7 @@ function buildCorrelationPanel(dataset, tickers) {
     available: true,
     tickers: available,
     tickersWithoutData: unavailable,
+    proxiedFrom,
     matrix30,
     matrix90,
     asOf: dates[dates.length - 1] || null,

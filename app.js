@@ -1666,11 +1666,18 @@ function renderMacroPanel(macro, meta) {
 }
 
 function renderMomentumPanel(momentum, tickers) {
+  const labelHtml = (row) => {
+    const ticker = `<strong>${escapeHtml(row.ticker)}</strong>`;
+    if (row.proxyNote) {
+      return `${ticker}<div class="scout-proxy-note">${escapeHtml(row.proxyNote)}</div>`;
+    }
+    return ticker;
+  };
   const rows = (momentum?.rows || []).map((row) => {
     if (!row.available) {
       return `
         <tr>
-          <td class="ticker-cell"><strong>${escapeHtml(row.ticker)}</strong></td>
+          <td class="ticker-cell">${labelHtml(row)}</td>
           <td class="numeric-cell" colspan="9"><span class="panel-subtitle">Unavailable — ${escapeHtml(row.reason || "")}</span></td>
         </tr>
       `;
@@ -1681,7 +1688,7 @@ function renderMomentumPanel(momentum, tickers) {
                      "panel-subtitle";
     return `
       <tr>
-        <td class="ticker-cell"><strong>${escapeHtml(row.ticker)}</strong></td>
+        <td class="ticker-cell">${labelHtml(row)}</td>
         <td class="numeric-cell">${escapeHtml(row.price.toFixed(2))}</td>
         <td class="numeric-cell ${row.r1 >= 0 ? "is-positive" : "is-negative"}">${escapeHtml(fmtPct(row.r1))}</td>
         <td class="numeric-cell ${row.r5 >= 0 ? "is-positive" : "is-negative"}">${escapeHtml(fmtPct(row.r5))}</td>
@@ -1827,6 +1834,13 @@ function renderCorrelationPanel(correlation) {
   const noteUnavail = (correlation.tickersWithoutData || []).length > 0
     ? `<p class="panel-subtitle">No data for: <strong>${escapeHtml(correlation.tickersWithoutData.join(", "))}</strong></p>`
     : "";
+  const proxyNote = correlation.proxiedFrom && Object.keys(correlation.proxiedFrom).length
+    ? `<p class="panel-subtitle">Options mapped to underlying: ${
+        Object.entries(correlation.proxiedFrom)
+          .map(([u, opts]) => `<strong>${escapeHtml(u)}</strong> ← ${escapeHtml(opts.join(", "))}`)
+          .join(" · ")
+      }</p>`
+    : "";
 
   return `
     <section class="panel">
@@ -1837,10 +1851,37 @@ function renderCorrelationPanel(correlation) {
         </div>
       </div>
       ${noteUnavail}
+      ${proxyNote}
       ${renderMatrix(correlation.matrix30, "30-day correlation", correlation.insufficient30)}
       ${renderMatrix(correlation.matrix90, "90-day correlation", correlation.insufficient90)}
+      ${renderCorrelationHighlights(correlation)}
     </section>
   `;
+}
+
+function renderCorrelationHighlights(correlation) {
+  const matrix = correlation.matrix90 && !correlation.insufficient90
+    ? correlation.matrix90
+    : (correlation.matrix30 && !correlation.insufficient30 ? correlation.matrix30 : null);
+  if (!matrix) return "";
+  const label = correlation.matrix90 && !correlation.insufficient90 ? "90D" : "30D";
+  const pairs = [];
+  for (let i = 0; i < correlation.tickers.length; i += 1) {
+    for (let j = i + 1; j < correlation.tickers.length; j += 1) {
+      const v = matrix[i][j];
+      if (v !== null) {
+        pairs.push({ a: correlation.tickers[i], b: correlation.tickers[j], v });
+      }
+    }
+  }
+  if (!pairs.length) return "";
+  pairs.sort((x, y) => Math.abs(y.v) - Math.abs(x.v));
+  const items = pairs.slice(0, 8).map((p) => {
+    const high = Math.abs(p.v) >= 0.7;
+    const cls = high ? (p.v >= 0 ? "scout-corr--high-pos" : "scout-corr--high-neg") : "";
+    return `<li><strong>${escapeHtml(p.a)} ↔ ${escapeHtml(p.b)}</strong>: <span class="${cls}">${p.v.toFixed(2)}</span></li>`;
+  }).join("");
+  return `<h3>Top correlations (${escapeHtml(label)}, ranked by |ρ|)</h3><ul class="scout-corr-pairs">${items}</ul>`;
 }
 
 function renderCalendarPanel(calendar) {

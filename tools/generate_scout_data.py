@@ -19,7 +19,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(REPO_ROOT / ".env")
 
 FRED_SERIES = ["DGS10", "DFII10", "T10YIE", "T10Y2Y", "T5YIFR"]
+# Map of {scout-data.json key  ->  Yahoo Finance ticker}.
+# Keep keys as the SYMBOL the IBKR-imported holding uses (so Scout can look it up
+# directly), and resolve the Yahoo ticker on the right when international.
 ASSET_TICKERS = {
+    # Cross-asset reference + macro proxies (already covered)
     "RING": "RING",
     "AGQ": "AGQ",
     "GLD": "GLD",
@@ -33,6 +37,17 @@ ASSET_TICKERS = {
     "VIX": "^VIX",
     "SLV": "SLV",
     "SIL": "SIL",
+    # Current portfolio holdings (US-listed, plain Yahoo tickers)
+    "URNM": "URNM",
+    "META": "META",
+    "MU": "MU",
+    "OIH": "OIH",
+    "USO": "USO",
+    "IBKR": "IBKR",
+    # Current portfolio holdings (international — IBKR symbol -> Yahoo ticker)
+    "IVN": "IVN.TO",     # Ivanhoe Mines, Toronto
+    "ENR": "ENR.DE",     # Siemens Energy AG, Frankfurt
+    "HY9H": "HYQ.DE",    # Hypoport SE, Frankfurt
 }
 START_DATE = "2015-01-01"
 # Keep last N observations to keep file size manageable (<1.5MB)

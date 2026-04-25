@@ -22,6 +22,7 @@ SCOUT_CACHE_TTL_SECONDS = 900
 SCOUT_PAYLOAD_CACHE: dict[str, object] = {"payload": None, "timestamp": 0.0}
 FRED_SERIES = ["DGS10", "DFII10", "T10YIE", "T10Y2Y", "T5YIFR"]
 ASSET_TICKERS = {
+    # Cross-asset reference + macro proxies
     "RING": "RING",
     "AGQ": "AGQ",
     "GLD": "GLD",
@@ -31,11 +32,21 @@ ASSET_TICKERS = {
     "COPX": "COPX",
     "URA": "URA",
     "DXY": "DX-Y.NYB",
-    # Strategy Lab instruments
     "SPY": "SPY",
     "VIX": "^VIX",
     "SLV": "SLV",
     "SIL": "SIL",
+    # Current portfolio holdings (US-listed)
+    "URNM": "URNM",
+    "META": "META",
+    "MU": "MU",
+    "OIH": "OIH",
+    "USO": "USO",
+    "IBKR": "IBKR",
+    # Current portfolio holdings (international: IBKR symbol -> Yahoo ticker)
+    "IVN": "IVN.TO",     # Ivanhoe Mines, Toronto
+    "ENR": "ENR.DE",     # Siemens Energy AG, Frankfurt
+    "HY9H": "HYQ.DE",    # Hypoport SE, Frankfurt
 }
 
 load_dotenv(REPO_ROOT / ".env")
