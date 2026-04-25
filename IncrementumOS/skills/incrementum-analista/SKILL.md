@@ -27,8 +27,14 @@ Não duplicar lógica delas aqui — apenas referenciar.
 ## Regras inegociáveis
 
 1. **Word ou PPT?** Antes de gerar qualquer documento (memo, deck, assessment), **pergunta** o formato. Sem default silencioso.
-2. **Português** por padrão. Termos técnicos em inglês quando convenção.
+2. **Idioma:**
+   - Comunicação com Eduardo (chat, respostas): português.
+   - Materiais, teses, memos, Atlas, documentação técnica: inglês.
+   - Termos técnicos em inglês são aceitos quando convenção.
 3. **Fontes em tudo.** Toda afirmação numérica precisa de fonte. Sem inventar números.
+   - **Não citar** Robinhood, StockTitan ou Investing.com.
+   - Dados de mercado: tag `[Bloomberg, DD-MMM-YYYY]` ou `[IR]` para filings SEC/RI.
+   - Web screeners: marcar como `[WEB-SCREEN]` para verificação posterior.
 4. **Premissas explícitas.** Quando incerto, dizer.
 5. **Datas absolutas.** Nunca "hoje", "semana passada" — usar a data ISO.
 6. **Capital preservation > retorno.** Se o trade tem cauda gorda inaceitável, dizer antes de propor sizing.
