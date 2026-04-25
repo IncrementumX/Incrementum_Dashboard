@@ -228,7 +228,7 @@ function normalizeState(rawState) {
         transactions: stripLegacySeedTransactions(manualTransactions),
       },
       importedSnapshots,
-      activeSnapshotId: restoredSnapshotId || importedSnapshots[0]?.id || null,
+      activeSnapshotId: restoredSnapshotId || pickBestSnapshotId(importedSnapshots),
       lastActiveContext: {
         mode: rawState?.lastActiveContext?.mode === "snapshot" && restoredSnapshotId ? "snapshot" : "manual",
         snapshotId: restoredSnapshotId || null,
@@ -535,15 +535,36 @@ function applyRuntimeContext(currentState) {
   }
 
   const requestedSnapshotId = routeContext?.snapshotId || runtimeUiContext?.activeSnapshotId || null;
-  if (requestedSnapshotId && nextState.importedSnapshots.some((snapshot) => snapshot.id === requestedSnapshotId)) {
-    nextState.activeSnapshotId = requestedSnapshotId;
-    nextState.lastActiveContext = {
-      mode: "snapshot",
-      snapshotId: requestedSnapshotId,
-    };
+  if (requestedSnapshotId) {
+    const requested = nextState.importedSnapshots.find((s) => s.id === requestedSnapshotId);
+    // Honor the requested snapshot only if it has contribution data; otherwise keep the auto-picked best.
+    if (requested && snapshotHasContributionData(requested)) {
+      nextState.activeSnapshotId = requestedSnapshotId;
+      nextState.lastActiveContext = { mode: "snapshot", snapshotId: requestedSnapshotId };
+    }
   }
 
   return nextState;
+}
+
+function snapshotHasContributionData(snapshot) {
+  if (!snapshot) return false;
+  const txs = snapshot.transactions || [];
+  const hasDepositOrWithdrawal = txs.some((t) => t.type === "DEPOSIT" || t.type === "WITHDRAWAL");
+  const stmtDW = snapshot.statement?.changeInNav?.depositsWithdrawals;
+  const hasStatementContrib = stmtDW !== undefined && stmtDW !== null;
+  return hasDepositOrWithdrawal || hasStatementContrib;
+}
+
+function pickBestSnapshotId(snapshots) {
+  if (!Array.isArray(snapshots) || !snapshots.length) return null;
+  const ranked = snapshots
+    .map((s) => ({ s, hasContrib: snapshotHasContributionData(s), importedAt: String(s.importedAt || "") }))
+    .sort((a, b) => {
+      if (a.hasContrib !== b.hasContrib) return a.hasContrib ? -1 : 1;
+      return b.importedAt.localeCompare(a.importedAt);
+    });
+  return ranked[0].s.id;
 }
 
 function buildPersistedDomainState(currentState) {
@@ -1355,7 +1376,7 @@ function renderSummaryReturns(summary, assetPerformance) {
     return;
   }
 
-  const totals = assetPerformance.reduce(
+  const perAssetSums = assetPerformance.reduce(
     (sum, asset) => ({
       realizedPnL: sum.realizedPnL + asset.realizedPnL,
       unrealizedPnL: sum.unrealizedPnL + asset.unrealizedPnL,
@@ -1365,7 +1386,22 @@ function renderSummaryReturns(summary, assetPerformance) {
     { realizedPnL: 0, unrealizedPnL: 0, totalPnL: 0, marketValue: 0 }
   );
 
-  elements.assetPerformanceBody.innerHTML = assetPerformance
+  // Compare per-asset sums to the IBKR-reported all-assets totals (which include FX / forex / other
+  // items not attributable to a stock/option symbol). Any difference is surfaced as a residual row
+  // so the table sum is honest and reconciles to the headline Realized / Unrealized / Total P&L.
+  const residualRealized = roundNumber((summary.realizedPnL || 0) - perAssetSums.realizedPnL);
+  const residualUnrealized = roundNumber((summary.unrealizedPnL || 0) - perAssetSums.unrealizedPnL);
+  const residualTotal = roundNumber((summary.totalPnL || 0) - perAssetSums.totalPnL);
+  const hasResidual =
+    Math.abs(residualRealized) >= 0.01 ||
+    Math.abs(residualUnrealized) >= 0.01 ||
+    Math.abs(residualTotal) >= 0.01;
+
+  const finalRealized = perAssetSums.realizedPnL + (hasResidual ? residualRealized : 0);
+  const finalUnrealized = perAssetSums.unrealizedPnL + (hasResidual ? residualUnrealized : 0);
+  const finalTotal = perAssetSums.totalPnL + (hasResidual ? residualTotal : 0);
+
+  const rowsHtml = assetPerformance
     .map((asset) => `
       <tr>
         <td class="ticker-cell">${escapeHtml(asset.ticker)}</td>
@@ -1376,17 +1412,33 @@ function renderSummaryReturns(summary, assetPerformance) {
         <td class="numeric-cell ${getValueClass(asset.returnPct)}">${formatPercent(asset.returnPct)}</td>
       </tr>
     `)
-    .concat(`
-      <tr class="table-total-row">
-        <td>Total</td>
-        <td class="numeric-cell ${getValueClass(totals.realizedPnL)}">${formatCurrency(totals.realizedPnL)}</td>
-        <td class="numeric-cell ${getValueClass(totals.unrealizedPnL)}">${formatCurrency(totals.unrealizedPnL)}</td>
-        <td class="numeric-cell ${getValueClass(totals.totalPnL)}">${formatCurrency(totals.totalPnL)}</td>
-        <td class="numeric-cell">${formatCurrency(totals.marketValue)}</td>
+    .join("");
+
+  const residualRow = hasResidual
+    ? `
+      <tr class="table-residual-row">
+        <td class="ticker-cell"><em>Other / FX / Residual</em></td>
+        <td class="numeric-cell ${getValueClass(residualRealized)}">${formatCurrency(residualRealized)}</td>
+        <td class="numeric-cell ${getValueClass(residualUnrealized)}">${formatCurrency(residualUnrealized)}</td>
+        <td class="numeric-cell ${getValueClass(residualTotal)}">${formatCurrency(residualTotal)}</td>
+        <td class="numeric-cell">-</td>
         <td class="numeric-cell">-</td>
       </tr>
-    `)
-    .join("");
+    `
+    : "";
+
+  const totalRow = `
+    <tr class="table-total-row">
+      <td>Total</td>
+      <td class="numeric-cell ${getValueClass(finalRealized)}">${formatCurrency(finalRealized)}</td>
+      <td class="numeric-cell ${getValueClass(finalUnrealized)}">${formatCurrency(finalUnrealized)}</td>
+      <td class="numeric-cell ${getValueClass(finalTotal)}">${formatCurrency(finalTotal)}</td>
+      <td class="numeric-cell">${formatCurrency(perAssetSums.marketValue)}</td>
+      <td class="numeric-cell">-</td>
+    </tr>
+  `;
+
+  elements.assetPerformanceBody.innerHTML = rowsHtml + residualRow + totalRow;
 }
 
 function setupScout() {

@@ -36,7 +36,9 @@ const CACHE_TTL_MS = 15 * 60 * 1000;
 
 function resolveScoutDataUrls() {
   const isLocalDev = window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost";
-  if (isLocalDev) return ["/__scout_data__"];
+  // Always include the static scout-data.json as fallback so plain `python -m http.server`
+  // still serves Scout even when the live /__scout_data__ endpoint is not running.
+  if (isLocalDev) return ["/__scout_data__", "/scout-data.json", "./scout-data.json"];
   const base = window.location.pathname.replace(/\/[^/]*$/, "") || "";
   return [`${base}/scout-data.json`, "./scout-data.json"];
 }

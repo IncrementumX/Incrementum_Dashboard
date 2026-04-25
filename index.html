@@ -101,39 +101,26 @@
             </article>
           </div>
 
-          <div class="dashboard-secondary panel">
-            <div class="secondary-stat">
-              <span>Committed Capital</span>
-              <strong id="summary-committed-capital">$0.00</strong>
-              <p class="secondary-stat-helper">Total deposits contributed into the portfolio over time.</p>
-            </div>
-            <div class="secondary-stat">
-              <span>Net Contributions</span>
-              <strong id="summary-net-contributions">$0.00</strong>
-              <p class="secondary-stat-helper">Deposits less withdrawals.</p>
-            </div>
-            <div class="secondary-stat">
-              <span>Net Invested Capital</span>
-              <strong id="summary-deployed-capital">$0.00</strong>
-              <p id="summary-deployed-share" class="secondary-stat-helper">0.0% of portfolio</p>
-            </div>
-            <div class="secondary-stat">
-              <span>Cash Balance</span>
-              <strong id="summary-cash">$0.00</strong>
-              <p id="summary-cash-share" class="secondary-stat-helper">0.0% of portfolio</p>
-            </div>
-          </div>
-
           <div class="panel-grid panel-grid--summary">
+            <article class="panel stat-panel">
+              <p class="panel-label">Net Invested Capital</p>
+              <strong id="summary-deployed-capital" class="panel-value">$0.00</strong>
+              <p id="summary-deployed-share" class="metric-footnote">0.0% of portfolio</p>
+            </article>
+            <article class="panel stat-panel">
+              <p class="panel-label">Cash Balance</p>
+              <strong id="summary-cash" class="panel-value">$0.00</strong>
+              <p id="summary-cash-share" class="metric-footnote">0.0% of portfolio</p>
+            </article>
             <article class="panel stat-panel">
               <p class="panel-label">Long Exposure</p>
               <strong id="exposure-long" class="panel-value">$0.00</strong>
-              <p class="metric-footnote">Sum of market values of long positions (excludes cash).</p>
+              <p class="metric-footnote">Sum of long market values (excludes cash).</p>
             </article>
             <article class="panel stat-panel">
               <p class="panel-label">Short Exposure</p>
               <strong id="exposure-short" class="panel-value">$0.00</strong>
-              <p class="metric-footnote">Absolute market value of short positions, displayed as a positive magnitude.</p>
+              <p class="metric-footnote">Absolute MV of short positions.</p>
             </article>
             <article class="panel stat-panel">
               <p class="panel-label">Gross Exposure</p>
