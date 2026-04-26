@@ -3,3 +3,6 @@ __pycache__/
 *.pyc
 .DS_Store
 .env
+
+# Claude Code local settings (user-specific, do not commit)
+.claude/settings.local.json
