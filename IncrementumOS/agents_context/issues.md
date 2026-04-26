@@ -7,6 +7,11 @@
 - [ ] **Eduardo subir arquivos de philosophy/framework** para `../wiki/philosophy/` e `../wiki/framework/`. Os SKILL.md do analista e do associate serão refinados depois disso.
 - [ ] **CLAUDE.md operacional iterar** — começamos minimal em `governance/CLAUDE.md`; iteramos com Eduardo conforme padrões aparecem.
 - [ ] **Modelo Excel (`incrementum-model`)** — Eduardo define estrutura (template parado em março).
+- [ ] **Agentes acessarem o Dashboard com dados populados** — hoje `state.md` é dummy e os agentes não têm acesso real ao portfólio. Objetivo: analista e associate leem estado vivo (posições, sizing, P&L, hedges) sem Eduardo precisar colar manualmente. Caminhos a avaliar:
+  - **A.** Exporter Dashboard → `state.md` (snapshot regenerado em build/cron, commitado no repo).
+  - **B.** Connector direto: agente consulta Supabase via endpoint read-only (requer RLS bem configurado e schema estável).
+  - **C.** Edge function pública read-only (Supabase functions já configuradas no repo) servindo snapshot JSON que agente consome.
+  - Bloqueios: (1) escolher caminho; (2) auditar RLS atual no Supabase; (3) definir schema canônico do que vai pro `state.md` (posições, sizing, hedges, datas, fontes). Atacar depois do Bloco 1 do build inicial.
 
 ## Briefing
 
