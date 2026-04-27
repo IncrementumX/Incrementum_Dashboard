@@ -4,9 +4,11 @@
 
 ## Build
 
-- [ ] **Eduardo subir arquivos de philosophy/framework** para `../wiki/philosophy/` e `../wiki/framework/`. Os SKILL.md do analista e do associate serão refinados depois disso.
+- [ ] **Construir wiki/philosophy iterativamente** — caminho decidido em 2026-04-26: Eduardo invoca `@incrementum-associate` no Claude.ai chat, conversa adversarial pra extrair filosofia, consolida output, cola no Claude Code, integra em PR. Estrutura proposta: 4 arquivos (`risk-first.md`, `concentration.md`, `thematic-lens.md`, `dynamic-rotation.md`). Começar por `risk-first.md`.
+- [ ] **Construir wiki/framework iterativamente** — mesmo caminho. Estrutura proposta: 3 checklists (`pre-trade.md`, `sizing.md`, `post-mortem.md`). Atacar depois de pelo menos 2 entradas de philosophy.
+- [ ] **Materiais base de Eduardo** — Eduardo tem acervo significativo (investment philosophy compilado, framework, diário de notes, notes de teses). Decisão 2026-04-26: caminho **pull-based** (não organizar tudo prevent — começar pelo material mais maduro = investment philosophy montado, outros entram sob demanda). Eduardo vai me indicar paths quando voltar. Materiais privados (diário, decisões de capital) NÃO vão pro repo público — ficam locais ou em Project Knowledge privado do Claude.ai.
 - [ ] **CLAUDE.md operacional iterar** — começamos minimal em `governance/CLAUDE.md`; iteramos com Eduardo conforme padrões aparecem.
-- [ ] **Modelo Excel (`incrementum-model`)** — Eduardo define estrutura (template parado em março).
+- [ ] **Modelo Excel (`incrementum-model`)** — Eduardo define estrutura (template parado em março). Adiado em 2026-04-26.
 - [ ] **Agentes acessarem o Dashboard com dados populados** — hoje `state.md` é dummy e os agentes não têm acesso real ao portfólio. Objetivo: analista e associate leem estado vivo (posições, sizing, P&L, hedges) sem Eduardo precisar colar manualmente. Caminhos a avaliar:
   - **A.** Exporter Dashboard → `state.md` (snapshot regenerado em build/cron, commitado no repo).
   - **B.** Connector direto: agente consulta Supabase via endpoint read-only (requer RLS bem configurado e schema estável).
@@ -39,9 +41,9 @@
 
 ## Build env
 
-- [ ] `claude-mem` instalado em 2026-04-25 (Eduardo confirmou). Validar funcionamento depois de algumas sessões.
+- [ ] `claude-mem` v12.4.7 instalado em 2026-04-26 via `npm install -g claude-mem` (verificado: `claude-mem --version`). Validar funcionamento depois de algumas sessões.
 - [ ] `export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` — setar quando for ativar agent teams.
-- [ ] Obsidian vault: apontar para `../wiki/` quando Eduardo quiser começar a editar pelo Obsidian.
+- [ ] Obsidian vault: apontar para `IncrementumOS/` quando Eduardo quiser começar a editar pelo Obsidian. Decisão 2026-04-26: começar depois de pelo menos 4 entradas de wiki/philosophy.
 
 ## Pendência: referências ao state.md vs Dashboard
 
@@ -49,13 +51,15 @@
 
 ## Pendência: surface dos agentes nos clientes Claude
 
-Os perfis dos agentes hoje vivem como SKILL.md em `IncrementumOS/skills/`. São documentação,
-não invocáveis automaticamente. Para Eduardo acessar `incrementum_analista` e
-`incrementum_associate` no dia a dia:
+Os perfis dos agentes vivem como SKILL.md em `IncrementumOS/skills/` (doc canônica).
+Surface em cada ambiente:
 
-- [ ] **Claude Code** (VS Code add-in): criar `.claude/agents/incrementum-analista.md` e
-  `.claude/agents/incrementum-associate.md` com frontmatter de subagente, derivados
-  dos SKILL.md correspondentes. PR separado: `feat: surface agents in Claude Code`.
-- [ ] **Claude.ai (web/desktop)**: subir cada agente como Project Skill no projeto
-  Incrementum (manual via UI, mesmo fluxo que Eduardo já usou para a skill de briefing).
-  Claude pode formatar o conteúdo pronto para colar.
+- [x] **Claude Code** (VS Code add-in): `.claude/agents/incrementum-analista.md` e
+  `.claude/agents/incrementum-associate.md` criados. Mergeados via PR #2 em 2026-04-25.
+- [x] **Claude.ai (web/mobile)**: skills `incrementum-analista` e `incrementum-associate`
+  uploaded em Customize em 2026-04-26 (versões em `~/Downloads/incrementum-{analista,associate}.md`,
+  ajustadas com `description:` no frontmatter e paths absolutos `IncrementumOS/...`).
+  Project Knowledge sincronizado via GitHub connector apontando para `IncrementumX/Incrementum_Dashboard@main`,
+  pastas `IncrementumOS/` e `CLAUDE.md` raiz. Instruções do projeto coladas com regras
+  "no bullshit operacionalizado" + blacklist Robinhood/StockTitan/Investing.com + fonte
+  primária pra companhias. 3 testes de smoke passados.
