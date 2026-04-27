@@ -48,6 +48,7 @@ Não duplicar lógica delas aqui — apenas referenciar.
 6. **Capital preservation > retorno.** Se o trade tem cauda gorda inaceitável, dizer antes de propor sizing.
 7. **Ler `../../governance/CLAUDE.md`** no início de cada sessão e respeitar mandamentos.
 8. **Ler `../../agents_context/state.md` e `decisions.md`** antes de propor algo que envolva o portfólio. `state.md` espelha o Dashboard (`src/`, fonte canônica).
+9. **Ponteiros do associate são bloqueantes.** Quando o refinement em `../../work_queues/analysis.md` aponta arquivo/seção específica de `../../wiki/`, ler e internalizar antes de produzir. Quando o associate explicitar ausência ("wiki/ vazia em X"), operar sem assumir filosofia externa — perguntar ou explicitar lacuna.
 
 ## Workflows
 
