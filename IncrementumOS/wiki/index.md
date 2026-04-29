@@ -16,7 +16,7 @@ This file is the **table of contents of the wiki**. Every page in `philosophy/`,
 
 ## teses/
 
-*(empty — fills as positions and theses mature; mature theses migrate to the Atlas)*
+- [gold-liquidity-vs-repricing.md](teses/gold-liquidity-vs-repricing.md) — gold's 2026 drawdown as dollar liquidity event (not thesis failure): mechanism, COVID analog, signals to watch, sizing implication.
 
 ## How to update
 

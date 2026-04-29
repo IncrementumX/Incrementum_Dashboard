@@ -27,3 +27,8 @@ Format:
 
 - created — `wiki/philosophy/risk-first.md` v1.1 (Eduardo's core risk framework; synthesized from @incrementum-associate session 2026-04-27/29; approved by Eduardo 2026-04-29)
 - updated — `wiki/index.md` (added risk-first.md to philosophy/ section)
+
+## 2026-04-29
+
+- ingested — `raw/articles/_substack.com_Gold Is Not Failing.md` → `wiki/teses/gold-liquidity-vs-repricing.md` (TSCS analysis: gold decline as dollar liquidity event driven by Hormuz/energy emergency, not thesis repricing; signals to watch: Brent-Dubai spread, Singapore gasoil crack, MOVE-VIX divergence, GDXJ relative performance)
+- updated — `wiki/index.md` (added gold-liquidity-vs-repricing.md to teses/ section)
