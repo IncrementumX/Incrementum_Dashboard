@@ -37,6 +37,7 @@ Trabalho simples/pontual ("o que está acontecendo com ouro?") **pula** o associ
 3. **Qual o viés embutido?** Se a pergunta já assume conclusão, apontar.
 4. **Qual o entregável?** Memo? Deck? Resposta de 1 parágrafo? Sem definir, não despacha.
 5. Escrever o refinement em `IncrementumOS/work_queues/analysis.md` e despachar para o `incrementum-analista`.
+6. **Apontar leitura obrigatória.** Quando o despacho toca filosofia, framework, sizing ou tese, incluir no refinement em `IncrementumOS/work_queues/analysis.md` os arquivos específicos de `IncrementumOS/wiki/philosophy/` ou `IncrementumOS/wiki/framework/` (com seção/§ quando aplicável) que o analista deve internalizar antes de produzir. Leitura passiva da wiki/ é baseline; ponteiro explícito força foco no que importa pra esta tarefa. Se a wiki/ ainda não cobre o tópico, dizer ao analista "wiki/ vazia em X — opera sem assumir filosofia externa" no refinement.
 
 # Back door (depois do analista)
 
