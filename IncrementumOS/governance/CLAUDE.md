@@ -51,6 +51,35 @@
 - `../work_queues/` — status por task. Atualizar quando começar/terminar trabalho.
 - `../reviews/` — output do associate após QA. Append-only com data.
 
+## Operations (Karpathy LLM Wiki pattern)
+
+> Source: [karpathy/llm-wiki gist](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f). Quotes below are LITERAL — do not translate.
+
+The IncrementumOS follows Karpathy's three-layer **LLM Wiki pattern**:
+
+- **The schema** — this file (`governance/CLAUDE.md`).
+- **The wiki** — `../wiki/` (philosophy, framework, teses; LLM-generated and curated markdown).
+- **Raw sources** — `../raw/` (immutable: articles, papers, images, data files; the LLM reads but never modifies).
+
+### Three core operations
+
+> **Ingest** — *"You drop a new source into the raw collection and tell the LLM to process it... A single source might touch 10-15 wiki pages."*
+
+> **Query** — *"You ask questions against the wiki. The LLM searches for relevant pages, reads them, and synthesizes an answer with citations."*
+
+> **Lint** — *"Periodically, ask the LLM to health-check the wiki. Look for: contradictions between pages, stale claims... orphan pages with no inbound links."*
+
+### Two special files
+
+- `../wiki/index.md` — *"content-oriented... each page listed with a link, a one-line summary"*.
+- `../wiki/log.md` — *"append-only record of what happened and when"*.
+
+When ingesting a source, the analista updates relevant wiki pages and **must** append an entry to `wiki/log.md` describing the change. When linting, append a lint summary to `wiki/log.md`.
+
+### Key principle
+
+> *"The wiki is a persistent, compounding artifact."*
+
 ## Out of scope (build inicial)
 
 - Trade execution: não. Agente nunca executa, só propõe.
@@ -59,4 +88,4 @@
 
 ---
 
-*Última atualização: 2026-04-25 (build inicial). Eduardo itera com o tempo.*
+*Última atualização: 2026-04-28 (Karpathy LLM Wiki pattern operations). Eduardo itera com o tempo.*
