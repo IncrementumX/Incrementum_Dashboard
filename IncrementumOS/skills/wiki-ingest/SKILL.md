@@ -2,7 +2,7 @@
 name: wiki-ingest
 type: skill-stub
 canonical_location: .claude/commands/wiki-ingest.md
-language: en
+language: pt-BR
 ---
 
 # wiki-ingest — stub local
@@ -50,6 +50,9 @@ language: en
 
 - Nunca edita páginas wiki com >10 linhas já existentes sem mostrar o diff primeiro
 - Nomes de arquivo de wiki: `<kebab-case-slug>.md` (sem prefixo de data — data vai no log)
+- Caminhos de wiki: sempre `IncrementumOS/wiki/<subfolder>/<slug>.md` — nunca `wiki/wiki/...`
 - Datas absolutas ISO (`YYYY-MM-DD`) — nunca relativas
-- Não modifica arquivos em `raw/` além de atualizar o frontmatter `status`
+- Não modifica arquivos em `raw/` além de atualizar o frontmatter `status` (única exceção permitida)
+- Só appenda em `wiki/index.md` para páginas **novas** — páginas existentes já têm entrada no índice
+- Nunca adiciona header `## YYYY-MM-DD` duplicado em `log.md` — coalesce entradas na mesma data
 - Se `raw/articles/` não tiver arquivos `unprocessed`, reporta explicitamente

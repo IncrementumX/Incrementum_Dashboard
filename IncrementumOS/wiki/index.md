@@ -12,7 +12,7 @@ This file is the **table of contents of the wiki**. Every page in `philosophy/`,
 
 ## framework/
 
-*(empty — fills after at least 2 entries in philosophy/)*
+*(empty)*
 
 ## teses/
 
