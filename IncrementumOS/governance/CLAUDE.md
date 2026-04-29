@@ -39,7 +39,7 @@
 
 ## Filosofia evolutiva
 
-- Filosofia e framework de Eduardo vivem em `../wiki/philosophy/` e `../wiki/framework/`.
+- Filosofia e framework de Eduardo vivem em `../wiki/framework/`. Análises macro em `../wiki/macro/`. Teses por ativo em `../wiki/assets/`. Decisões táticas em `../wiki/portfolio/decisions/`.
 - Agentes leem esses arquivos como contexto base. **Não** assumem filosofia externa quando o material está vazio — perguntam ou explicitam que estão sem contexto.
 - Conforme Eduardo registra preferências/decisões, agentes atualizam (com permissão) `../wiki/` e `../agents_context/decisions.md`.
 
@@ -58,7 +58,7 @@
 The IncrementumOS follows Karpathy's three-layer **LLM Wiki pattern**:
 
 - **The schema** — this file (`governance/CLAUDE.md`).
-- **The wiki** — `../wiki/` (philosophy, framework, teses; LLM-generated and curated markdown).
+- **The wiki** — `../wiki/` (framework, macro, assets, portfolio/decisions; LLM-generated and curated markdown).
 - **Raw sources** — `../raw/` (immutable: articles, papers, images, data files; the LLM reads but never modifies — the sole permitted exception is updating the `status` frontmatter field during Ingest).
 
 ### Three core operations

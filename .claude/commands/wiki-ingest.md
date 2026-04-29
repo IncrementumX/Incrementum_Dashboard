@@ -1,11 +1,11 @@
 # wiki-ingest — Karpathy Ingest operation
 
-Process all unprocessed articles from `IncrementumOS/raw/articles/` into the wiki.
+Process all unprocessed articles from `IncrementumOS/raw/articles/` and `IncrementumOS/raw/readings/` into the wiki.
 
 ## Steps
 
 1. **Find unprocessed articles**
-   - Glob `IncrementumOS/raw/articles/*.md`
+   - Glob `IncrementumOS/raw/articles/*.md` and `IncrementumOS/raw/readings/**/*.md`
    - For each file, read the frontmatter and check if `status: unprocessed`
    - If no unprocessed files exist, report that clearly and stop
 
@@ -16,13 +16,14 @@ Process all unprocessed articles from `IncrementumOS/raw/articles/` into the wik
    a. Read the full file content
 
    b. Determine which wiki pages this article touches. A single source can touch multiple pages — list all of them before writing any:
-      - `philosophy/` subfolder — Eduardo's investment principles, beliefs, mental models, risk frameworks
-      - `framework/` subfolder — checklists, criteria, processes, operational rules (how-to)
-      - `teses/` subfolder — thesis on a specific asset/ticker/theme (long, short, watchlist)
+      - `framework/` subfolder — Eduardo's investment principles, beliefs, mental models, checklists, criteria, processes, operational rules
+      - `macro/` subfolder — time-sensitive macro analysis with a clear macroeconomic driver
+      - `assets/` subfolder — coverage and thesis on a specific asset or sector (flat — one file per asset)
+      - `portfolio/decisions/` subfolder — tactical portfolio decision (execute or don't-follow); naming: `YYYY-MM-DD-asset-action.md`
 
       These are subfolders within `IncrementumOS/wiki/`. The full path to write is always:
       `IncrementumOS/wiki/<subfolder>/<slug>.md`
-      (e.g., `IncrementumOS/wiki/teses/gold-liquidity-vs-repricing.md` — never `IncrementumOS/wiki/wiki/...`)
+      (e.g., `IncrementumOS/wiki/macro/gold-liquidity-vs-repricing.md` — never `IncrementumOS/wiki/wiki/...`)
 
    c. For each target wiki page:
       - Check the index map from step 2 to determine: **new page** or **existing page**?
@@ -42,7 +43,7 @@ Process all unprocessed articles from `IncrementumOS/raw/articles/` into the wik
    c. Write the wiki page to `IncrementumOS/wiki/<subfolder>/<slug>.md`
 
    d. Update `IncrementumOS/wiki/index.md` **only if this is a new page** (not an update to an existing page):
-      - Append to the correct section (`## philosophy/`, `## framework/`, or `## teses/`):
+      - Append to the correct section (`## framework/`, `## macro/`, `## assets/`, or `## portfolio/decisions/`):
         ```
         - [Page Title](subfolder/slug.md) — one-line summary
         ```
@@ -54,7 +55,7 @@ Process all unprocessed articles from `IncrementumOS/raw/articles/` into the wik
      ```
      ## YYYY-MM-DD
 
-     - ingested — `raw/articles/<filename>` → `wiki/<subfolder>/<slug>.md` (<one-line rationale>)
+     - ingested — `raw/<path>/<filename>` → `wiki/<subfolder>/<slug>.md` (<one-line rationale>)
      - updated — `wiki/index.md` (if index was updated)
      ```
 
@@ -70,9 +71,11 @@ Process all unprocessed articles from `IncrementumOS/raw/articles/` into the wik
 
 - Dates are always ISO format `YYYY-MM-DD` — never relative
 - New wiki page filenames: `<kebab-case-slug>.md` — no date prefix (date goes in log.md only)
+- Exception: `portfolio/decisions/` uses date prefix: `YYYY-MM-DD-asset-action.md`
 - Wiki page paths are `IncrementumOS/wiki/<subfolder>/<slug>.md` — never `IncrementumOS/wiki/wiki/...`
 - Never modify raw source files except updating the `status` frontmatter field (see Step 6)
 - Never invent financial data or claims not present in the source article
-- If the article's topic doesn't fit any of the three subfolders clearly, ask before proceeding
+- If the article's topic doesn't fit any subfolder clearly, ask before proceeding
 - Only append to `wiki/index.md` for new pages — existing pages already have an index entry
 - Never add a duplicate `## YYYY-MM-DD` header to log.md — coalesce entries under the same date
+- If no unprocessed files exist in raw/, report that clearly and stop
