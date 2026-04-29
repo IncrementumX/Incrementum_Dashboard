@@ -5,7 +5,7 @@
 ## Build
 
 - [ ] **Construir wiki/philosophy iterativamente** — caminho decidido em 2026-04-26: Eduardo invoca `@incrementum-associate` no Claude.ai chat, conversa adversarial pra extrair filosofia, consolida output, cola no Claude Code, integra em PR. Cadência emergente (2026-04-27): `risk-first.md` é o ponto de partida em curso; demais arquivos emergem da iteração — sem lista pré-fixada. Alinhado com a memória `feedback-philosophy-evolutionary.md`.
-  - [x] `risk-first.md` — v1.1 aprovada por Eduardo em 2026-04-29. PR `feat/wiki-philosophy-risk-first` pendente merge.
+  - [x] `risk-first.md` — v1.1 aprovada por Eduardo em 2026-04-29. Mergeado em main via PR #8 em 2026-04-29.
   - [ ] Próximas entradas: emergem da iteração com `@incrementum-associate`. Candidatos naturais: sizing framework, macro overlay, tactical shorts codificado (G3).
 - [ ] **Construir wiki/framework iterativamente** — mesmo caminho. Cadência emergente (2026-04-27): sem lista pré-fixada de arquivos; estrutura emerge da iteração. Atacar depois de pelo menos 2 entradas de philosophy.
 - [ ] **Materiais base de Eduardo** — Eduardo tem acervo significativo (investment philosophy compilado, framework, diário de notes, notes de teses). Decisão 2026-04-26: caminho **pull-based** (não organizar tudo prevent — começar pelo material mais maduro = investment philosophy montado, outros entram sob demanda). Eduardo vai me indicar paths quando voltar. Materiais privados (diário, decisões de capital) NÃO vão pro repo público — ficam locais ou em Project Knowledge privado do Claude.ai.
