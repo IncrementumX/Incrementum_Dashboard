@@ -9,46 +9,59 @@ Process all unprocessed articles from `IncrementumOS/raw/articles/` into the wik
    - For each file, read the frontmatter and check if `status: unprocessed`
    - If no unprocessed files exist, report that clearly and stop
 
-2. **For each unprocessed article**, do the following:
+2. **Before processing any article**, read `IncrementumOS/wiki/index.md` once to map all existing pages.
+
+3. **For each unprocessed article**, determine its **ingest plan** before writing anything:
 
    a. Read the full file content
 
-   b. Determine the wiki destination based on content:
-      - `wiki/philosophy/` — Eduardo's investment principles, beliefs, mental models, risk frameworks
-      - `wiki/framework/` — checklists, criteria, processes, operational rules (how-to)
-      - `wiki/teses/` — thesis on a specific asset/ticker/theme (long, short, watchlist)
+   b. Determine which wiki pages this article touches. A single source can touch multiple pages — list all of them before writing any:
+      - `philosophy/` subfolder — Eduardo's investment principles, beliefs, mental models, risk frameworks
+      - `framework/` subfolder — checklists, criteria, processes, operational rules (how-to)
+      - `teses/` subfolder — thesis on a specific asset/ticker/theme (long, short, watchlist)
 
-   c. Determine if this content belongs to an **existing wiki page** or needs a **new page**:
-      - Read `wiki/index.md` to see what pages already exist
-      - If an existing page clearly covers the same topic, plan to update it
-      - Otherwise, create a new page with a descriptive kebab-case filename (e.g., `macro-as-filter.md`)
+      These are subfolders within `IncrementumOS/wiki/`. The full path to write is always:
+      `IncrementumOS/wiki/<subfolder>/<slug>.md`
+      (e.g., `IncrementumOS/wiki/teses/gold-liquidity-vs-repricing.md` — never `IncrementumOS/wiki/wiki/...`)
 
-   d. For a **new page**: synthesize the article into a clean wiki page
+   c. For each target wiki page:
+      - Check the index map from step 2 to determine: **new page** or **existing page**?
+
+   d. Present the full ingest plan (which pages will be created/updated) before making any writes. Proceed unless the article is clearly off-topic.
+
+4. **Execute the ingest plan** — for each target page in order:
+
+   a. For a **new page**: synthesize the article content into a clean wiki page
       - Title: clear, descriptive `# Title`
       - Body: synthesized markdown — key insights, frameworks, principles extracted from the article
       - Keep it concise but substantive; focus on what is useful for Eduardo's investment system
       - Do NOT copy-paste raw article text; synthesize into structured wiki content
 
-   e. For an **existing page** with more than 10 lines: show the diff (what you plan to add/change) and wait for confirmation before writing
+   b. For an **existing page** with more than 10 lines: show the diff (what you plan to add/change) and wait for confirmation before writing
 
-   f. Write the wiki page to `IncrementumOS/wiki/<destination>/<slug>.md`
+   c. Write the wiki page to `IncrementumOS/wiki/<subfolder>/<slug>.md`
 
-   g. Update `IncrementumOS/wiki/index.md`:
+   d. Update `IncrementumOS/wiki/index.md` **only if this is a new page** (not an update to an existing page):
       - Append to the correct section (`## philosophy/`, `## framework/`, or `## teses/`):
         ```
-        - [Page Title](destination/slug.md) — one-line summary
+        - [Page Title](subfolder/slug.md) — one-line summary
         ```
 
-   h. Append to `IncrementumOS/wiki/log.md`:
-      ```
-      ## YYYY-MM-DD
+5. **After all pages for this article are written**, append to `IncrementumOS/wiki/log.md`:
+   - Check if a `## YYYY-MM-DD` header for today already exists in log.md
+   - If it **exists**: append the new bullet(s) under the existing header (do NOT add a duplicate header)
+   - If it **does not exist**: append a new header block at the bottom:
+     ```
+     ## YYYY-MM-DD
 
-      - ingested — `raw/articles/<filename>` → `wiki/<destination>/<slug>.md` (<one-line rationale>)
-      ```
+     - ingested — `raw/articles/<filename>` → `wiki/<subfolder>/<slug>.md` (<one-line rationale>)
+     - updated — `wiki/index.md` (if index was updated)
+     ```
 
-   i. Update the article's frontmatter: change `status: unprocessed` to `status: processed`
+6. **Mark the article as processed**: update the article's frontmatter `status: unprocessed` → `status: processed`
+   - This is the only permitted modification to raw source files.
 
-3. **Report** what was processed:
+7. **Report** what was processed:
    - List each article processed
    - List each wiki page created or updated
    - Note any articles skipped (with reason)
@@ -57,6 +70,9 @@ Process all unprocessed articles from `IncrementumOS/raw/articles/` into the wik
 
 - Dates are always ISO format `YYYY-MM-DD` — never relative
 - New wiki page filenames: `<kebab-case-slug>.md` — no date prefix (date goes in log.md only)
-- Never modify raw source files except updating the `status` frontmatter field
+- Wiki page paths are `IncrementumOS/wiki/<subfolder>/<slug>.md` — never `IncrementumOS/wiki/wiki/...`
+- Never modify raw source files except updating the `status` frontmatter field (see Step 6)
 - Never invent financial data or claims not present in the source article
-- If the article's topic doesn't fit any of the three destinations clearly, ask before proceeding
+- If the article's topic doesn't fit any of the three subfolders clearly, ask before proceeding
+- Only append to `wiki/index.md` for new pages — existing pages already have an index entry
+- Never add a duplicate `## YYYY-MM-DD` header to log.md — coalesce entries under the same date

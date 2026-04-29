@@ -2,7 +2,7 @@
 name: wiki-query
 type: skill-stub
 canonical_location: .claude/commands/wiki-query.md
-language: en
+language: pt-BR
 ---
 
 # wiki-query — stub local

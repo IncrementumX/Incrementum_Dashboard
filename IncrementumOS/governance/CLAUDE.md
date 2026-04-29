@@ -59,7 +59,7 @@ The IncrementumOS follows Karpathy's three-layer **LLM Wiki pattern**:
 
 - **The schema** — this file (`governance/CLAUDE.md`).
 - **The wiki** — `../wiki/` (philosophy, framework, teses; LLM-generated and curated markdown).
-- **Raw sources** — `../raw/` (immutable: articles, papers, images, data files; the LLM reads but never modifies).
+- **Raw sources** — `../raw/` (immutable: articles, papers, images, data files; the LLM reads but never modifies — the sole permitted exception is updating the `status` frontmatter field during Ingest).
 
 ### Three core operations
 
