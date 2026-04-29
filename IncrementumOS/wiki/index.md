@@ -8,7 +8,7 @@ This file is the **table of contents of the wiki**. Every page in `philosophy/`,
 
 ## philosophy/
 
-*(empty — first entry will be `risk-first.md`, currently being iterated with `@incrementum-associate` in Claude.ai)*
+- [risk-first.md](philosophy/risk-first.md) — Eduardo's core risk framework: signal vs noise, cash as weapon, sizing = knowledge proxy, three themes, tactical toolkit, macro as primary filter. Known gaps: G1–G5.
 
 ## framework/
 

@@ -5,8 +5,14 @@
 ## Build
 
 - [ ] **Construir wiki/philosophy iterativamente** — caminho decidido em 2026-04-26: Eduardo invoca `@incrementum-associate` no Claude.ai chat, conversa adversarial pra extrair filosofia, consolida output, cola no Claude Code, integra em PR. Cadência emergente (2026-04-27): `risk-first.md` é o ponto de partida em curso; demais arquivos emergem da iteração — sem lista pré-fixada. Alinhado com a memória `feedback-philosophy-evolutionary.md`.
+  - [x] `risk-first.md` — v1.1 aprovada por Eduardo em 2026-04-29. PR `feat/wiki-philosophy-risk-first` pendente merge.
+  - [ ] Próximas entradas: emergem da iteração com `@incrementum-associate`. Candidatos naturais: sizing framework, macro overlay, tactical shorts codificado (G3).
 - [ ] **Construir wiki/framework iterativamente** — mesmo caminho. Cadência emergente (2026-04-27): sem lista pré-fixada de arquivos; estrutura emerge da iteração. Atacar depois de pelo menos 2 entradas de philosophy.
 - [ ] **Materiais base de Eduardo** — Eduardo tem acervo significativo (investment philosophy compilado, framework, diário de notes, notes de teses). Decisão 2026-04-26: caminho **pull-based** (não organizar tudo prevent — começar pelo material mais maduro = investment philosophy montado, outros entram sob demanda). Eduardo vai me indicar paths quando voltar. Materiais privados (diário, decisões de capital) NÃO vão pro repo público — ficam locais ou em Project Knowledge privado do Claude.ai.
+- [ ] **5 leis do CEO da Nvidia sobre energia** — Eduardo entrega o spec; vai alimentar seção Energy da wiki/philosophy (parte do energy thesis build). Owner: Eduardo. (2026-04-29)
+- [ ] **Lista sistemática de leitura macro (G5)** — 13D/WILTW perdido. Eduardo define replacement; passa lista completa de fontes pro sistema de agentes. Afeta macro overlay do livro inteiro. P1. (2026-04-29)
+- [ ] **Portfolio-level loss limit (G2)** — gap crítico antes de aumentar gross exposure ou rodar alavancado. Sessão dedicada requerida para definir threshold de drawdown agregado além dos stops individuais. (2026-04-29)
+- [ ] **Short entry codification (G3)** — critério de entrada em shorts atualmente baseado em julgamento. Eduardo flag como fraqueza conhecida. Sessão dedicada para codificar regras de entrada. (2026-04-29)
 - [ ] **Revisitar acervo OneDrive\Incrementum\Incrementum Book** — Eduardo abre os arquivos sozinho, narra o que tem em cada, dá uma limpa, e me manda comments. A partir dos comments refina-se **Materiais base de Eduardo** (acima). P1, owner Eduardo. (2026-04-27)
 - [ ] **Material de leitura já consumido → Obsidian (.md)** — materiais que Eduardo já leu (research, PDFs, screenshots) viram `.md` no Obsidian para economizar espaço. **Bloqueado por Obsidian vault setup** (Build env). P2. (2026-04-27)
 - [ ] **CLAUDE.md operacional iterar** — começamos minimal em `governance/CLAUDE.md`; iteramos com Eduardo conforme padrões aparecem.

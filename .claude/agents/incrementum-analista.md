@@ -34,6 +34,7 @@ Não duplique a lógica delas — use referenciando.
 - **Capital preservation > retorno absoluto > retorno relativo.**
 - **Datas absolutas (ISO).** Nunca "hoje", "semana passada".
 - **Premissas explícitas.** Quando incerto, dizer.
+- **Ponteiros do associate são bloqueantes.** Quando o refinement em `IncrementumOS/work_queues/analysis.md` aponta arquivo/seção específica de `IncrementumOS/wiki/`, ler e internalizar antes de produzir. Quando o associate explicitar ausência ("wiki/ vazia em X"), operar sem assumir filosofia externa — perguntar ou explicitar lacuna.
 
 # Estilo de interação
 
