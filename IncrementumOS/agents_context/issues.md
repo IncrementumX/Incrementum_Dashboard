@@ -45,7 +45,12 @@
 
 - [ ] `claude-mem` v12.4.7 instalado em 2026-04-26 via `npm install -g claude-mem` (verificado: `claude-mem --version`). Validar funcionamento depois de algumas sessões.
 - [ ] `export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` — setar quando for ativar agent teams.
-- [ ] Obsidian vault: apontar para `IncrementumOS/` quando Eduardo quiser começar a editar pelo Obsidian. Decisão 2026-04-26: começar depois de pelo menos 4 entradas de wiki/philosophy.
+- [ ] **Obsidian vault setup — Karpathy LLM Wiki pattern** (precondição "4+ entradas em philosophy" descartada em 2026-04-28; iniciado):
+  - [x] Repo-side plumbing (2026-04-28): `IncrementumOS/raw/` criado com `articles/`, `papers/`, `data/`; `wiki/index.md` (content-oriented) e `wiki/log.md` (append-only) criados; `governance/CLAUDE.md` atualizado com seção **Operations** (Ingest / Query / Lint), citando o gist literal do Karpathy.
+  - [ ] Vault `incrementum HQ` (criado fora do OneDrive na Dell em 2026-04-28): apontar Obsidian, criar symlink pra `IncrementumOS/`, instalar **Obsidian Web Clipper** (extensão Chrome), smoke test. Passo a passo for dummies em HTML separado; roadmap detalhado em `~/.claude/plans/o-que-voc-sugeriria-squishy-wilkes.md` Fase 2.
+  - [ ] Mac mirror (Fase 3): Obsidian + symlink + Web Clipper.
+  - [ ] Avaliar **Obsidian Sync** (pago) — DEFER. Compra só se aparecer dor real (iOS, conflito de config, history).
+  - [ ] Avaliar **MCP server** (`obsidian-claude-code-mcp` ou `obsidian-mcp-tools`) — DEFER. Risco de read/write/delete unrestricted no vault sem backup robusto.
 
 ## Pendência: referências ao state.md vs Dashboard
 
