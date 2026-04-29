@@ -15,9 +15,19 @@ This is **layer 1 of 3** in the LLM Wiki pattern. The other two layers exist alr
 
 ```
 raw/
-├── articles/   # web articles, blog posts, Substack/Medium pieces (often via Obsidian Web Clipper)
-├── papers/     # academic papers, SEC filings (10-K, 10-Q), IR decks, transcripts
-└── data/       # spreadsheets, exports, screenshots, charts, raw datasets
+├── articles/          # web articles, blog posts, Substack/Medium pieces (often via Obsidian Web Clipper)
+├── papers/            # academic papers, SEC filings (10-K, 10-Q), IR decks, transcripts
+├── data/              # spreadsheets, exports, screenshots, charts, raw datasets
+└── readings/          # investment research reports and longer-form materials (not academic papers)
+    ├── macro-fftt/    # FFTT macro research
+    ├── macro-wiltw/   # WILTW — 13D Research / Kiril Sokoloff
+    ├── incrementum-macro/  # Incrementum Macro Thoughts (Eduardo's foundational macro document)
+    ├── doomsberg/     # Doomsberg & Myrmikan gold/debasement research
+    ├── gold/          # Gold-specific research materials
+    ├── uranium/       # Uranium Reports
+    ├── deem-global/   # Deem Global letter (geopolitics + asset classes)
+    ├── situational-awareness/  # Situational Awareness — AI era (Leopold Aschenbrenner)
+    └── citrini/       # Citrini research
 ```
 
 ## Naming convention
@@ -30,8 +40,22 @@ Examples:
 - `articles/2026-04-28_bloomberg_micron-hbm-supply.md`
 - `papers/2026-04-15_micron_10-Q_Q3-2026.pdf`
 - `data/2026-04-20_screen_memory-companies.csv`
+- `readings/macro-wiltw/2026-04-01_wiltw_global-liquidity-cycle.md`
 
 If date is unknown, use `undated_<source>_<short-slug>.<ext>`. Source rules from `governance/CLAUDE.md` apply (no Robinhood / StockTitan / Investing.com).
+
+## Frontmatter for readings/
+
+All files in `readings/` must include:
+
+```yaml
+---
+source: <original filename>
+path: <OneDrive path relative to Incrementum/>
+date: YYYY-MM-DD
+status: unprocessed
+---
+```
 
 ## Three core operations (Karpathy, literal)
 
