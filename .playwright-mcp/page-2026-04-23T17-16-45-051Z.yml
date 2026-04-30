@@ -1,0 +1,213 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Incrementum" [level=1] [ref=e5]
+      - paragraph [ref=e6]: Investment Research System
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - generic [ref=e9]: Portfolio
+        - strong [ref=e10]: $45,550.83
+      - generic [ref=e11]:
+        - generic [ref=e12]: Net Contributions
+        - strong [ref=e13]: $38,870.93
+      - generic [ref=e14]:
+        - generic [ref=e15]: Positions
+        - strong [ref=e16]: "10"
+      - button "Export Excel" [ref=e17] [cursor=pointer]
+  - generic [ref=e18]:
+    - generic [ref=e19]: Connected to Supabase
+    - generic [ref=e20]: Restored latest working session
+    - generic [ref=e21]: "Source: Snapshot aa6f3d6b"
+  - navigation "Main navigation" [ref=e22]:
+    - button "Book" [ref=e23] [cursor=pointer]
+    - button "Scout" [ref=e24] [cursor=pointer]
+    - button "Atlas" [active] [ref=e25] [cursor=pointer]
+  - main [ref=e26]:
+    - generic [ref=e4023]:
+      - generic [ref=e4024]:
+        - generic [ref=e4025]:
+          - heading "Atlas" [level=2] [ref=e4026]
+          - paragraph [ref=e4027]: Briefing · theme flags · position notes · activity.
+        - generic [ref=e4028]:
+          - generic [ref=e4029]: Generated 4/19/2026, 8:29:04 PM
+          - button "Refresh" [ref=e4030] [cursor=pointer]
+      - generic [ref=e4031]:
+        - heading "Briefing do dia" [level=3] [ref=e4032]
+        - generic [ref=e4033]:
+          - text: Output from
+          - code [ref=e4034]: incrementum-briefing
+          - text: .
+      - paragraph [ref=e4036]:
+        - text: No briefing yet. Run
+        - code [ref=e4037]: /incrementum-briefing
+        - text: and drop the output into the manifest.
+      - generic [ref=e4038]:
+        - heading "Theme flags" [level=3] [ref=e4039]
+        - generic [ref=e4040]: Trump · Energia · Fiscal americano · Hard assets.
+      - generic [ref=e4041]:
+        - article [ref=e4042]:
+          - strong [ref=e4043]: Trump
+          - generic [ref=e4044]: neutral
+          - paragraph [ref=e4045]: Awaiting fresh read.
+        - article [ref=e4046]:
+          - strong [ref=e4047]: Energia
+          - generic [ref=e4048]: neutral
+          - paragraph [ref=e4049]: Awaiting fresh read.
+        - article [ref=e4050]:
+          - strong [ref=e4051]: Fiscal americano
+          - generic [ref=e4052]: neutral
+          - paragraph [ref=e4053]: Awaiting fresh read.
+        - article [ref=e4054]:
+          - strong [ref=e4055]: Hard assets
+          - generic [ref=e4056]: neutral
+          - paragraph [ref=e4057]: Awaiting fresh read.
+      - generic [ref=e4058]:
+        - heading "Position notes" [level=3] [ref=e4059]
+        - generic [ref=e4060]:
+          - text: From
+          - code [ref=e4061]: Atlas/wiki/positions/
+          - text: .
+      - generic [ref=e4062]:
+        - article [ref=e4063]:
+          - generic [ref=e4064]:
+            - strong [ref=e4065]: AGQ
+            - generic [ref=e4066]: Template
+          - paragraph [ref=e4067]: AGQ — ProShares Ultra Silver — position page (HEDGE)
+          - paragraph [ref=e4068]: TL;DR pending.
+          - paragraph [ref=e4069]:
+            - text: Updated 2026-04-18 ·
+            - link "view" [ref=e4070] [cursor=pointer]:
+              - /url: Atlas/wiki/positions/agq.md
+        - article [ref=e4071]:
+          - generic [ref=e4072]:
+            - strong [ref=e4073]: BESI
+            - generic [ref=e4074]: Template
+          - paragraph [ref=e4075]: BESI — BE Semiconductor Industries — position page
+          - paragraph [ref=e4076]: _3 lines. Eduardo writes._ <central thesis in one line> <what's priced in vs what's not>
+          - paragraph [ref=e4077]:
+            - text: Updated 2026-04-18 ·
+            - link "view" [ref=e4078] [cursor=pointer]:
+              - /url: Atlas/wiki/positions/besi.md
+        - article [ref=e4079]:
+          - generic [ref=e4080]:
+            - strong [ref=e4081]: HII
+            - generic [ref=e4082]: Template
+          - paragraph [ref=e4083]: HII — Huntington Ingalls Industries — position page
+          - paragraph [ref=e4084]: _3 lines. Eduardo writes._ <central thesis in one line> <what's priced in vs what's not>
+          - paragraph [ref=e4085]:
+            - text: Updated 2026-04-18 ·
+            - link "view" [ref=e4086] [cursor=pointer]:
+              - /url: Atlas/wiki/positions/hii.md
+      - generic [ref=e4087]:
+        - generic [ref=e4088]:
+          - heading "Work Queues" [level=3] [ref=e4090]
+          - generic [ref=e4091]:
+            - article [ref=e4092]:
+              - generic [ref=e4093]:
+                - strong [ref=e4094]: briefing
+                - generic [ref=e4095]: 0 entries
+              - paragraph [ref=e4096]:
+                - link "work_queues/briefing.md" [ref=e4097] [cursor=pointer]:
+                  - /url: Atlas/work_queues/briefing.md
+              - paragraph [ref=e4098]: Queue empty.
+            - article [ref=e4099]:
+              - generic [ref=e4100]:
+                - strong [ref=e4101]: analysis
+                - generic [ref=e4102]: 0 entries
+              - paragraph [ref=e4103]:
+                - link "work_queues/analysis.md" [ref=e4104] [cursor=pointer]:
+                  - /url: Atlas/work_queues/analysis.md
+              - paragraph [ref=e4105]: Queue empty.
+            - article [ref=e4106]:
+              - generic [ref=e4107]:
+                - strong [ref=e4108]: monitor
+                - generic [ref=e4109]: 0 entries
+              - paragraph [ref=e4110]:
+                - link "work_queues/monitor.md" [ref=e4111] [cursor=pointer]:
+                  - /url: Atlas/work_queues/monitor.md
+              - paragraph [ref=e4112]: Queue empty.
+        - generic [ref=e4113]:
+          - heading "Open Issues" [level=3] [ref=e4115]
+          - paragraph [ref=e4117]: No open issues.
+      - heading "Skills" [level=3] [ref=e4119]
+      - generic [ref=e4120]:
+        - article [ref=e4121]:
+          - generic [ref=e4122]:
+            - strong [ref=e4123]: atlas-assessment
+            - generic [ref=e4124]: skill
+          - paragraph [ref=e4125]: Full Incrementum framework read on a company. 2-4 hours of Underwriter work. Produces a durable wiki/positions/<ticker>.
+          - paragraph [ref=e4126]:
+            - link "SKILL.md" [ref=e4127] [cursor=pointer]:
+              - /url: Atlas/skills/atlas-assessment/SKILL.md
+        - article [ref=e4128]:
+          - generic [ref=e4129]:
+            - strong [ref=e4130]: atlas-associate
+            - generic [ref=e4131]: agent
+          - paragraph [ref=e4132]: Associate agent — source QA, quantitative sanity, adversarial review. Has VETO POWER on source credibility and quant san
+          - paragraph [ref=e4133]:
+            - link "SKILL.md" [ref=e4134] [cursor=pointer]:
+              - /url: Atlas/skills/atlas-associate/SKILL.md
+        - article [ref=e4135]:
+          - generic [ref=e4136]:
+            - strong [ref=e4137]: atlas-briefing
+            - generic [ref=e4138]: skill
+          - paragraph [ref=e4139]: Daily news briefing. Cross-references live positions + themes against a fixed source set (Valor, Estadão, Pipeline, BJ,
+          - paragraph [ref=e4140]:
+            - link "SKILL.md" [ref=e4141] [cursor=pointer]:
+              - /url: Atlas/skills/atlas-briefing/SKILL.md
+        - article [ref=e4142]:
+          - generic [ref=e4143]:
+            - strong [ref=e4144]: atlas-cio
+            - generic [ref=e4145]: agent
+          - paragraph [ref=e4146]: CIO agent — the team lead of Atlas. Druckenmiller-style discipline, capital preservation obsession, final verdict author
+          - paragraph [ref=e4147]:
+            - link "SKILL.md" [ref=e4148] [cursor=pointer]:
+              - /url: Atlas/skills/atlas-cio/SKILL.md
+        - article [ref=e4149]:
+          - generic [ref=e4150]:
+            - strong [ref=e4151]: atlas-model
+            - generic [ref=e4152]: skill
+          - paragraph [ref=e4153]: Numeric work for Atlas. Comps tables, DCF, reverse-DCF, SOTP, sensitivity analysis, peer-comp scorecards, consensus revi
+          - paragraph [ref=e4154]:
+            - link "SKILL.md" [ref=e4155] [cursor=pointer]:
+              - /url: Atlas/skills/atlas-model/SKILL.md
+        - article [ref=e4156]:
+          - generic [ref=e4157]:
+            - strong [ref=e4158]: atlas-monitor
+            - generic [ref=e4159]: skill
+          - paragraph [ref=e4160]: Thesis-drift detection on live positions. Reads wiki/positions/*.md, checks the page's kill-shot triggers + freshness wi
+          - paragraph [ref=e4161]:
+            - link "SKILL.md" [ref=e4162] [cursor=pointer]:
+              - /url: Atlas/skills/atlas-monitor/SKILL.md
+        - article [ref=e4163]:
+          - generic [ref=e4164]:
+            - strong [ref=e4165]: atlas-snapshot
+            - generic [ref=e4166]: skill
+          - paragraph [ref=e4167]: Fast first-read on a company. 15-20 minutes of work. Answers "is this worth deeper work?" Output is either a structured
+          - paragraph [ref=e4168]:
+            - link "SKILL.md" [ref=e4169] [cursor=pointer]:
+              - /url: Atlas/skills/atlas-snapshot/SKILL.md
+        - article [ref=e4170]:
+          - generic [ref=e4171]:
+            - strong [ref=e4172]: atlas-underwriter
+            - generic [ref=e4173]: agent
+          - paragraph [ref=e4174]: Underwriter agent — the analyst. Macro + bottom-up research, produces Word/PPT deliverables, orchestrates the 5 skills (
+          - paragraph [ref=e4175]:
+            - link "SKILL.md" [ref=e4176] [cursor=pointer]:
+              - /url: Atlas/skills/atlas-underwriter/SKILL.md
+      - generic [ref=e4177]:
+        - heading "Activity log" [level=3] [ref=e4178]
+        - generic [ref=e4179]: Last 30 INGEST / QUERY / LINT / DECISION ops.
+      - generic [ref=e4180]:
+        - generic [ref=e4181]: INGEST 2026-04-18 02:15 paro-2-agents skills/atlas-cio/SKILL.md + atlas-underwriter/SKILL.md + atlas-associate/SKILL.md -> 3 agent constitutions
+        - generic [ref=e4182]: INGEST 2026-04-18 02:22 paro-2-skills skills/atlas-briefing/ + snapshot/ + assessment/ + model/ + monitor/ SKILL.md -> 5 Underwriter skills
+        - generic [ref=e4183]: "INGEST 2026-04-18 02:28 paro-2-princ wiki/principles/{druckenmiller, source_hierarchy, kill_shot, review_cadence, open_harness}.md + README -> 5 principles + index"
+        - generic [ref=e4184]: "INGEST 2026-04-18 02:32 paro-3-seed wiki/positions/{besi, hii, agq}.md -> templates seeded (PARO 3 fields pending Eduardo)"
+        - generic [ref=e4185]: INGEST 2026-04-18 02:35 index-refresh wiki/index.md -> updated with principles + position template status
+        - generic [ref=e4186]: BUILD 2026-04-19 00:00 overnight-build Atlas overnight build pass P2–P6 by Claude Code (feat/atlas).
+        - generic [ref=e4187]: BUILD 2026-04-19 00:01 p2-vendor Atlas/vendor/financial-services-plugins/ (git subtree, anthropics/financial-services-plugins main, squash). Atlas/vendor/README.md written. Atlas/skills/atlas-model/SKILL.md updated with vendored paths.
+        - generic [ref=e4188]: BUILD 2026-04-19 00:02 p3-agent-teams Atlas/.claude/config.yaml (3 agents + 5 Underwriter skills declared). Atlas/README.md written (env var docs, folder map, governance gates).
+        - generic [ref=e4189]: BUILD 2026-04-19 00:03 p4-dashboard tools/build-atlas-manifest.js written + run (3 positions, 8 skills, 3 issues). Atlas tab added to index.html + styles.css (light palette scoped to .atlas-shell).
+        - generic [ref=e4190]: BUILD 2026-04-19 00:04 p5-briefing Atlas/scripts/atlas-briefing.py scaffolded (Perplexity stub + Claude fallback). Atlas/skills/atlas-briefing/claude-fallback.md written. Atlas/scripts/README.md with cron/launchd snippets.
+        - generic [ref=e4191]: BUILD 2026-04-19 00:05 p6-selftest Atlas/scripts/atlas-selftest.py written + run. 3 flags fixed in wiki/positions/agq.md (missing sections + unsourced illustrative number).
+        - generic [ref=e4192]: "LINT 2026-04-19 00:06 selftest-pass All 4 selftest checks passed: 0 missing SKILL.md, 0 dead wiki links, 0 missing position sections, 0 unsourced numbers."

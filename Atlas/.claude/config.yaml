@@ -1,0 +1,109 @@
+# Atlas — .claude/config.yaml
+# Agent Teams configuration for Claude Code v2.1.91+
+#
+# Requires: CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+#
+# Three agents, one orchestrator-worker topology.
+# CIO orchestrates; Underwriter and Associate are workers.
+# See Atlas/governance/AGENT_REGISTRY.yaml for the canonical registry.
+# See Atlas/governance/CLAUDE.md for operating rules.
+
+version: 1
+
+agents:
+
+  - name: atlas_cio
+    description: >
+      CIO of Atlas. Druckenmiller-style team lead. Makes PASS / WATCH / REJECT / HOLD
+      verdicts. Orchestrates Underwriter and Associate. Never runs numbers directly —
+      dispatches Underwriter for that. Never self-validates sources — dispatches Associate.
+      Runs 24/7 on OpenClaw; interactive sessions on VS Code.
+    model: claude-opus-4-6
+    skill_file: Atlas/skills/atlas-cio/SKILL.md
+    role: orchestrator
+    reads:
+      - Atlas/wiki/**
+      - Atlas/agents_context/state.md
+      - Atlas/agents_context/decisions.md
+      - Atlas/work_queues/analysis.md
+      - Atlas/reviews/**
+    writes:
+      - Atlas/wiki/decisions/*.md
+      - Atlas/agents_context/decisions.md
+      - Atlas/agents_context/issues.md
+    can_dispatch:
+      - atlas_underwriter
+      - atlas_associate
+
+  - name: atlas_underwriter
+    description: >
+      Underwriter of Atlas. Deep research analyst. Orchestrates the 5 skills (briefing,
+      snapshot, assessment, model, monitor). Produces memos, snapshots, wiki pages.
+      Never issues verdicts — hands work back to CIO for decision.
+      Primary ingester of raw sources into the wiki (Karpathy ingest operation).
+    model: claude-opus-4-6  # for memo/assessment; claude-sonnet-4-6 for snapshot/briefing/monitor
+    skill_file: Atlas/skills/atlas-underwriter/SKILL.md
+    role: worker
+    reads:
+      - Atlas/raw/**
+      - Atlas/wiki/**
+      - Atlas/agents_context/state.md
+      - Atlas/work_queues/**
+    writes:
+      - Atlas/wiki/positions/*.md
+      - Atlas/wiki/watchlist/*.md
+      - Atlas/wiki/themes/*.md
+      - Atlas/wiki/macro/*.md
+      - Atlas/wiki/summaries/*.md
+      - Atlas/wiki/index.md
+      - Atlas/wiki/log.md
+      - Atlas/work_queues/analysis.md
+      - Atlas/reviews/*.md
+    skills:
+      - name: atlas-briefing
+        skill_file: Atlas/skills/atlas-briefing/SKILL.md
+        cadence: daily
+      - name: atlas-snapshot
+        skill_file: Atlas/skills/atlas-snapshot/SKILL.md
+        cadence: on-demand
+      - name: atlas-assessment
+        skill_file: Atlas/skills/atlas-assessment/SKILL.md
+        cadence: on-demand
+      - name: atlas-model
+        skill_file: Atlas/skills/atlas-model/SKILL.md
+        cadence: on-demand
+        base_layer: Atlas/vendor/financial-services-plugins/equity-research/
+      - name: atlas-monitor
+        skill_file: Atlas/skills/atlas-monitor/SKILL.md
+        cadence: daily
+
+  - name: atlas_associate
+    description: >
+      Associate of Atlas. QA agent. Validates source tagging and quantitative sanity.
+      Has VETO POWER on source credibility and quant sanity — can reject Underwriter
+      output before it reaches the CIO. Weekly wiki lint owner.
+      Aspirational: run on a non-Claude model family for adversarial diversity (pending Eduardo).
+    model: claude-haiku-4-5
+    skill_file: Atlas/skills/atlas-associate/SKILL.md
+    role: worker
+    veto_power: true
+    reads:
+      - Atlas/raw/**
+      - Atlas/wiki/**
+      - Atlas/work_queues/**
+      - Atlas/agents_context/**
+    writes:
+      - Atlas/reviews/*.md
+      - Atlas/agents_context/issues.md
+      - Atlas/agents_context/contradictions.md
+      - Atlas/wiki/log.md
+
+coordination:
+  pattern: orchestrator-worker
+  dispatch_via: filesystem   # work_queues/ and reviews/ directories
+  source_of_truth: git       # repo is always authoritative
+  branch_policy: feat/* → PR → Eduardo merges
+  parallelism: >
+    CIO may dispatch Underwriter and Associate in parallel when sub-tasks
+    have no data dependency. Anthropic-validated +90% quality on multi-hop
+    research vs. single-agent sequential.
