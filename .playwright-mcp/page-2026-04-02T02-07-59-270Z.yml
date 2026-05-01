@@ -1,0 +1,102 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Incrementum Dashboard" [level=1] [ref=e5]
+      - generic [ref=e6]:
+        - generic [ref=e7]: Using local fallback
+        - generic [ref=e8]: "Last saved: not yet"
+        - generic [ref=e9]: "Source: Manual"
+    - generic [ref=e10]:
+      - generic [ref=e11]:
+        - generic [ref=e12]: Portfolio Positions
+        - strong [ref=e13]: "0"
+      - generic [ref=e14]:
+        - generic [ref=e15]: Net Contributions
+        - strong [ref=e16]: $0.00
+      - generic [ref=e17]:
+        - generic [ref=e18]: Portfolio Value
+        - strong [ref=e19]: $0.00
+      - button "Export Excel" [ref=e20] [cursor=pointer]
+  - navigation "Main navigation" [ref=e21]:
+    - button "Dashboard" [ref=e22] [cursor=pointer]
+    - button "Transactions" [ref=e23] [cursor=pointer]
+    - button "Summary Returns" [ref=e24] [cursor=pointer]
+    - button "Scout" [ref=e25] [cursor=pointer]
+  - main [ref=e26]:
+    - generic [ref=e27]:
+      - generic [ref=e28]:
+        - article [ref=e29]:
+          - paragraph [ref=e30]: Net Contributions
+          - strong [ref=e31]: $0.00
+          - paragraph [ref=e32]: Net external capital contributed to the portfolio after withdrawals.
+        - article [ref=e33]:
+          - paragraph [ref=e34]: Total P&L
+          - strong [ref=e35]: $0.00
+          - paragraph [ref=e36]: Aggregate result across realized gains and the remaining open-position P&L.
+        - article [ref=e37]:
+          - paragraph [ref=e38]: Realized P&L
+          - strong [ref=e39]: $0.00
+        - article [ref=e40]:
+          - paragraph [ref=e41]: Unrealized P&L
+          - strong [ref=e42]: $0.00
+        - article [ref=e43]:
+          - paragraph [ref=e44]: Current Portfolio Value
+          - strong [ref=e45]: $0.00
+        - article [ref=e46]:
+          - paragraph [ref=e47]: Mark-to-Market P&L
+          - strong [ref=e48]: $0.00
+          - paragraph [ref=e49]: Statement-date valuation change of the portfolio based on market prices at the statement date.
+        - article [ref=e50]:
+          - paragraph [ref=e51]: IRR
+          - strong [ref=e52]: Pending
+          - paragraph [ref=e53]: Money-weighted annualized return based on external cash flows and the ending portfolio value.
+        - article [ref=e54]:
+          - paragraph [ref=e55]: Net Contribution Return
+          - strong [ref=e56]: Pending
+          - paragraph [ref=e57]: Current portfolio value relative to net contributed capital, without time-weighting.
+        - article [ref=e58]:
+          - paragraph [ref=e59]: Year-to-Date Return
+          - strong [ref=e60]: Pending
+          - paragraph [ref=e61]: Return since the start of the current calendar year through the active valuation date.
+        - article [ref=e62]:
+          - paragraph [ref=e63]: Inception-to-Date Return
+          - strong [ref=e64]: Pending
+          - paragraph [ref=e65]: Return since the first portfolio transaction date in the active ledger history.
+      - generic [ref=e66]:
+        - generic [ref=e67]:
+          - generic [ref=e68]: Committed Capital
+          - strong [ref=e69]: $0.00
+          - paragraph [ref=e70]: Total deposits contributed into the portfolio over time.
+        - generic [ref=e71]:
+          - generic [ref=e72]: Net Contributions
+          - strong [ref=e73]: $0.00
+          - paragraph [ref=e74]: Deposits less withdrawals.
+        - generic [ref=e75]:
+          - generic [ref=e76]: Net Invested Capital
+          - strong [ref=e77]: $0.00
+          - paragraph [ref=e78]: 0.0% of portfolio
+        - generic [ref=e79]:
+          - generic [ref=e80]: Cash Balance
+          - strong [ref=e81]: $0.00
+          - paragraph [ref=e82]: 0.0% of portfolio
+      - generic [ref=e83]:
+        - generic [ref=e85]:
+          - heading "Portfolio Positions" [level=2] [ref=e86]
+          - paragraph [ref=e87]: Consolidated portfolio view based on current open holdings and cash balance.
+        - table [ref=e89]:
+          - rowgroup [ref=e90]:
+            - row "Position Shares Average Cost Current Price Market Value Cost Basis Weight (MV) Weight (Cost) Unrealized P&L Return %" [ref=e91]:
+              - columnheader "Position" [ref=e92]
+              - columnheader "Shares" [ref=e93]
+              - columnheader "Average Cost" [ref=e94]
+              - columnheader "Current Price" [ref=e95]
+              - columnheader "Market Value" [ref=e96]
+              - columnheader "Cost Basis" [ref=e97]
+              - columnheader "Weight (MV)" [ref=e98]
+              - columnheader "Weight (Cost)" [ref=e99]
+              - columnheader "Unrealized P&L" [ref=e100]
+              - columnheader "Return %" [ref=e101]
+          - rowgroup
+      - generic [ref=e104]:
+        - heading "Allocation by Position" [level=2] [ref=e105]
+        - paragraph [ref=e106]: Allocation includes open holdings and cash balance.

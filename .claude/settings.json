@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python tools/serve_dashboard.py --port 8765)",
+      "Bash(curl -s http://localhost:8765 -o /dev/null -w \"%{http_code}\")",
+      "Bash(curl -s http://localhost:8765/ -o /dev/null -w \"%{http_code}\")",
+      "mcp__playwright__browser_snapshot",
+      "Bash(python tools/serve_dashboard.py --help)",
+      "mcp__playwright__browser_click",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8765/)"
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "cmd.exe //c 'C:\\Users\\eduar\\.claude\\statusline.cmd'",
+    "refreshInterval": 10
+  }
+}

@@ -1,0 +1,574 @@
+- generic [ref=e2]:
+  - banner [ref=e4]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - button "Guide" [ref=e9] [cursor=pointer]:
+          - generic [ref=e12]:
+            - img
+        - generic [ref=e13]:
+          - link "YouTube Home" [ref=e14] [cursor=pointer]:
+            - /url: /
+            - generic [ref=e19]:
+              - img
+          - generic [ref=e20]: BR
+        - button "Skip navigation" [ref=e24] [cursor=pointer]:
+          - generic [ref=e25]: Skip navigation
+      - generic [ref=e29]:
+        - search [ref=e30]:
+          - generic [ref=e31]:
+            - combobox "Search" [expanded] [ref=e34]
+            - button "Search" [ref=e35] [cursor=pointer]:
+              - generic [ref=e38]:
+                - img
+        - generic [ref=e40]:
+          - button "Search with your voice" [ref=e42] [cursor=pointer]:
+            - generic [ref=e46]:
+              - img
+          - tooltip "tooltip"
+      - generic [ref=e51]:
+        - button "Settings" [ref=e56] [cursor=pointer]:
+          - generic [ref=e59]:
+            - img
+        - link "Sign in" [ref=e62] [cursor=pointer]:
+          - /url: https://accounts.google.com/ServiceLogin?service=youtube&uilel=3&passive=true&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26app%3Ddesktop%26hl%3Den%26next%3Dhttps%253A%252F%252Fwww.youtube.com%252Fwatch%253Fv%253DeRr2rTKriDM&hl=en&ec=65620
+          - generic [ref=e66]:
+            - img
+          - generic [ref=e67]: Sign in
+  - main [ref=e72]:
+    - generic [ref=e73]:
+      - generic [ref=e75]:
+        - complementary [ref=e82]:
+          - generic "YouTube Video Player" [active] [ref=e85]:
+            - button "Play" [ref=e89] [cursor=pointer]:
+              - img
+            - generic [ref=e90]:
+              - generic [ref=e91] [cursor=pointer]:
+                - generic:
+                  - generic:
+                    - img
+                  - generic:
+                    - img
+                  - generic:
+                    - img
+                  - generic:
+                    - img
+                  - generic:
+                    - img
+                - slider "Seek slider" [ref=e92]
+                - generic:
+                  - generic:
+                    - generic:
+                      - slider "Click or scroll the panel for the precise seeking."
+              - generic [ref=e117]:
+                - generic [ref=e118]:
+                  - button "Pause (k)" [ref=e119] [cursor=pointer]:
+                    - img
+                  - generic [ref=e120]:
+                    - button "Mute (m)" [ref=e122] [cursor=pointer]:
+                      - img
+                    - slider "Volume"
+                  - button "0 Minutes 0 Seconds of 14 Minutes 39 Seconds" [ref=e126] [cursor=pointer]: 0:00 / 14:39
+                  - button "Intro" [ref=e128] [cursor=pointer]:
+                    - generic "Intro" [ref=e129]
+                    - generic [ref=e130]:
+                      - img
+                - generic [ref=e131]:
+                  - generic [ref=e132]:
+                    - button "Autoplay is on" [ref=e133] [cursor=pointer]
+                    - button "Subtitles/closed captions unavailable" [ref=e136] [cursor=pointer]:
+                      - generic [ref=e137]:
+                        - img
+                    - button "Settings" [ref=e138] [cursor=pointer]:
+                      - img
+                  - generic [ref=e139]:
+                    - button "Theater mode (t)" [ref=e140] [cursor=pointer]:
+                      - img
+                    - button "Full screen (f)" [ref=e141] [cursor=pointer]:
+                      - img
+        - generic [ref=e142]:
+          - generic [ref=e144]:
+            - heading "Claude Code + Obsidian = UNSTOPPABLE" [level=1] [ref=e146]
+            - generic [ref=e147]:
+              - generic [ref=e148]:
+                - generic [ref=e149]:
+                  - link [ref=e150] [cursor=pointer]:
+                    - /url: /@Chase-H-AI
+                  - generic [ref=e152]:
+                    - generic "Chase AI" [ref=e156]:
+                      - link "Chase AI" [ref=e157] [cursor=pointer]:
+                        - /url: /@Chase-H-AI
+                    - generic "115 thousand subscribers" [ref=e158]: 115K subscribers
+                - generic [ref=e162]:
+                  - button "Subscribe to Chase AI." [ref=e164] [cursor=pointer]:
+                    - generic [ref=e165]: Subscribe
+                  - generic:
+                    - generic:
+                      - generic:
+                        - img
+                    - generic:
+                      - img
+              - generic [ref=e172]:
+                - generic [ref=e173]:
+                  - generic [ref=e177]:
+                    - button "like this video along with 2,874 other people" [ref=e181] [cursor=pointer]:
+                      - generic [ref=e185]:
+                        - img
+                      - generic [ref=e186]: 2.8K
+                    - button "Dislike this video" [ref=e193] [cursor=pointer]:
+                      - generic [ref=e197]:
+                        - img
+                  - button "Share" [ref=e203] [cursor=pointer]:
+                    - generic [ref=e207]:
+                      - img
+                    - generic [ref=e208]: Share
+                - button "Save to playlist" [ref=e215] [cursor=pointer]:
+                  - generic [ref=e219]:
+                    - img
+                  - generic [ref=e220]: Save
+                - button "More actions" [ref=e225] [cursor=pointer]:
+                  - generic [ref=e229]:
+                    - img
+            - generic [ref=e235] [cursor=pointer]:
+              - generic [ref=e236]:
+                - generic [ref=e238]:
+                  - text: 123K views 1 month ago
+                  - link "#obsidian" [ref=e239]:
+                    - /url: /hashtag/obsidian
+                  - link "#claudecode" [ref=e240]:
+                    - /url: /hashtag/claudecode
+                - tooltip "tooltip"
+              - generic [ref=e241]:
+                - generic [ref=e242]:
+                  - generic [ref=e245]:
+                    - text: ⚡Master Claude Code, Build Your Agency, Land Your First Client⚡
+                    - link "https://www.skool.com/chase-ai" [ref=e247]:
+                      - /url: https://www.youtube.com/redirect?event=video_description&redir_token=QUFFLUhqbjE5dERPUWk2ZWNramtnVnh3d0lzc2VnbURDd3xBQ3Jtc0trY1FCcDhjZ25JcFhncnlIWXlfLWl6TFBBbjYwWHdYVlZpd05hbXdxbTAzdGFHb3l1QWVHQ0FRU0VPdnh0S0l2cUptMURYV0RGT3dIdzVtWlU1VEtnM2hXdk9jVElNcTBSQnk0NE9GaWZsRVNaZHJGRQ&q=https%3A%2F%2Fwww.skool.com%2Fchase-ai&v=eRr2rTKriDM
+                  - generic: …
+                - button "...more" [ref=e248]
+          - text: •
+      - generic [ref=e255]:
+        - generic [ref=e257] [cursor=pointer]:
+          - link [ref=e258]:
+            - /url: /watch?v=6MBq1paspVU
+            - generic [ref=e265]: 58:57
+          - generic [ref=e267]:
+            - generic [ref=e268]:
+              - heading "How I Use Obsidian + Claude Code to Run My Life 58 minutes" [level=3] [ref=e269]:
+                - link "How I Use Obsidian + Claude Code to Run My Life 58 minutes" [ref=e270]:
+                  - /url: /watch?v=6MBq1paspVU
+                  - text: How I Use Obsidian + Claude Code to Run My Life
+              - generic [ref=e272]:
+                - group [ref=e273]:
+                  - generic [ref=e274]: Greg Isenberg
+                - group [ref=e275]:
+                  - generic [ref=e276]: 320K views
+                  - generic [ref=e277]: •
+                  - generic [ref=e278]: 2 months ago
+            - button "More actions" [ref=e281]:
+              - generic [ref=e285]:
+                - img
+        - generic [ref=e290] [cursor=pointer]:
+          - link [ref=e291]:
+            - /url: /watch?v=sboNwYmH3AY&pp=ugUEEgJlbtIHCQnfCgGHKiGM7w%3D%3D
+            - generic [ref=e298]: 17:47
+          - generic [ref=e300]:
+            - generic [ref=e301]:
+              - heading "Andrej Karpathy Just 10x’d Everyone’s Claude Code 17 minutes" [level=3] [ref=e302]:
+                - link "Andrej Karpathy Just 10x’d Everyone’s Claude Code 17 minutes" [ref=e303]:
+                  - /url: /watch?v=sboNwYmH3AY&pp=ugUEEgJlbtIHCQnfCgGHKiGM7w%3D%3D
+                  - text: Andrej Karpathy Just 10x’d Everyone’s Claude Code
+              - generic [ref=e305]:
+                - group [ref=e306]:
+                  - generic [ref=e307]:
+                    - text: Nate Herk | AI Automation
+                    - img [ref=e310]:
+                      - generic [ref=e312]:
+                        - img
+                - group [ref=e313]:
+                  - generic [ref=e314]: 439K views
+                  - generic [ref=e315]: •
+                  - generic [ref=e316]: 3 weeks ago
+            - button "More actions" [ref=e319]:
+              - generic [ref=e323]:
+                - img
+        - generic [ref=e328] [cursor=pointer]:
+          - link [ref=e329]:
+            - /url: /watch?v=6Br1VERMV5k&pp=ugUEEgJlbg%3D%3D
+            - generic [ref=e336]: 11:14
+          - generic [ref=e338]:
+            - generic [ref=e339]:
+              - 'heading "User Onboarding/Offboarding Agent | Part 2: Architecture | FastTrack Dynamics 365 Bites 11 minutes, 14 seconds" [level=3] [ref=e340]':
+                - 'link "User Onboarding/Offboarding Agent | Part 2: Architecture | FastTrack Dynamics 365 Bites 11 minutes, 14 seconds" [ref=e341]':
+                  - /url: /watch?v=6Br1VERMV5k&pp=ugUEEgJlbg%3D%3D
+                  - text: "User Onboarding/Offboarding Agent | Part 2: Architecture | FastTrack Dynamics 365 Bites"
+              - generic [ref=e343]:
+                - group [ref=e344]:
+                  - generic [ref=e345]: Microsoft Dynamics 365 Community
+                - group [ref=e346]:
+                  - generic [ref=e347]: 48 views
+                  - generic [ref=e348]: •
+                  - generic [ref=e349]: 14 hours ago
+                - group [ref=e350]:
+                  - generic [ref=e354]: New
+            - button "More actions" [ref=e357]:
+              - generic [ref=e361]:
+                - img
+        - generic [ref=e366] [cursor=pointer]:
+          - link [ref=e367]:
+            - /url: /watch?v=4l8MXYUqGaA&pp=ugUEEgJlbg%3D%3D
+            - generic [ref=e374]: 58:33
+          - generic [ref=e376]:
+            - generic [ref=e377]:
+              - heading "How To Build The ULTIMATE AI Second Brain (Obsidian + Claude Code) 58 minutes" [level=3] [ref=e378]:
+                - link "How To Build The ULTIMATE AI Second Brain (Obsidian + Claude Code) 58 minutes" [ref=e379]:
+                  - /url: /watch?v=4l8MXYUqGaA&pp=ugUEEgJlbg%3D%3D
+                  - text: How To Build The ULTIMATE AI Second Brain (Obsidian + Claude Code)
+              - generic [ref=e381]:
+                - group [ref=e382]:
+                  - generic [ref=e383]: KJ Rainey
+                - group [ref=e384]:
+                  - generic [ref=e385]: 52K views
+                  - generic [ref=e386]: •
+                  - generic [ref=e387]: 2 weeks ago
+            - button "More actions" [ref=e390]:
+              - generic [ref=e394]:
+                - img
+        - generic [ref=e399] [cursor=pointer]:
+          - link [ref=e400]:
+            - /url: /watch?v=eglVxLaWRUU&pp=ugUHEgVlbi1HQg%3D%3D
+            - generic [ref=e407]: 23:16
+          - generic [ref=e409]:
+            - generic [ref=e410]:
+              - heading "Claude Code + Karpathy's Obsidian = New Meta 23 minutes" [level=3] [ref=e411]:
+                - link "Claude Code + Karpathy's Obsidian = New Meta 23 minutes" [ref=e412]:
+                  - /url: /watch?v=eglVxLaWRUU&pp=ugUHEgVlbi1HQg%3D%3D
+                  - text: Claude Code + Karpathy's Obsidian = New Meta
+              - generic [ref=e414]:
+                - group [ref=e415]:
+                  - generic [ref=e416]: Jack Roberts
+                - group [ref=e417]:
+                  - generic [ref=e418]: 76K views
+                  - generic [ref=e419]: •
+                  - generic [ref=e420]: 2 weeks ago
+            - button "More actions" [ref=e423]:
+              - generic [ref=e427]:
+                - img
+        - generic [ref=e432] [cursor=pointer]:
+          - link [ref=e433]:
+            - /url: /watch?v=GWwGmUol4KQ&pp=ugUHEgVlbi1VU9IHCQnfCgGHKiGM7w%3D%3D
+            - generic [ref=e440]: 17:36
+          - generic [ref=e442]:
+            - generic [ref=e443]:
+              - heading "Claude Code Turned My Obsidian into a Second Brain (Complete Setup) 17 minutes" [level=3] [ref=e444]:
+                - link "Claude Code Turned My Obsidian into a Second Brain (Complete Setup) 17 minutes" [ref=e445]:
+                  - /url: /watch?v=GWwGmUol4KQ&pp=ugUHEgVlbi1VU9IHCQnfCgGHKiGM7w%3D%3D
+                  - text: Claude Code Turned My Obsidian into a Second Brain (Complete Setup)
+              - generic [ref=e447]:
+                - group [ref=e448]:
+                  - generic [ref=e449]: Matheus Battisti - Hora de Codar
+                - group [ref=e450]:
+                  - generic [ref=e451]: 48K views
+                  - generic [ref=e452]: •
+                  - generic [ref=e453]: 1 month ago
+                - group [ref=e454]:
+                  - generic [ref=e457]:
+                    - generic [ref=e460]:
+                      - img
+                    - generic [ref=e461]: Auto-dubbed
+            - button "More actions" [ref=e464]:
+              - generic [ref=e468]:
+                - img
+        - generic [ref=e473] [cursor=pointer]:
+          - link [ref=e474]:
+            - /url: /watch?v=rVEoyx349Hk&pp=ugUEEgJlbg%3D%3D
+            - generic [ref=e481]: 20:48
+          - generic [ref=e483]:
+            - generic [ref=e484]:
+              - heading "567 Hours of Claude Code Lessons in 20 Minutes 20 minutes" [level=3] [ref=e485]:
+                - link "567 Hours of Claude Code Lessons in 20 Minutes 20 minutes" [ref=e486]:
+                  - /url: /watch?v=rVEoyx349Hk&pp=ugUEEgJlbg%3D%3D
+                  - text: 567 Hours of Claude Code Lessons in 20 Minutes
+              - generic [ref=e488]:
+                - group [ref=e489]:
+                  - generic [ref=e490]: Chase AI
+                - group [ref=e491]:
+                  - generic [ref=e492]: 65K views
+                  - generic [ref=e493]: •
+                  - generic [ref=e494]: 1 month ago
+            - button "More actions" [ref=e497]:
+              - generic [ref=e501]:
+                - img
+        - generic [ref=e506] [cursor=pointer]:
+          - link [ref=e507]:
+            - /url: /watch?v=TUKYbUIXLOE&pp=ugUEEgJlbg%3D%3D
+            - generic [ref=e514]: 32:36
+          - generic [ref=e516]:
+            - generic [ref=e517]:
+              - heading "The 6 Levels of Claude Code Explained 32 minutes" [level=3] [ref=e518]:
+                - link "The 6 Levels of Claude Code Explained 32 minutes" [ref=e519]:
+                  - /url: /watch?v=TUKYbUIXLOE&pp=ugUEEgJlbg%3D%3D
+                  - text: The 6 Levels of Claude Code Explained
+              - generic [ref=e521]:
+                - group [ref=e522]:
+                  - generic [ref=e523]: Chase AI
+                - group [ref=e524]:
+                  - generic [ref=e525]: 121K views
+                  - generic [ref=e526]: •
+                  - generic [ref=e527]: 1 month ago
+            - button "More actions" [ref=e530]:
+              - generic [ref=e534]:
+                - img
+        - generic [ref=e539] [cursor=pointer]:
+          - link [ref=e540]:
+            - /url: /watch?v=-BhfcPseWFQ
+            - generic [ref=e547]: 17:09
+          - generic [ref=e549]:
+            - generic [ref=e550]:
+              - heading "After This Video, You'll Actually Understand Agent Orchestration 17 minutes" [level=3] [ref=e551]:
+                - link "After This Video, You'll Actually Understand Agent Orchestration 17 minutes" [ref=e552]:
+                  - /url: /watch?v=-BhfcPseWFQ
+                  - text: After This Video, You'll Actually Understand Agent Orchestration
+              - generic [ref=e554]:
+                - group [ref=e555]:
+                  - generic [ref=e556]: Burke Holland
+                - group [ref=e557]:
+                  - generic [ref=e558]: 118K views
+                  - generic [ref=e559]: •
+                  - generic [ref=e560]: 2 months ago
+            - button "More actions" [ref=e563]:
+              - generic [ref=e567]:
+                - img
+        - generic [ref=e572] [cursor=pointer]:
+          - link [ref=e573]:
+            - /url: /watch?v=2KUF9BB_rh8&pp=ugUHEgVlbi1VUw%3D%3D
+            - generic [ref=e580]: 27:48
+          - generic [ref=e582]:
+            - generic [ref=e583]:
+              - heading "I transformed my Obsidian into a brain for my AI agents (Tutorial) 27 minutes" [level=3] [ref=e584]:
+                - link "I transformed my Obsidian into a brain for my AI agents (Tutorial) 27 minutes" [ref=e585]:
+                  - /url: /watch?v=2KUF9BB_rh8&pp=ugUHEgVlbi1VUw%3D%3D
+                  - text: I transformed my Obsidian into a brain for my AI agents (Tutorial)
+              - generic [ref=e587]:
+                - group [ref=e588]:
+                  - generic [ref=e589]: Rafael Quintanilha – QuantBrasil
+                - group [ref=e590]:
+                  - generic [ref=e591]: 47K views
+                  - generic [ref=e592]: •
+                  - generic [ref=e593]: 1 month ago
+                - group [ref=e594]:
+                  - generic [ref=e597]:
+                    - generic [ref=e600]:
+                      - img
+                    - generic [ref=e601]: Auto-dubbed
+            - button "More actions" [ref=e604]:
+              - generic [ref=e608]:
+                - img
+        - generic [ref=e613] [cursor=pointer]:
+          - link [ref=e614]:
+            - /url: /watch?v=kwSVtQ7dziU
+            - generic [ref=e621]: 1:06:32
+          - generic [ref=e623]:
+            - generic [ref=e624]:
+              - 'heading "Skill Issue: Andrej Karpathy on Code Agents, AutoResearch, and the Loopy Era of AI 1 hour, 6 minutes" [level=3] [ref=e625]':
+                - 'link "Skill Issue: Andrej Karpathy on Code Agents, AutoResearch, and the Loopy Era of AI 1 hour, 6 minutes" [ref=e626]':
+                  - /url: /watch?v=kwSVtQ7dziU
+                  - text: "Skill Issue: Andrej Karpathy on Code Agents, AutoResearch, and the Loopy Era of AI"
+              - generic [ref=e628]:
+                - group [ref=e629]:
+                  - generic [ref=e630]: "No Priors: AI, Machine Learning, Tech, & Startups"
+                - group [ref=e631]:
+                  - generic [ref=e632]: 769K views
+                  - generic [ref=e633]: •
+                  - generic [ref=e634]: 1 month ago
+            - button "More actions" [ref=e637]:
+              - generic [ref=e641]:
+                - img
+        - generic [ref=e646] [cursor=pointer]:
+          - link [ref=e647]:
+            - /url: /watch?v=OFyECKgWXo8&pp=ugUEEgJlbg%3D%3D
+            - generic [ref=e654]: 17:48
+          - generic [ref=e656]:
+            - generic [ref=e657]:
+              - heading "10 Claude Code Plugins to 10X Your Projects 17 minutes" [level=3] [ref=e658]:
+                - link "10 Claude Code Plugins to 10X Your Projects 17 minutes" [ref=e659]:
+                  - /url: /watch?v=OFyECKgWXo8&pp=ugUEEgJlbg%3D%3D
+                  - text: 10 Claude Code Plugins to 10X Your Projects
+              - generic [ref=e661]:
+                - group [ref=e662]:
+                  - generic [ref=e663]: Chase AI
+                - group [ref=e664]:
+                  - generic [ref=e665]: 77K views
+                  - generic [ref=e666]: •
+                  - generic [ref=e667]: 1 month ago
+            - button "More actions" [ref=e670]:
+              - generic [ref=e674]:
+                - img
+        - generic [ref=e679] [cursor=pointer]:
+          - link [ref=e680]:
+            - /url: /watch?v=fabAI1OKKww
+            - generic [ref=e687]: 16:30
+          - generic [ref=e689]:
+            - generic [ref=e690]:
+              - heading "The complete guide to Agent Skills 16 minutes" [level=3] [ref=e691]:
+                - link "The complete guide to Agent Skills 16 minutes" [ref=e692]:
+                  - /url: /watch?v=fabAI1OKKww
+                  - text: The complete guide to Agent Skills
+              - generic [ref=e694]:
+                - group [ref=e695]:
+                  - generic [ref=e696]: Burke Holland
+                - group [ref=e697]:
+                  - generic [ref=e698]: 165K views
+                  - generic [ref=e699]: •
+                  - generic [ref=e700]: 3 months ago
+            - button "More actions" [ref=e703]:
+              - generic [ref=e707]:
+                - img
+        - generic [ref=e712] [cursor=pointer]:
+          - link [ref=e713]:
+            - /url: /watch?v=S_oN3vlzpMw
+            - generic [ref=e720]: 35:26
+          - generic [ref=e722]:
+            - generic [ref=e723]:
+              - heading "How AI agents & Claude skills work (Clearly Explained) 35 minutes" [level=3] [ref=e724]:
+                - link "How AI agents & Claude skills work (Clearly Explained) 35 minutes" [ref=e725]:
+                  - /url: /watch?v=S_oN3vlzpMw
+                  - text: How AI agents & Claude skills work (Clearly Explained)
+              - generic [ref=e727]:
+                - group [ref=e728]:
+                  - generic [ref=e729]: Greg Isenberg
+                - group [ref=e730]:
+                  - generic [ref=e731]: 232K views
+                  - generic [ref=e732]: •
+                  - generic [ref=e733]: 2 weeks ago
+            - button "More actions" [ref=e736]:
+              - generic [ref=e740]:
+                - img
+        - generic [ref=e745] [cursor=pointer]:
+          - link [ref=e746]:
+            - /url: /watch?v=iXd0t60YmMw
+            - generic [ref=e753]: 15:05
+          - generic [ref=e755]:
+            - generic [ref=e756]:
+              - heading "Karpathy's LLM Wiki - Full Beginner Setup Guide 15 minutes" [level=3] [ref=e757]:
+                - link "Karpathy's LLM Wiki - Full Beginner Setup Guide 15 minutes" [ref=e758]:
+                  - /url: /watch?v=iXd0t60YmMw
+                  - text: Karpathy's LLM Wiki - Full Beginner Setup Guide
+              - generic [ref=e760]:
+                - group [ref=e761]:
+                  - generic [ref=e762]:
+                    - text: Teacher's Tech
+                    - img [ref=e765]:
+                      - generic [ref=e767]:
+                        - img
+                - group [ref=e768]:
+                  - generic [ref=e769]: 232K views
+                  - generic [ref=e770]: •
+                  - generic [ref=e771]: 2 weeks ago
+            - button "More actions" [ref=e774]:
+              - generic [ref=e778]:
+                - img
+        - generic [ref=e783] [cursor=pointer]:
+          - link [ref=e784]:
+            - /url: /watch?v=usTeU4Uh0iM&pp=ugUEEgJlbg%3D%3D
+            - generic [ref=e791]: 11:08
+          - generic [ref=e793]:
+            - generic [ref=e794]:
+              - heading "Claude Code + NotebookLM = CHEAT CODE 11 minutes, 8 seconds" [level=3] [ref=e795]:
+                - link "Claude Code + NotebookLM = CHEAT CODE 11 minutes, 8 seconds" [ref=e796]:
+                  - /url: /watch?v=usTeU4Uh0iM&pp=ugUEEgJlbg%3D%3D
+                  - text: Claude Code + NotebookLM = CHEAT CODE
+              - generic [ref=e798]:
+                - group [ref=e799]:
+                  - generic [ref=e800]: Chase AI
+                - group [ref=e801]:
+                  - generic [ref=e802]: 154K views
+                  - generic [ref=e803]: •
+                  - generic [ref=e804]: 1 month ago
+            - button "More actions" [ref=e807]:
+              - generic [ref=e811]:
+                - img
+        - generic [ref=e816] [cursor=pointer]:
+          - link [ref=e817]:
+            - /url: /watch?v=40GPEEj3ijg
+            - generic [ref=e824]: 12:26
+          - generic [ref=e826]:
+            - generic [ref=e827]:
+              - heading "Stop Learning Obsidian. 12 minutes, 26 seconds" [level=3] [ref=e828]:
+                - link "Stop Learning Obsidian. 12 minutes, 26 seconds" [ref=e829]:
+                  - /url: /watch?v=40GPEEj3ijg
+                  - text: Stop Learning Obsidian.
+              - generic [ref=e831]:
+                - group [ref=e832]:
+                  - generic [ref=e833]: JB Russell
+                - group [ref=e834]:
+                  - generic [ref=e835]: 21K views
+                  - generic [ref=e836]: •
+                  - generic [ref=e837]: 1 month ago
+            - button "More actions" [ref=e840]:
+              - generic [ref=e844]:
+                - img
+        - generic [ref=e849] [cursor=pointer]:
+          - link [ref=e850]:
+            - /url: /watch?v=z9rdrNrkvDY
+            - generic [ref=e857]: 18:55
+          - generic [ref=e859]:
+            - generic [ref=e860]:
+              - heading "Learn 80% of Claude Cowork in Under 20 Minutes 18 minutes" [level=3] [ref=e861]:
+                - link "Learn 80% of Claude Cowork in Under 20 Minutes 18 minutes" [ref=e862]:
+                  - /url: /watch?v=z9rdrNrkvDY
+                  - text: Learn 80% of Claude Cowork in Under 20 Minutes
+              - generic [ref=e864]:
+                - group [ref=e865]:
+                  - generic [ref=e866]:
+                    - text: Jeff Su
+                    - img [ref=e869]:
+                      - generic [ref=e871]:
+                        - img
+                - group [ref=e872]:
+                  - generic [ref=e873]: 581K views
+                  - generic [ref=e874]: •
+                  - generic [ref=e875]: 3 weeks ago
+            - button "More actions" [ref=e878]:
+              - generic [ref=e882]:
+                - img
+        - generic [ref=e887] [cursor=pointer]:
+          - link [ref=e888]:
+            - /url: /watch?v=TwkdDcO4vWQ&pp=ugUEEgJlbg%3D%3D
+            - generic [ref=e895]: 31:25
+          - generic [ref=e897]:
+            - generic [ref=e898]:
+              - heading "Learn 90% of Claude Code in 31 Minutes 31 minutes" [level=3] [ref=e899]:
+                - link "Learn 90% of Claude Code in 31 Minutes 31 minutes" [ref=e900]:
+                  - /url: /watch?v=TwkdDcO4vWQ&pp=ugUEEgJlbg%3D%3D
+                  - text: Learn 90% of Claude Code in 31 Minutes
+              - generic [ref=e902]:
+                - group [ref=e903]:
+                  - generic [ref=e904]: Chase AI
+                - group [ref=e905]:
+                  - generic [ref=e906]: 44K views
+                  - generic [ref=e907]: •
+                  - generic [ref=e908]: 1 month ago
+            - button "More actions" [ref=e911]:
+              - generic [ref=e915]:
+                - img
+        - generic [ref=e920] [cursor=pointer]:
+          - link [ref=e921]:
+            - /url: /watch?v=UxfeF4bSBYI&pp=ugUEEgJlbg%3D%3D
+            - generic [ref=e928]: 12:19
+          - generic [ref=e930]:
+            - generic [ref=e931]:
+              - heading "Claude Code Skills Just Got a MASSIVE Upgrade 12 minutes, 19 seconds" [level=3] [ref=e932]:
+                - link "Claude Code Skills Just Got a MASSIVE Upgrade 12 minutes, 19 seconds" [ref=e933]:
+                  - /url: /watch?v=UxfeF4bSBYI&pp=ugUEEgJlbg%3D%3D
+                  - text: Claude Code Skills Just Got a MASSIVE Upgrade
+              - generic [ref=e935]:
+                - group [ref=e936]:
+                  - generic [ref=e937]: Chase AI
+                - group [ref=e938]:
+                  - generic [ref=e939]: 106K views
+                  - generic [ref=e940]: •
+                  - generic [ref=e941]: 1 month ago
+            - button "More actions" [ref=e944]:
+              - generic [ref=e948]:
+                - img
+        - generic "loading" [ref=e953]

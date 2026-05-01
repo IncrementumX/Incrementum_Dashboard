@@ -1,0 +1,139 @@
+# Atlas — Agent Registry
+# Canonical source of truth for which agents exist, what they do, and how they coordinate.
+# Read at session start by every agent. Update this file before introducing a new agent or skill.
+
+version: 1.0
+system: Atlas
+owner: Eduardo (Incrementum)
+last_updated: 2026-04-17
+
+# ============================================================================
+# AGENTS
+# ============================================================================
+agents:
+
+  atlas_cio:
+    role: Team lead. Makes pass / watch / reject decisions. The only agent
+          that produces a "verdict" for Eduardo.
+    model: claude-opus-4-7
+    harness_host: OpenClaw on Mac (24/7 terminal)
+    skills_owned: []  # CIO does not own individual skills — it directs the Underwriter.
+    reads:
+      - Atlas/wiki/**
+      - Atlas/agents_context/state.md
+      - Atlas/agents_context/decisions.md
+      - Atlas/work_queues/analysis.md
+      - Atlas/reviews/**
+    writes:
+      - Atlas/wiki/decisions/*.md
+      - Atlas/agents_context/decisions.md
+      - Atlas/agents_context/issues.md
+    can_dispatch:
+      - atlas_underwriter
+      - atlas_associate
+    gate_before_external_output: true
+    discipline: Druckenmiller — capital preservation first, concentration in
+                high-conviction, kill-shot on thesis break, size to conviction.
+
+  atlas_underwriter:
+    role: Deep research. Orchestrates the 5 skills. Produces analysis,
+          memos, models, snapshots. Never decides — hands back to CIO.
+    model: claude-opus-4-7 (memo/assessment) ; claude-sonnet-4-6 (everything else)
+    harness_host: Claude Code on VS Code (interactive) + OpenClaw (when CIO dispatches)
+    skills_owned:
+      - atlas-briefing
+      - atlas-snapshot
+      - atlas-assessment
+      - atlas-model
+      - atlas-monitor
+    reads:
+      - Atlas/raw/**
+      - Atlas/wiki/**
+      - Atlas/agents_context/state.md
+      - Atlas/work_queues/**
+    writes:
+      - Atlas/wiki/positions/*.md
+      - Atlas/wiki/watchlist/*.md
+      - Atlas/wiki/themes/*.md
+      - Atlas/wiki/macro/*.md
+      - Atlas/wiki/summaries/*.md
+      - Atlas/wiki/index.md
+      - Atlas/wiki/log.md
+      - Atlas/work_queues/analysis.md
+      - Atlas/reviews/*.md
+    can_dispatch:
+      - atlas_associate  # for validation before finalizing
+    gate_before_external_output: true
+
+  atlas_associate:
+    role: QA. Validates source tagging, does quantitative sanity checks,
+          runs weekly lint on the wiki. Can reject work back to Underwriter
+          with a specific issues.md entry.
+    model: claude-haiku-4-5
+    harness_host: Claude Code on VS Code
+    skills_owned: []  # Associate's function is review, not skill execution.
+    reads:
+      - Atlas/raw/**
+      - Atlas/wiki/**
+      - Atlas/work_queues/**
+      - Atlas/agents_context/**
+    writes:
+      - Atlas/reviews/*.md
+      - Atlas/agents_context/issues.md
+      - Atlas/agents_context/contradictions.md
+      - Atlas/wiki/log.md  # lint pass entries
+    can_dispatch: []
+    veto_power: true  # Associate can reject any Underwriter output and
+                      # must do so if sources are missing or data is stale.
+
+# ============================================================================
+# SKILLS — owned by Underwriter
+# ============================================================================
+skills:
+
+  atlas-briefing:
+    owner: atlas_underwriter
+    purpose: Daily ingestion of news + sell-side + IR into raw/briefings/.
+             Cross-references hits against positions and watchlist.
+    input: raw/news/*, raw/briefings/*
+    output: wiki/summaries/<date>-briefing.md + updated wiki/log.md
+    cadence: daily (morning)
+
+  atlas-snapshot:
+    owner: atlas_underwriter
+    purpose: First-look on a new name. 1-2 pages. Flags whether to go deeper.
+    input: ticker + industry
+    output: wiki/watchlist/<ticker>.md (initial) or chat response
+    cadence: on-demand
+
+  atlas-assessment:
+    owner: atlas_underwriter
+    purpose: Deep framework read. IC-prep level. Full pros/cons/sizing/killshot.
+    input: ticker + existing wiki/<ticker>.md if any
+    output: wiki/positions/<ticker>.md OR structured chat response
+    cadence: on-demand
+
+  atlas-model:
+    owner: atlas_underwriter
+    purpose: DCF / comps / sensitivity. Excel + chart.
+    input: ticker + assessment
+    output: xlsx saved to docs/models/ + wiki page updated with key outputs
+    cadence: on-demand
+
+  atlas-monitor:
+    owner: atlas_underwriter
+    purpose: Watches active theses, flags thesis drift.
+    input: wiki/positions/*.md + raw/briefings/*
+    output: alerts in work_queues/monitor.md + wiki/contradictions/ entries
+    cadence: daily
+
+# ============================================================================
+# COORDINATION
+# ============================================================================
+coordination:
+  dispatch_pattern: orchestrator-worker
+  parallelism: CIO dispatches Underwriter + Associate in parallel when possible
+  handoff: via filesystem (work_queues/, reviews/)
+  source_of_truth: git repo (main branch)
+  branch_policy: feature branches → PR → Eduardo merges manually
+  agent_teams_flag: CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (required, Claude Code v2.1.91+)
