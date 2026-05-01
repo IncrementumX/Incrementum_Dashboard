@@ -56,3 +56,4 @@ Format:
 - promoted — `wiki/macro/worldview.md` stub → v3 (macro worldview: dollar system rupture, three core themes, falsifier conditions, Hormuz precedent, AI disruption)
 - updated — `wiki/index.md` (all six asset/macro entries updated from stubs to full one-line summaries)
 - promoted — `wiki/framework/portfolio-risk-limits.md` stub → v1 (tiered governance framework: Tier 1/2/3 by leverage state; high-beta noise vs. signal distinction; G2 gap formally acknowledged with deferred quantitative thresholds pending dashboard access)
+- promoted — `wiki/framework/sizing-rules.md` stub → v1 (5-tier sizing ladder: Watchlist/Seed/Small-asymmetric/Core/High-conviction; two entry logics: investigate-then-invest vs invest-then-investigate; explicit G4 upgrade criteria per tier; resolves G4)
