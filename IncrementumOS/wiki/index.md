@@ -29,7 +29,7 @@ Time-sensitive macro analyses with a clear macroeconomic driver.
 Coverage and thesis per asset/sector. Flat — one file per asset.
 
 - [gold.md](assets/gold.md) — gold as NPSOV: dollar debasement hedge, CB reserve accumulation (~1,000t/yr), Bessent revaluation mechanism, miner optionality, four macro scenarios.
-- [silver.md](assets/silver.md) — *(stub)* silver thesis and coverage.
+- [silver.md](assets/silver.md) — silver dual monetary+industrial role: GSR mean-reversion (88x → 60x avg), China strategic designation (2026-01-01), 800 Moz cumulative deficit, EV/solar demand acceleration.
 - [copper.md](assets/copper.md) — copper as industrial backbone of energy transition: structural deficit, China demand, supply inelasticity; honest stub — Eduardo's conviction at building tier.
 - [uranium.md](assets/uranium.md) — uranium supply-structural deficit: 175 Mlb demand vs ~150 Mlb production, 440+ reactors, 40% enrichment in Russia, contracting cycle, Eduardo's re-entry framework.
 - [energy-tech.md](assets/energy-tech.md) — *(stub)* energy and tech thesis and coverage.
