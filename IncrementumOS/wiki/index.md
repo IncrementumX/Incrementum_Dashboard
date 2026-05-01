@@ -22,7 +22,7 @@ Investment principles, mental models, checklists, and operational rules.
 Time-sensitive macro analyses with a clear macroeconomic driver.
 
 - [gold-liquidity-vs-repricing.md](macro/gold-liquidity-vs-repricing.md) — gold's 2026 drawdown as dollar liquidity event (not thesis failure): mechanism, COVID analog, signals to watch, sizing implication.
-- [worldview.md](macro/worldview.md) — *(stub)* macro worldview synthesis from WILTW, FFTT, Deem Global, Incrementum Macro Thoughts.
+- [worldview.md](macro/worldview.md) — macro worldview: dollar system rupture, three core themes (metals/commodities, geopolitics, AI disruption), falsifier conditions, Hormuz precedent, Eduardo's investment lens.
 
 ## assets/
 
