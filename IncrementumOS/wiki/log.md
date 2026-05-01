@@ -41,3 +41,7 @@ Format:
 - created — `portfolio/decisions/` (tactical decisions folder, naming: YYYY-MM-DD-asset-action.md)
 - removed — all README.md files from wiki/; navigation via index.md only
 - updated — `wiki/index.md` (full restructure: new sections framework/, macro/, assets/, portfolio/decisions/)
+
+## 2026-04-30
+
+- cleanup — removed legacy empty dirs `wiki/philosophy/` and `wiki/teses/` (leftover after 2026-04-29 taxonomy restructure; never had committed content)

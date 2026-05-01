@@ -22,18 +22,18 @@ Investment principles, mental models, checklists, and operational rules.
 Time-sensitive macro analyses with a clear macroeconomic driver.
 
 - [gold-liquidity-vs-repricing.md](macro/gold-liquidity-vs-repricing.md) — gold's 2026 drawdown as dollar liquidity event (not thesis failure): mechanism, COVID analog, signals to watch, sizing implication.
-- [worldview.md](macro/worldview.md) — *(stub)* macro worldview synthesis from WILTW, FFTT, Deem Global, Incrementum Macro Thoughts.
+- [worldview.md](macro/worldview.md) — macro worldview: dollar system rupture, three core themes (metals/commodities, geopolitics, AI disruption), falsifier conditions, Hormuz precedent, Eduardo's investment lens.
 
 ## assets/
 
 Coverage and thesis per asset/sector. Flat — one file per asset.
 
-- [gold.md](assets/gold.md) — *(stub)* gold thesis and coverage.
+- [gold.md](assets/gold.md) — gold as NPSOV: dollar debasement hedge, CB reserve accumulation (~1,000t/yr), Bessent revaluation mechanism, miner optionality, four macro scenarios.
 - [silver.md](assets/silver.md) — *(stub)* silver thesis and coverage.
 - [copper.md](assets/copper.md) — copper as industrial backbone of energy transition: structural deficit, China demand, supply inelasticity; honest stub — Eduardo's conviction at building tier.
-- [uranium.md](assets/uranium.md) — *(stub)* uranium thesis and coverage.
+- [uranium.md](assets/uranium.md) — uranium supply-structural deficit: 175 Mlb demand vs ~150 Mlb production, 440+ reactors, 40% enrichment in Russia, contracting cycle, Eduardo's re-entry framework.
 - [energy-tech.md](assets/energy-tech.md) — *(stub)* energy and tech thesis and coverage.
-- [semis.md](assets/semis.md) — *(stub)* semis thesis and coverage.
+- [semis.md](assets/semis.md) — AI infrastructure bet: memory as binding constraint, HBM cycle, BESI positioning, Citrini thesis; note: Eduardo's first-person thesis is a known open item.
 
 ## portfolio/decisions/
 
