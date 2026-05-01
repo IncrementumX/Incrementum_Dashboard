@@ -33,7 +33,7 @@ Coverage and thesis per asset/sector. Flat — one file per asset.
 - [copper.md](assets/copper.md) — *(stub)* copper thesis and coverage.
 - [uranium.md](assets/uranium.md) — *(stub)* uranium thesis and coverage.
 - [energy-tech.md](assets/energy-tech.md) — *(stub)* energy and tech thesis and coverage.
-- [semis.md](assets/semis.md) — *(stub)* semis thesis and coverage.
+- [semis.md](assets/semis.md) — AI infrastructure bet: memory as binding constraint, HBM cycle, BESI positioning, Citrini thesis; note: Eduardo's first-person thesis is a known open item.
 
 ## portfolio/decisions/
 
