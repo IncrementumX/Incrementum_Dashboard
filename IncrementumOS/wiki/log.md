@@ -1,1 +1,58 @@
-⌠睩歩⽬潧⹭搠鐠慰灥湤ⵯ湬礠牥捯牤ഊഊ㸠䭡牰慴桹⁣潮癥湴楯渠⡬楴敲慬⤺‪≡灰敮搭潮汹⁲散潲搠潦⁷桡琠桡灰敮敤⁡湤⁷桥渢⨮ഊ㸍ਾ⁓潵牣攺⁛歡牰慴桹⽬汭⵷楫椠杩獴崨桴瑰猺⼯杩獴⹧楴桵戮捯洯歡牰慴桹⼴㐲愶扦㔵㔹ㄴ㠹㍥㤸㤱挱ㄵㄹ摥㤴昩⸍਍ੁ灰敮搭潮汹⸠乥癥爠敤楴⁰慳琠敮瑲楥献⁎敷⁥湴物敳⁧漠慴⁴桥‪⩢潴瑯洪⨮ഊഊ䙯牭慴㨍਍੠恠ഊ⌣⁙奙夭䵍ⵄ䐍਍ਭ‼慣瑩潮㸠鐠㱯湥⵬楮攠摥獣物灴楯渾ഊ恠怍਍ਭⴭഊഊ⌣′〲㘭〴ⴲ㠍਍ਭ⁣牥慴敤⃢肔⁠睩歩⽩湤數⹭摠 䭡牰慴桹⁣潮癥湴楯渺⁣潮瑥湴ⵯ物敮瑥搠楮摥砩ഊⴠ捲敡瑥搠鐠恷楫椯汯朮浤怠⡴桩猠晩汥㬠䭡牰慴桹⁣潮癥湴楯渺⁡灰敮搭潮汹⁲散潲搩ഊⴠ捲敡瑥搠鐠恉湣牥浥湴畭体⽲慷⽠⁷楴栠恡牴楣汥猯怬⁠灡灥牳⽠Ⱐ恤慴愯怠獵扦潬摥牳 䭡牰慴桹•牡眠獯畲捥猢⁬慹敲⤍ਭ⁵灤慴敤⃢肔⁠杯癥牮慮捥⽃䱁啄䔮浤怠睩瑨•佰敲慴楯湳∠獥捴楯渠⡉湧敳琠⼠兵敲礠⼠䱩湴⤍਍ਣ⌠㈰㈶ⴰ㐭㈹ഊഊⴠ捲敡瑥搠鐠恷楫椯灨楬潳潰桹⽲楳欭晩牳琮浤怠瘱⸱ 䕤畡牤漧猠捯牥⁲楳欠晲慭敷潲欻⁳祮瑨敳楺敤⁦牯洠䁩湣牥浥湴畭ⵡ獳潣楡瑥⁳敳獩潮′〲㘭〴ⴲ㜯㈹㬠慰灲潶敤⁢礠䕤畡牤漠㈰㈶ⴰ㐭㈹⤍ਭ⁵灤慴敤⃢肔⁠睩歩⽩湤數⹭摠 慤摥搠物獫ⵦ楲獴⹭搠瑯⁰桩汯獯灨礯⁳散瑩潮⤍ਭ⁩湧敳瑥搠鐠恲慷⽡牴楣汥猯彳畢獴慣欮捯浟䝯汤⁉猠乯琠䙡楬楮朮浤怠鈠恷楫椯瑥獥猯杯汤⵬楱畩摩瑹⵶猭牥灲楣楮朮浤怠⡔千匠慮慬祳楳㨠杯汤⁤散汩湥⁡猠摯汬慲⁬楱畩摩瑹⁥癥湴⁤物癥渠批⁈潲浵稯敮敲杹⁥浥牧敮捹Ⱐ湯琠瑨敳楳⁲数物捩湧㬠獩杮慬猠瑯⁷慴捨㨠䉲敮琭䑵扡椠獰牥慤Ⱐ卩湧慰潲攠条獯楬⁣牡捫Ⱐ䵏噅ⵖ䥘⁤楶敲来湣攬⁇䑘䨠牥污瑩癥⁰敲景牭慮捥⤍ਭ⁵灤慴敤⃢肔⁠睩歩⽩湤數⹭摠 慤摥搠杯汤⵬楱畩摩瑹⵶猭牥灲楣楮朮浤⁴漠瑥獥猯⁳散瑩潮⤍਍ਣ⌠㈰㈶ⴰ㐭㈹ 牥獴牵捴畲攩ഊഊⴠ牥獴牵捴畲敤⃢肔⁷楫椠瑡硯湯浹㨠恰桩汯獯灨礯怠鈠恦牡浥睯牫⽠Ⱐ恴敳敳⽠⃢蚒⁠浡捲漯怬⁮敷⁠慳獥瑳⽠ 晬慴⤬⁮敷⁠灯牴景汩漯摥捩獩潮猯怍ਭ⁭潶敤⃢肔⁠睩歩⽰桩汯獯灨礯物獫ⵦ楲獴⹭摠⃢蚒⁠睩歩⽦牡浥睯牫⽲楳欭晩牳琮浤怍ਭ⁭潶敤⃢肔⁠睩歩⽴敳敳⽧潬搭汩煵楤楴礭癳⵲数物捩湧⹭摠⃢蚒⁠睩歩⽭慣牯⽧潬搭汩煵楤楴礭癳⵲数物捩湧⹭摠ഊⴠ捲敡瑥搠獴畢猠鐠恦牡浥睯牫⽠㨠獩穩湧⵲畬敳⹭搬⁳桯牴ⵣ物瑥物愮浤Ⱐ灯牴景汩漭物獫⵬業楴献浤Ⱐ敮瑲礭數楴ⵣ桥捫汩獴⹭搬⁳楧湡汳⵲敧楳瑲礮浤ഊⴠ捲敡瑥搠獴畢猠鐠恭慣牯⽠㨠睯牬摶楥眮浤ഊⴠ捲敡瑥搠獴畢猠鐠恡獳整猯怺⁧潬搮浤Ⱐ獩汶敲⹭搬⁣潰灥爮浤Ⱐ畲慮極洮浤Ⱐ敮敲杹⵴散栮浤Ⱐ獥浩献浤ഊⴠ捲敡瑥搠鐠恰潲瑦潬楯⽤散楳楯湳⽠ 瑡捴楣慬⁤散楳楯湳⁦潬摥爬⁮慭楮机⁙奙夭䵍ⵄ䐭慳獥琭慣瑩潮⹭搩ഊⴠ牥浯癥搠鐠慬氠剅䅄䵅⹭搠晩汥猠晲潭⁷楫椯㬠湡癩条瑩潮⁶楡⁩湤數⹭搠潮汹ഊⴠ異摡瑥搠鐠恷楫椯楮摥砮浤怠⡦畬氠牥獴牵捴畲攺⁮敷⁳散瑩潮猠晲慭敷潲欯Ⱐ浡捲漯Ⱐ慳獥瑳⼬⁰潲瑦潬楯⽤散楳楯湳⼩ഊഊ⌣′〲㘭〴ⴳ」਍ਭ⁣汥慮異⃢肔⁲敭潶敤⁬敧慣礠敭灴礠摩牳⁠睩歩⽰桩汯獯灨礯怠慮搠恷楫椯瑥獥猯怠⡬敦瑯癥爠慦瑥爠㈰㈶ⴰ㐭㈹⁴慸潮潭礠牥獴牵捴畲攻⁮敶敲⁨慤⁣潭浩瑴敤⁣潮瑥湴⤍਍ਣ⌠㈰㈶ⴰ㔭〱ഊഊⴠ灲潭潴敤⃢肔⁠睩歩⽡獳整猯杯汤⹭摠⁳瑵戠鈠瘳ⵦ楮慬 乐协嘠瑨敳楳㨠䍂⁡捣畭畬慴楯渠縱ⰰ〰琯祲Ⱐ䉥獳敮琠牥癡汵慴楯測⁭楮敲⁯灴楯湡汩瑹Ⱐ景畲⁭慣牯⁳捥湡物潳⤍ਭ⁰牯浯瑥搠鐠恷楫椯慳獥瑳⽳楬癥爮浤怠獴畢⃢蚒⁶㌠⡤畡氠浯湥瑡特⭩湤畳瑲楡氠牯汥㨠䝓删㠸磢蚒㘰砠慶本⁃桩湡⁳瑲慴敧楣⁤敳楧湡瑩潮′〲㘭〱ⴰㄬ‸〰⁍潺⁣畭畬慴楶攠摥晩捩琬⁅嘯獯污爠摥浡湤⤍ਭ⁰牯浯瑥搠鐠恷楫椯慳獥瑳⽣潰灥爮浤怠獴畢⃢蚒⁶㈠⡩湤畳瑲楡氠扡捫扯湥⁯映敮敲杹⁴牡湳楴楯渺⁳瑲畣瑵牡氠摥晩捩琬⁃桩湡⁤敭慮搬⁳異灬礠楮敬慳瑩捩瑹㬠䕤畡牤漠捯湶楣瑩潮⁡琠扵楬摩湧⁴楥爩ഊⴠ灲潭潴敤⃢肔⁠睩歩⽡獳整猯畲慮極洮浤怠獴畢⃢蚒⁶㌭晩湡氠⡳異灬礭獴牵捴畲慬⁤敦楣楴㨠ㄷ㔠䵬戠摥浡湤⁶猠縱㔰⁍汢⁰牯摵捴楯測‴㐰⬠牥慣瑯牳Ⱐ㐰┠敮物捨浥湴⁒畳獩愬⁣潮瑲慣瑩湧⁣祣汥⤍ਭ⁰牯浯瑥搠鐠恷楫椯慳獥瑳⽳敭楳⹭摠⁳瑵戠鈠瘲 䅉⁩湦牡獴牵捴畲攠扥琺⁭敭潲礠慳⁢楮摩湧⁣潮獴牡楮琬⁈䉍⁣祣汥Ⱐ䉅卉⁰潳楴楯湩湧Ⱐ䍩瑲楮椠瑨敳楳⤍ਭ⁰牯浯瑥搠鐠恷楫椯浡捲漯睯牬摶楥眮浤怠獴畢⃢蚒⁶㌠⡭慣牯⁷潲汤癩敷㨠摯汬慲⁳祳瑥洠牵灴畲攬⁴桲敥⁣潲攠瑨敭敳Ⱐ晡汳楦楥爠捯湤楴楯湳Ⱐ䡯牭畺⁰牥捥摥湴Ⱐ䅉⁤楳牵灴楯温ഊⴠ異摡瑥搠鐠恷楫椯楮摥砮浤怠⡡汬⁳楸⁡獳整⽭慣牯⁥湴物敳⁵灤慴敤⁦牯洠獴畢猠瑯⁦畬氠潮攭汩湥⁳畭浡物敳⤍੭慣⵴敳琠䙲椠䵡礠‱‱㈺㔵㨱㐠ⴰ㌠㈰㈶ഊ搀攀氀氀ⴀ琀攀猀琀 　㔀⼀　㄀⼀㈀　㈀㘀 ㄀㈀㨀㔀㜀㨀㌀㠀ഀ਀
+# wiki/log.md — append-only record
+
+> Karpathy convention (literal): *"append-only record of what happened and when"*.
+>
+> Source: [karpathy/llm-wiki gist](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
+
+Append-only. Never edit past entries. New entries go at the **bottom**.
+
+Format:
+
+```
+## YYYY-MM-DD
+
+- <action> — <one-line description>
+```
+
+---
+
+## 2026-04-28
+
+- created — `wiki/index.md` (Karpathy convention: content-oriented index)
+- created — `wiki/log.md` (this file; Karpathy convention: append-only record)
+- created — `IncrementumOS/raw/` with `articles/`, `papers/`, `data/` subfolders (Karpathy "raw sources" layer)
+- updated — `governance/CLAUDE.md` with "Operations" section (Ingest / Query / Lint)
+
+## 2026-04-29
+
+- created — `wiki/philosophy/risk-first.md` v1.1 (Eduardo's core risk framework; synthesized from @incrementum-associate session 2026-04-27/29; approved by Eduardo 2026-04-29)
+- updated — `wiki/index.md` (added risk-first.md to philosophy/ section)
+- ingested — `raw/articles/_substack.com_Gold Is Not Failing.md` → `wiki/teses/gold-liquidity-vs-repricing.md` (TSCS analysis: gold decline as dollar liquidity event driven by Hormuz/energy emergency, not thesis repricing; signals to watch: Brent-Dubai spread, Singapore gasoil crack, MOVE-VIX divergence, GDXJ relative performance)
+- updated — `wiki/index.md` (added gold-liquidity-vs-repricing.md to teses/ section)
+
+## 2026-04-29 (restructure)
+
+- restructured — wiki taxonomy: `philosophy/` → `framework/`, `teses/` → `macro/`, new `assets/` (flat), new `portfolio/decisions/`
+- moved — `wiki/philosophy/risk-first.md` → `wiki/framework/risk-first.md`
+- moved — `wiki/teses/gold-liquidity-vs-repricing.md` → `wiki/macro/gold-liquidity-vs-repricing.md`
+- created stubs — `framework/`: sizing-rules.md, short-criteria.md, portfolio-risk-limits.md, entry-exit-checklist.md, signals-registry.md
+- created stubs — `macro/`: worldview.md
+- created stubs — `assets/`: gold.md, silver.md, copper.md, uranium.md, energy-tech.md, semis.md
+- created — `portfolio/decisions/` (tactical decisions folder, naming: YYYY-MM-DD-asset-action.md)
+- removed — all README.md files from wiki/; navigation via index.md only
+- updated — `wiki/index.md` (full restructure: new sections framework/, macro/, assets/, portfolio/decisions/)
+
+## 2026-04-30
+
+- cleanup — removed legacy empty dirs `wiki/philosophy/` and `wiki/teses/` (leftover after 2026-04-29 taxonomy restructure; never had committed content)
+
+## 2026-05-01
+
+- promoted — `wiki/assets/gold.md` stub → v3-final (NPSOV thesis: CB accumulation ~1,000t/yr, Bessent revaluation, miner optionality, four macro scenarios)
+- promoted — `wiki/assets/silver.md` stub → v3 (dual monetary+industrial role: GSR 88x→60x avg, China strategic designation 2026-01-01, 800 Moz cumulative deficit, EV/solar demand)
+- promoted — `wiki/assets/copper.md` stub → v2 (industrial backbone of energy transition: structural deficit, China demand, supply inelasticity; Eduardo conviction at building tier)
+- promoted — `wiki/assets/uranium.md` stub → v3-final (supply-structural deficit: 175 Mlb demand vs ~150 Mlb production, 440+ reactors, 40% enrichment Russia, contracting cycle)
+- promoted — `wiki/assets/semis.md` stub → v2 (AI infrastructure bet: memory as binding constraint, HBM cycle, BESI positioning, Citrini thesis)
+- promoted — `wiki/macro/worldview.md` stub → v3 (macro worldview: dollar system rupture, three core themes, falsifier conditions, Hormuz precedent, AI disruption)
+- updated — `wiki/index.md` (all six asset/macro entries updated from stubs to full one-line summaries)
+- promoted — `wiki/framework/portfolio-risk-limits.md` stub → v1 (tiered governance framework: Tier 1/2/3 by leverage state; high-beta noise vs. signal distinction; G2 gap formally acknowledged with deferred quantitative thresholds pending dashboard access)
