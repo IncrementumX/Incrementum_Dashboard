@@ -45,3 +45,13 @@ Format:
 ## 2026-04-30
 
 - cleanup — removed legacy empty dirs `wiki/philosophy/` and `wiki/teses/` (leftover after 2026-04-29 taxonomy restructure; never had committed content)
+
+## 2026-05-01
+
+- promoted — `wiki/assets/gold.md` stub → v3-final (NPSOV thesis: CB accumulation ~1,000t/yr, Bessent revaluation, miner optionality, four macro scenarios)
+- promoted — `wiki/assets/silver.md` stub → v3 (dual monetary+industrial role: GSR 88x→60x avg, China strategic designation 2026-01-01, 800 Moz cumulative deficit, EV/solar demand)
+- promoted — `wiki/assets/copper.md` stub → v2 (industrial backbone of energy transition: structural deficit, China demand, supply inelasticity; Eduardo conviction at building tier)
+- promoted — `wiki/assets/uranium.md` stub → v3-final (supply-structural deficit: 175 Mlb demand vs ~150 Mlb production, 440+ reactors, 40% enrichment Russia, contracting cycle)
+- promoted — `wiki/assets/semis.md` stub → v2 (AI infrastructure bet: memory as binding constraint, HBM cycle, BESI positioning, Citrini thesis)
+- promoted — `wiki/macro/worldview.md` stub → v3 (macro worldview: dollar system rupture, three core themes, falsifier conditions, Hormuz precedent, AI disruption)
+- updated — `wiki/index.md` (all six asset/macro entries updated from stubs to full one-line summaries)
