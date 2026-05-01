@@ -8,6 +8,7 @@
   - [x] `risk-first.md` — v1.1 aprovada por Eduardo em 2026-04-29. Mergeado em main via PR #8 em 2026-04-29.
   - [ ] Próximas entradas: emergem da iteração com `@incrementum-associate`. Candidatos naturais: sizing framework, macro overlay, tactical shorts codificado (G3).
 - [ ] **Construir wiki/framework iterativamente** — mesmo caminho. Cadência emergente (2026-04-27): sem lista pré-fixada de arquivos; estrutura emerge da iteração. Atacar depois de pelo menos 2 entradas de philosophy.
+  - [~] `sizing-rules.md` (G4) — draft v2 em `staging/g4-sizing-rules-v2.md` (2026-04-30); proposta de sub-tiers metals + thresholds TBD; sessão dedicada com Eduardo para preencher números e codificar em risk-first.md §3.
 - [ ] **Materiais base de Eduardo** — Eduardo tem acervo significativo (investment philosophy compilado, framework, diário de notes, notes de teses). Decisão 2026-04-26: caminho **pull-based** (não organizar tudo prevent — começar pelo material mais maduro = investment philosophy montado, outros entram sob demanda). Eduardo vai me indicar paths quando voltar. Materiais privados (diário, decisões de capital) NÃO vão pro repo público — ficam locais ou em Project Knowledge privado do Claude.ai.
 - [ ] **5 leis do CEO da Nvidia sobre energia** — Eduardo entrega o spec; vai alimentar seção Energy da wiki/philosophy (parte do energy thesis build). Owner: Eduardo. (2026-04-29)
 - [ ] **Lista sistemática de leitura macro (G5)** — 13D/WILTW perdido. Eduardo define replacement; passa lista completa de fontes pro sistema de agentes. Afeta macro overlay do livro inteiro. P1. (2026-04-29)
@@ -53,7 +54,7 @@
 - [ ] `export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` — setar quando for ativar agent teams.
 - [ ] **Obsidian vault setup — Karpathy LLM Wiki pattern** (precondição "4+ entradas em philosophy" descartada em 2026-04-28; iniciado):
   - [x] Repo-side plumbing (2026-04-28): `IncrementumOS/raw/` criado com `articles/`, `papers/`, `data/`; `wiki/index.md` (content-oriented) e `wiki/log.md` (append-only) criados; `governance/CLAUDE.md` atualizado com seção **Operations** (Ingest / Query / Lint), citando o gist literal do Karpathy.
-  - [ ] Vault `incrementum HQ` (criado fora do OneDrive na Dell em 2026-04-28): apontar Obsidian, criar symlink pra `IncrementumOS/`, instalar **Obsidian Web Clipper** (extensão Chrome), smoke test. Passo a passo for dummies em HTML separado; roadmap detalhado em `~/.claude/plans/o-que-voc-sugeriria-squishy-wilkes.md` Fase 2.
+  - [ ] Vault `incrementum HQ` (criado fora do OneDrive na Dell em 2026-04-28): symlink ✓, plugins ✓. Pendente: (a) deletar `Welcome.md` manualmente (`Remove-Item "C:\Incrementum HQ\Welcome.md" -Force`); (b) deletar dirs legacy vazios `wiki/philosophy/` e `wiki/teses/` via git rm + commit em branch `chore/obsidian-cleanup`; (c) instalar Web Clipper Chrome; (d) smoke test. Codex bloqueado por permissão de sandbox — Eduardo executa direto no terminal.
   - [ ] Mac mirror (Fase 3): Obsidian + symlink + Web Clipper.
   - [ ] Avaliar **Obsidian Sync** (pago) — DEFER. Compra só se aparecer dor real (iOS, conflito de config, history).
   - [ ] Avaliar **MCP server** (`obsidian-claude-code-mcp` ou `obsidian-mcp-tools`) — DEFER. Risco de read/write/delete unrestricted no vault sem backup robusto.
