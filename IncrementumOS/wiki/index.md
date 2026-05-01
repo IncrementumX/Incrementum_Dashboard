@@ -30,7 +30,7 @@ Coverage and thesis per asset/sector. Flat — one file per asset.
 
 - [gold.md](assets/gold.md) — *(stub)* gold thesis and coverage.
 - [silver.md](assets/silver.md) — *(stub)* silver thesis and coverage.
-- [copper.md](assets/copper.md) — *(stub)* copper thesis and coverage.
+- [copper.md](assets/copper.md) — copper as industrial backbone of energy transition: structural deficit, China demand, supply inelasticity; honest stub — Eduardo's conviction at building tier.
 - [uranium.md](assets/uranium.md) — *(stub)* uranium thesis and coverage.
 - [energy-tech.md](assets/energy-tech.md) — *(stub)* energy and tech thesis and coverage.
 - [semis.md](assets/semis.md) — *(stub)* semis thesis and coverage.
