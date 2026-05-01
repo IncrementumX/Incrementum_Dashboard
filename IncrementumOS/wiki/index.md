@@ -33,7 +33,7 @@ Coverage and thesis per asset/sector. Flat — one file per asset.
 - [copper.md](assets/copper.md) — *(stub)* copper thesis and coverage.
 - [uranium.md](assets/uranium.md) — uranium supply-structural deficit: 175 Mlb demand vs ~150 Mlb production, 440+ reactors, 40% enrichment in Russia, contracting cycle, Eduardo's re-entry framework.
 - [energy-tech.md](assets/energy-tech.md) — *(stub)* energy and tech thesis and coverage.
-- [semis.md](assets/semis.md) — *(stub)* semis thesis and coverage.
+- [semis.md](assets/semis.md) — AI infrastructure bet: memory as binding constraint, HBM cycle, BESI positioning, Citrini thesis; note: Eduardo's first-person thesis is a known open item.
 
 ## portfolio/decisions/
 
