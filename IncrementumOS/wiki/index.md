@@ -29,7 +29,7 @@ Time-sensitive macro analyses with a clear macroeconomic driver.
 Coverage and thesis per asset/sector. Flat — one file per asset.
 
 - [gold.md](assets/gold.md) — *(stub)* gold thesis and coverage.
-- [silver.md](assets/silver.md) — *(stub)* silver thesis and coverage.
+- [silver.md](assets/silver.md) — silver dual monetary+industrial role: GSR mean-reversion (88x → 60x avg), China strategic designation (2026-01-01), 800 Moz cumulative deficit, EV/solar demand acceleration.
 - [copper.md](assets/copper.md) — *(stub)* copper thesis and coverage.
 - [uranium.md](assets/uranium.md) — *(stub)* uranium thesis and coverage.
 - [energy-tech.md](assets/energy-tech.md) — *(stub)* energy and tech thesis and coverage.
