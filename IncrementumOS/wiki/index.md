@@ -31,7 +31,7 @@ Coverage and thesis per asset/sector. Flat — one file per asset.
 - [gold.md](assets/gold.md) — *(stub)* gold thesis and coverage.
 - [silver.md](assets/silver.md) — *(stub)* silver thesis and coverage.
 - [copper.md](assets/copper.md) — *(stub)* copper thesis and coverage.
-- [uranium.md](assets/uranium.md) — *(stub)* uranium thesis and coverage.
+- [uranium.md](assets/uranium.md) — uranium supply-structural deficit: 175 Mlb demand vs ~150 Mlb production, 440+ reactors, 40% enrichment in Russia, contracting cycle, Eduardo's re-entry framework.
 - [energy-tech.md](assets/energy-tech.md) — *(stub)* energy and tech thesis and coverage.
 - [semis.md](assets/semis.md) — *(stub)* semis thesis and coverage.
 
