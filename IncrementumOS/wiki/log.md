@@ -58,3 +58,4 @@ Format:
 - promoted — `wiki/framework/portfolio-risk-limits.md` stub → v1 (tiered governance framework: Tier 1/2/3 by leverage state; high-beta noise vs. signal distinction; G2 gap formally acknowledged with deferred quantitative thresholds pending dashboard access)
 - promoted — `wiki/framework/sizing-rules.md` stub → v1 (5-tier sizing ladder: Watchlist/Seed/Small-asymmetric/Core/High-conviction; two entry logics: investigate-then-invest vs invest-then-investigate; explicit G4 upgrade criteria per tier; resolves G4)
 - promoted — `wiki/framework/short-criteria.md` stub → v1 (two required entry criteria: positive risk asymmetry + ex-ante stop; tactical vs. thesis short distinction; stop discipline; resolves G3)
+- promoted — `wiki/framework/entry-exit-checklist.md` stub → v1 (entry: thesis/sizing/macro/stop/correlation; exit: thesis invalidation/valuation/capital rotation; general rules: noise vs. signal, partial exits, re-entry as fresh decision)
