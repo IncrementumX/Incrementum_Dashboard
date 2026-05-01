@@ -28,7 +28,7 @@ Time-sensitive macro analyses with a clear macroeconomic driver.
 
 Coverage and thesis per asset/sector. Flat — one file per asset.
 
-- [gold.md](assets/gold.md) — *(stub)* gold thesis and coverage.
+- [gold.md](assets/gold.md) — gold as NPSOV: dollar debasement hedge, CB reserve accumulation (~1,000t/yr), Bessent revaluation mechanism, miner optionality, four macro scenarios.
 - [silver.md](assets/silver.md) — *(stub)* silver thesis and coverage.
 - [copper.md](assets/copper.md) — *(stub)* copper thesis and coverage.
 - [uranium.md](assets/uranium.md) — *(stub)* uranium thesis and coverage.
