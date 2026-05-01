@@ -55,3 +55,4 @@ Format:
 - promoted — `wiki/assets/semis.md` stub → v2 (AI infrastructure bet: memory as binding constraint, HBM cycle, BESI positioning, Citrini thesis)
 - promoted — `wiki/macro/worldview.md` stub → v3 (macro worldview: dollar system rupture, three core themes, falsifier conditions, Hormuz precedent, AI disruption)
 - updated — `wiki/index.md` (all six asset/macro entries updated from stubs to full one-line summaries)
+mac-test Fri May  1 12:55:14 -03 2026
