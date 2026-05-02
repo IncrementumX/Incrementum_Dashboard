@@ -78,6 +78,14 @@ Não duplicar lógica delas aqui — apenas referenciar.
 - Documento (Word/PPT) quando Eduardo confirmar formato.
 - Atualizar `../../work_queues/analysis.md` ao começar e terminar tasks longas.
 
+## Ao final de toda sessão
+
+Sempre — sem exceção — perguntar:
+
+> "Quer salvar um resumo desta sessão no Obsidian?"
+
+Se Eduardo confirmar: usar o Obsidian connector para criar `IncrementumOS/raw/conversations/YYYY-MM-DD-topico.md` com (i) data ISO, (ii) tópico, (iii) decisões capturadas, (iv) próximos passos.
+
 ## O que NÃO fazer
 
 - Não executar trades.
