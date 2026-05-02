@@ -11,10 +11,10 @@ This file is the **table of contents of the wiki**. Every page in `framework/`, 
 Investment principles, mental models, checklists, and operational rules.
 
 - [risk-first.md](framework/risk-first.md) — Eduardo's core risk framework: signal vs noise, cash as weapon, sizing = knowledge proxy, three themes, tactical toolkit, macro as primary filter. Known gaps: G1–G5.
-- [sizing-rules.md](framework/sizing-rules.md) — *(stub)* position sizing rules and thresholds (G4).
-- [short-criteria.md](framework/short-criteria.md) — *(stub)* short entry codification (G3).
-- [portfolio-risk-limits.md](framework/portfolio-risk-limits.md) — *(stub)* portfolio-level loss limits and drawdown thresholds (G2 — critical gap).
-- [entry-exit-checklist.md](framework/entry-exit-checklist.md) — *(stub)* entry and exit checklist.
+- [sizing-rules.md](framework/sizing-rules.md) — 5-tier sizing ladder (Watchlist→High-conviction); two entry logics; explicit G4 upgrade criteria per tier.
+- [short-criteria.md](framework/short-criteria.md) — two required entry criteria (positive risk asymmetry + ex-ante stop); tactical vs. thesis short distinction; stop discipline.
+- [portfolio-risk-limits.md](framework/portfolio-risk-limits.md) — tiered governance framework (Tier 1/2/3 by leverage state); high-beta noise vs. signal distinction; G2 gap: rolling 30-day drawdown threshold TBD.
+- [entry-exit-checklist.md](framework/entry-exit-checklist.md) — entry: thesis/sizing/macro/stop/correlation; exit: thesis invalidation/valuation/capital rotation; noise vs. signal, partial exits, re-entry as fresh decision.
 - [signals-registry.md](framework/signals-registry.md) — *(stub)* registry of tracked market signals.
 
 ## macro/

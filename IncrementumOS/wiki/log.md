@@ -59,3 +59,9 @@ Format:
 - promoted — `wiki/framework/sizing-rules.md` stub → v1 (5-tier sizing ladder: Watchlist/Seed/Small-asymmetric/Core/High-conviction; two entry logics: investigate-then-invest vs invest-then-investigate; explicit G4 upgrade criteria per tier; resolves G4)
 - promoted — `wiki/framework/short-criteria.md` stub → v1 (two required entry criteria: positive risk asymmetry + ex-ante stop; tactical vs. thesis short distinction; stop discipline; resolves G3)
 - promoted — `wiki/framework/entry-exit-checklist.md` stub → v1 (entry: thesis/sizing/macro/stop/correlation; exit: thesis invalidation/valuation/capital rotation; general rules: noise vs. signal, partial exits, re-entry as fresh decision)
+
+## 2026-05-02
+
+- completed — Obsidian MCP Fase 3: mcp-proxy + Tailscale Funnel + Dell global scope; end-to-end write path Dell → Mac → Obsidian vault verified
+- fixed — Obsidian Local REST API: enabled HTTP server (port 27123); previously only HTTPS (27124) was active, blocking mcp-obsidian
+- configured — cron @reboot persistence on Mac (`~/mcpstart`); replaces failed launchd approach (bootstrap error 5: EIO)
