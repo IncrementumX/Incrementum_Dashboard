@@ -26,7 +26,7 @@
 
 ## Briefing
 
-- [ ] **Login nos sites paywalled** no Mac 24/7 (Chrome) — Valor, Estadão, Brazil Journal, Pipeline, NeoFeed, WSJ, Barron's. Cobre leitura humana; automação requer Valyu/Perplexity/FMP.
+- [x] **Login nos sites paywalled** — Valor, Estadão, Brazil Journal, Pipeline, NeoFeed, WSJ, Barron's. Logado no Mac e na Dell. (2026-05-03)
 - [ ] **Implementar nova spec (BuildContext v8 §7)** na skill `incrementum-briefing` que vive no Claude app de Eduardo.
 
 ## Dashboard (escopo separado, branch separada)
@@ -43,6 +43,8 @@
 
 - [ ] Plugins e conectores: Valyu, Perplexity, FMP — quais entram em V1.5 (próxima conversa).
 - [ ] Scout: revisitar após V1 estável.
+- [ ] **IBKR auto-pull via Flex Query (Piece C)** — Eduardo cria Flex Query no IBKR Client Portal + gera token. Depois Claude Code constrói o script de pull automático. Bloqueado em Eduardo. (2026-05-02)
+- [ ] **Resumo de sessão → Obsidian** — agentes gravam `IncrementumOS/raw/conversations/YYYY-MM-DD-topico.md` ao final de cada sessão (parcialmente resolvido por Piece D: regra no SKILL.md de analista e associate). Validar na prática após primeiras sessões com skills atualizadas. (2026-05-02)
 
 ## Futuro (deixar pra depois)
 
@@ -54,8 +56,8 @@
 - [ ] `export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` — setar quando for ativar agent teams.
 - [ ] **Obsidian vault setup — Karpathy LLM Wiki pattern** (precondição "4+ entradas em philosophy" descartada em 2026-04-28; iniciado):
   - [x] Repo-side plumbing (2026-04-28): `IncrementumOS/raw/` criado com `articles/`, `papers/`, `data/`; `wiki/index.md` (content-oriented) e `wiki/log.md` (append-only) criados; `governance/CLAUDE.md` atualizado com seção **Operations** (Ingest / Query / Lint), citando o gist literal do Karpathy.
-  - [ ] Vault `incrementum HQ` (criado fora do OneDrive na Dell em 2026-04-28): symlink ✓, plugins ✓. Pendente: (a) deletar `Welcome.md` manualmente (`Remove-Item "C:\Incrementum HQ\Welcome.md" -Force`); (b) deletar dirs legacy vazios `wiki/philosophy/` e `wiki/teses/` via git rm + commit em branch `chore/obsidian-cleanup`; (c) instalar Web Clipper Chrome; (d) smoke test. Codex bloqueado por permissão de sandbox — Eduardo executa direto no terminal.
-  - [ ] Mac mirror (Fase 3): Obsidian + symlink + Web Clipper.
+  - [~] Vault `incrementum HQ` (criado fora do OneDrive na Dell em 2026-04-28): symlink ✓, plugins ✓, Welcome.md deletado ✓, dirs legacy removidos via PR #21 ✓, Web Clipper Chrome instalado ✓. Pendente: (d) smoke test completo.
+  - [x] Mac mirror (Fase 3): Obsidian connector ativo via Tailscale Funnel (2026-05-02). Claude.ai tem acesso read/write ao vault.
   - [ ] Avaliar **Obsidian Sync** (pago) — DEFER. Compra só se aparecer dor real (iOS, conflito de config, history).
   - [ ] Avaliar **MCP server** (`obsidian-claude-code-mcp` ou `obsidian-mcp-tools`) — DEFER. Risco de read/write/delete unrestricted no vault sem backup robusto.
 
