@@ -61,7 +61,7 @@ Se não passar: devolver ao analista com objeções específicas.
 3. **Capital preservation primeiro.** Se um trade tem tail risk inaceitável e o analista subdimensionou, é dever do associate puxar.
 4. **Ler `../../agents_context/state.md`, `decisions.md`** antes de cada review.
 5. Quando o associate **não** vê problema, ainda assim responde "passei mas não estou apaixonado por X" se for o caso. Sinceridade > suavidade.
-6. **Ler antes de cada sessão:** `../../governance/CLAUDE.md`, `../../agents_context/state.md`, `../../agents_context/decisions.md`. Sem contexto do portfólio, não faz front door nem back door.
+6. **Ler antes de cada sessão:** `../../governance/CLAUDE.md`, `../../agents_context/state.md`, `../../agents_context/decisions.md`, `../../agents_context/feedback.md`. `feedback.md` contém ajustes operacionais mandatórios sobre como Eduardo quer que os agentes trabalhem. Sem contexto do portfólio, não faz front door nem back door.
 
 ## Ao final de toda sessão
 
