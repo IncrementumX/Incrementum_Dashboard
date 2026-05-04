@@ -4,13 +4,13 @@ const process = require('node:process');
 const SCRAPE_TIMEOUT_MS = 15000;
 
 const SITES = {
-  valor:       { name: 'Valor Econômico',  url: 'https://valor.globo.com',             selectors: ['h2 a','h3 a','.feed-post-link','.bastian-feed-item h2 a'] },
-  estadao:     { name: 'Estadão',           url: 'https://www.estadao.com.br',          selectors: ['h2 a','h3 a','.headline a','article h2 a'] },
-  braziljournal:{ name: 'Brazil Journal',  url: 'https://braziljournal.com',            selectors: ['h2 a','h3 a','.post-title a','article h2 a'] },
-  pipeline:    { name: 'Pipeline',          url: 'https://braziljournal.com/pipeline',  selectors: ['h2 a','h3 a','.post-title a','article h2 a'] },
-  neofeed:     { name: 'NeoFeed',           url: 'https://neofeed.com.br',             selectors: ['h2 a','h3 a','.entry-title a','article h2 a'] },
-  wsj:         { name: 'WSJ',              url: 'https://www.wsj.com',                 selectors: ['h2 a','h3 a','[class*="headline"] a','article h2 a'] },
-  barrons:     { name: "Barron's",        url: 'https://www.barrons.com',             selectors: ['h2 a','h3 a','[class*="headline"] a','article h2 a'] }
+  valor:        { name: 'Valor Econômico', url: 'https://valor.globo.com',            domain: 'valor.globo.com',      selectors: ['.feed-post-link','h3.feed-post-title a','.bastian-feed-item h2 a','h2 a','h3 a'] },
+  estadao:      { name: 'Estadão',         url: 'https://www.estadao.com.br',         domain: 'estadao.com.br',       selectors: ['article h2 a','article h3 a','.headline a','h2 a','h3 a'] },
+  braziljournal:{ name: 'Brazil Journal',  url: 'https://braziljournal.com',          domain: 'braziljournal.com',    selectors: ['article h2 a','.post-title a','h2 a','h3 a'] },
+  pipeline:     { name: 'Pipeline',        url: 'https://braziljournal.com/pipeline', domain: 'braziljournal.com',    selectors: ['article h2 a','.post-title a','h2 a','h3 a'] },
+  neofeed:      { name: 'NeoFeed',         url: 'https://neofeed.com.br',             domain: 'neofeed.com.br',       selectors: ['a[href*="/negocios/"]','a[href*="/mercado/"]','a[href*="/wealth"]','a[href*="/experts/"]','a[href*="/tech/"]','h2 a','h3 a'] },
+  wsj:          { name: 'WSJ',             url: 'https://www.wsj.com',                domain: 'wsj.com',              selectors: ['[class*="headline"] a','article h2 a','h2 a','h3 a'] },
+  barrons:      { name: "Barron's",        url: 'https://www.barrons.com',            domain: 'barrons.com',          selectors: ['[class*="headline"] a','article h2 a','h2 a','h3 a'] }
 };
 
 function failureResult(site, config, error) {
@@ -58,13 +58,14 @@ async function extractHeadlines(page, selector, baseUrl) {
     }));
   });
 
+  const config = Object.values(SITES).find(s => s.url === baseUrl || baseUrl.startsWith(s.url)) || {};
+  const domain = config.domain || '';
+
   return rawHeadlines
-    .filter((headline) => headline.title)
-    .slice(0, 5)
-    .map((headline) => ({
-      title: headline.title,
-      url: resolveHeadlineUrl(headline.href, baseUrl)
-    }));
+    .filter((h) => h.title && h.title.length > 15)
+    .map((h) => ({ title: h.title, url: resolveHeadlineUrl(h.href, baseUrl) }))
+    .filter((h) => !domain || h.url.includes(domain))
+    .slice(0, 5);
 }
 
 async function scrapeSite(site) {
