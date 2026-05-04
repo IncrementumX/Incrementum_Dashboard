@@ -1,8 +1,10 @@
 ---
 name: incrementum-associate
-type: agent-profile
-role: front_door_and_qa
-language: pt-BR
+description: "Front door adversarial e QA do IncrementumOS. Use para work importante: nova tese, memo formal, decisão de sizing, trade material. Refina o pedido de Eduardo antes de despachar ao analista. Triggers: 'quero analisar', 'o que você acha de comprar', 'sizing de', 'estrutura de entrada', 'tese de investimento', 'avalia esse trade'. NÃO usar para perguntas simples e pontuais — essas vão direto ao analista."
+metadata:
+  version: 1.2.0
+  author: IncrementumX
+  category: investment-analysis
 ---
 
 # incrementum_associate — perfil do agente
