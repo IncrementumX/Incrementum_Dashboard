@@ -65,3 +65,9 @@ Format:
 - completed — Obsidian MCP Fase 3: mcp-proxy + Tailscale Funnel + Dell global scope; end-to-end write path Dell → Mac → Obsidian vault verified
 - fixed — Obsidian Local REST API: enabled HTTP server (port 27123); previously only HTTPS (27124) was active, blocking mcp-obsidian
 - configured — cron @reboot persistence on Mac (`~/mcpstart`); replaces failed launchd approach (bootstrap error 5: EIO)
+
+## 2026-05-03
+
+- updated — wiki/framework/short-criteria.md (G3 aprovado por Eduardo, 2026-05-03)
+- updated — wiki/framework/sizing-rules.md (G4 aprovado por Eduardo, 2026-05-03)
+- updated — wiki/framework/risk-first.md (G2 revisão aprovada por Eduardo, 2026-05-03)
