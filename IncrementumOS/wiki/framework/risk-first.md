@@ -2,7 +2,7 @@
 
 > Philosophy page — Eduardo's core investment risk framework.
 > Synthesized from @incrementum-associate session, 2026-04-27/29.
-> Status: v1.1 — approved by Eduardo on 2026-04-29.
+> Status: draft v1.1 — pending Eduardo approval on [DATE].
 
 ## 1. Volatility ≠ Permanent Capital Loss
 
