@@ -60,7 +60,13 @@ async function requestFlexReport() {
     console.log(`SendRequest returned status ${status}; continuing because a reference code was provided.`);
   }
 
-  return { referenceCode, url: reportUrl };
+  // IBKR sometimes returns gdcdyn.interactivebrokers.com which doesn't resolve.
+  // Force the known-good hostname.
+  const fixedUrl = reportUrl.replace(
+    /^https?:\/\/[^/]+/,
+    'https://ndcdyn.interactivebrokers.com'
+  );
+  return { referenceCode, url: fixedUrl };
 }
 
 async function downloadReadyReport(reportUrl, referenceCode) {
