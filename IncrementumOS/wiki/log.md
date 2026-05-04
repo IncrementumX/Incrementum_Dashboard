@@ -65,3 +65,7 @@ Format:
 - completed — Obsidian MCP Fase 3: mcp-proxy + Tailscale Funnel + Dell global scope; end-to-end write path Dell → Mac → Obsidian vault verified
 - fixed — Obsidian Local REST API: enabled HTTP server (port 27123); previously only HTTPS (27124) was active, blocking mcp-obsidian
 - configured — cron @reboot persistence on Mac (`~/mcpstart`); replaces failed launchd approach (bootstrap error 5: EIO)
+- ingested — `raw/articles/nvidia-ai-5-layer-cake-jensen-huang.md` → `wiki/assets/nvidia.md` (new; NVDA structural thesis via Jensen Huang 5-layer stack; demand-leg primary source for semis thesis)
+- ingested — `raw/articles/nvidia-ai-5-layer-cake-jensen-huang.md` → `wiki/macro/ai-infrastructure-buildout.md` (new; cross-sector macro theme: "largest infrastructure buildout in human history"; 5-layer stack as investable framework; nation-state adoption; connection to copper/uranium/semis)
+- updated — `wiki/assets/semis.md` (added §Demand-Leg Primary Source — Jensen Huang 5-Layer Framework; primary-source grounding for demand-leg assumption; cross-reference to new nvidia.md and ai-infrastructure-buildout.md)
+- updated — `wiki/index.md` (added nvidia.md to assets/ section; added ai-infrastructure-buildout.md to macro/ section)

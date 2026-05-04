@@ -198,3 +198,21 @@ AI demand for electricity (data center power) is covered by the energy/worldview
 5. **ASML — when does watchlist convert to position?** — ASML is the most defensive and widely recognized name in the semis equipment universe (EUV monopoly, geopolitical moat). The knowledge gap is understanding ASML's specific exposure to the HBM4E vs. leading-edge logic cycles, and whether the entry timing is better before or after the SK Hynix/Micron hybrid bonding confirmation. Not actionable until knowledge level moves from "early" to "partial."
 
 6. **Exit framework for a timing-call thesis** — The thesis is explicitly a timing call (window before glut). Implementation has entry rationale and sizing rules, but exit logic beyond the leading-indicator exit signal (OEM capex reversal) is underdeveloped. A timing call needs anticipatory exit criteria beyond price stops — what does "the window is closing" look like in observable signals 6-12 months before the glut manifests?
+
+---
+
+## Demand-Leg Primary Source — Jensen Huang 5-Layer Framework
+
+[NVIDIA Blog, Jensen Huang, 2026-03-10] provides a primary-source articulation of the demand leg from the principal beneficiary of the buildout. The AI stack resolves into five integrated layers: Energy → Chips → Infrastructure → Models → Applications. Chips (Layer 2) are defined as "processors engineered to convert energy into large-scale computation efficiently." Infrastructure (Layer 3) is the "AI factory" concept — tens of thousands of processors orchestrated into unified machines requiring land, power, cooling, and networking.
+
+Key claims from this source:
+
+- "The largest infrastructure buildout in human history." Billions invested to date; trillions remain necessary. [NVIDIA Blog, 2026-03-10]
+- Within the past year, models "achieved practical utility at scale" — reasoning improved, hallucinations decreased, grounding enhanced. Applications in drug discovery, logistics, customer service, software development, and manufacturing "demonstrate genuine product-market fit." [NVIDIA Blog, 2026-03-10]
+- Open-source models (DeepSeek-R1 cited) accelerate adoption across all infrastructure layers — counterintuitively increasing hardware demand rather than reducing it. [NVIDIA Blog, 2026-03-10]
+
+**Implication for this page:** The Jensen Huang framing provides primary-source grounding for the demand-leg assumption (continued AI compute scaling). It does not resolve the timing uncertainty (2027 glut risk — see Risks §Memory Cycle Glut) or the AI deflation cascade risk (see Risks §AI Deflation Cascade). The demand-leg is structurally articulated; the investable question remains whether the hybrid bonding transition monetizes within the window before conventional cyclical behavior reasserts.
+
+**Source limitation:** Jensen Huang is the CEO of the company most directly benefiting from the buildout narrative. This is primary evidence of how NVIDIA frames the opportunity — not independent macro analysis. Weight accordingly.
+
+Cross-reference: `macro/ai-infrastructure-buildout.md` for cross-sector macro implications; `assets/nvidia.md` for NVDA-specific thesis framing.
