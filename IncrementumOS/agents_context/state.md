@@ -1,36 +1,34 @@
 # Portfolio State — IncrementumOS
 
-> Fonte canônica: Dashboard do projeto em `src/`
-> (live em `https://incrementumx.github.io/Incrementum_Dashboard/`).
-> Agentes leem daqui o estado atual do portfólio — posições, exposição, hedges.
+> Gerado por `tools/export-state.js` em 2026-05-04 13:43 (local)
+> Fonte canônica: Supabase (Incrementum Dashboard)
 
 ## Última atualização
+`2026-05-01`
 
-`2026-04-25` — placeholder.
+## NAV e Exposição
+- **NAV:** US$ 45,886
+- **Caixa:** US$ 13,631 (29.7% NAV)
+- **Exposição bruta long:** US$ 32,242 (70.3% NAV)
+- **Exposição líquida:** US$ 32,242 (70.3% NAV)
 
-## Posições (formato proposto)
+## Posições Abertas
 
-| Ticker | Tipo | Direção | Tamanho (% NAV) | Tese curta | Catalisador | Stop / invalidação |
-|---|---|---|---|---|---|---|
-| _placeholder_ | equity / opção / crédito | long / short / hedge | _% | _ | _ | _ |
+| Ticker | Direção | Qtd | Custo médio | MV | % NAV | P&L não-realizado |
+|--------|---------|-----|-------------|-----|-------|-------------------|
+| RING | Long | 150 | US$ 75 | US$ 11,324 | 24.7% | US$ 45 |
+| URNM | Long | 100 | US$ 65 | US$ 6,713 | 14.6% | US$ 215 |
+| MU | Long | 8 | US$ 461 | US$ 4,338 | 9.5% | US$ 651 |
+| OIH | Long | 9 | US$ 377 | US$ 4,003 | 8.7% | US$ 609 |
+| ENR | Long | 10 | US$ 206 | US$ 2,117 | 4.6% | US$ 59 |
+| BESI | Long | 6 | US$ 282 | US$ 1,738 | 3.8% | US$ 46 |
+| IVN | Long | 120 | US$ 8 | US$ 955 | 2.1% | US$ -5 |
+| HY9H | Long | 1 | US$ 611 | US$ 891 | 1.9% | US$ 280 |
+| IBKR | Long | 2.0421 | US$ 63 | US$ 164 | 0.4% | US$ 35 |
 
-## Caixa e exposição bruta
-
-- **NAV:** _placeholder_
-- **Caixa:** _% NAV
-- **Exposição bruta long:** _% NAV
-- **Exposição bruta short:** _% NAV
-- **Exposição líquida:** _% NAV
-- **Beta líquido (estimado):** _
-
-## Hedges ativos
-
-| Instrumento | Notional | Vencimento | Cobre | Custo carry |
-|---|---|---|---|---|
-| _placeholder_ | _ | _ | _ | _ |
+## P&L Realizado (período)
+- **Total realizado:** US$ 4,870
 
 ## Notas
-
-- Schema acima é proposto, não final. Eduardo ajusta conforme uso real.
-- Quando popular: usar valores absolutos quando possível, % quando relativo importar mais.
-- Shorts e puts entram como linhas separadas, não consolidadas com long da mesma name.
+- Shorts e puts entram como linhas separadas
+- Datas no formato ISO YYYY-MM-DD
