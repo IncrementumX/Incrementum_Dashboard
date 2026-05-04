@@ -5,7 +5,7 @@ const SCRAPE_TIMEOUT_MS = 15000;
 
 const SITES = {
   valor:        { name: 'Valor Econômico', url: 'https://valor.globo.com',            domain: 'valor.globo.com',      selectors: ['.feed-post-link','h3.feed-post-title a','.bastian-feed-item h2 a','h2 a','h3 a'] },
-  estadao:      { name: 'Estadão',         url: 'https://www.estadao.com.br',         domain: 'estadao.com.br',       selectors: ['article h2 a','article h3 a','.headline a','h2 a','h3 a'] },
+  estadao:      { name: 'Estadão',         url: 'https://www.estadao.com.br',         domain: 'estadao.com.br',       selectors: ['a[href*="estadao.com.br/economia"]','a[href*="estadao.com.br/politica"]','a[href*="estadao.com.br/negocios"]','article h2 a','h2 a'] },
   braziljournal:{ name: 'Brazil Journal',  url: 'https://braziljournal.com',          domain: 'braziljournal.com',    selectors: ['article h2 a','.post-title a','h2 a','h3 a'] },
   pipeline:     { name: 'Pipeline',        url: 'https://braziljournal.com/pipeline', domain: 'braziljournal.com',    selectors: ['article h2 a','.post-title a','h2 a','h3 a'] },
   neofeed:      { name: 'NeoFeed',         url: 'https://neofeed.com.br',             domain: 'neofeed.com.br',       selectors: ['a[href*="/negocios/"]','a[href*="/mercado/"]','a[href*="/wealth"]','a[href*="/experts/"]','a[href*="/tech/"]','h2 a','h3 a'] },
