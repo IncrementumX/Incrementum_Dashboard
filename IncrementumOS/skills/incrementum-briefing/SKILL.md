@@ -48,8 +48,36 @@ Leituras relevantes com link clicável. Curto — máx 3 itens.
 - Datas absolutas ISO (YYYY-MM-DD).
 - Sumário orientado a impacto no portfólio — não jornalístico.
 
+## Output
+
+Salvar o briefing em: `Briefings/YYYY-MM-DD.md` no vault Obsidian via Obsidian connector.
+Formato do filename: data ISO do dia do briefing.
+
+## Scraping de sites paywalled
+
+Usar Playwright CLI via Bash com o perfil do Chrome do Mac (sessões já logadas):
+```bash
+node -e "
+const { chromium } = require('playwright');
+(async () => {
+  const browser = await chromium.launchPersistentContext(
+    process.env.HOME + '/Library/Application Support/Google/Chrome',
+    { headless: true, channel: 'chrome' }
+  );
+  const page = await browser.newPage();
+  await page.goto('https://valor.globo.com');
+  const content = await page.content();
+  console.log(content);
+  await browser.close();
+})();
+"
+```
+
+Fazer o mesmo para cada site paywalled. Extrair headlines e links do HTML retornado.
+
 ## Setup operacional
 
-- Dell Chrome: logado em Valor, Estadão, Brazil Journal, Pipeline, NeoFeed (2026-05-03)
-- Mac 24/7: mesmo login ativo
-- Para automação futura de paywalled: Perplexity connector (decisão V1.5 pendente)
+- Mac Chrome: logado em Valor, Estadão, Brazil Journal, Pipeline, NeoFeed
+- Cron no Mac: 10h BRT (13h UTC) todo dia útil
+- Playwright CLI: disponível no Mac via `npx playwright`
+- Para automação futura de paywalled via API: Perplexity connector (decisão V1.5 pendente)
