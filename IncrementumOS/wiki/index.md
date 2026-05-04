@@ -23,6 +23,7 @@ Time-sensitive macro analyses with a clear macroeconomic driver.
 
 - [gold-liquidity-vs-repricing.md](macro/gold-liquidity-vs-repricing.md) — gold's 2026 drawdown as dollar liquidity event (not thesis failure): mechanism, COVID analog, signals to watch, sizing implication.
 - [worldview.md](macro/worldview.md) — macro worldview: dollar system rupture, three core themes (metals/commodities, geopolitics, AI disruption), falsifier conditions, Hormuz precedent, Eduardo's investment lens.
+- [ai-infrastructure-buildout.md](macro/ai-infrastructure-buildout.md) — AI buildout as cross-sector macro theme: 5-layer stack (energy/chips/infra/models/apps), trillions of capex remaining, nation-state adoption, connection to Eduardo's commodity and uranium themes.
 
 ## assets/
 
@@ -34,6 +35,7 @@ Coverage and thesis per asset/sector. Flat — one file per asset.
 - [uranium.md](assets/uranium.md) — uranium supply-structural deficit: 175 Mlb demand vs ~150 Mlb production, 440+ reactors, 40% enrichment in Russia, contracting cycle, Eduardo's re-entry framework.
 - [energy-tech.md](assets/energy-tech.md) — *(stub)* energy and tech thesis and coverage.
 - [semis.md](assets/semis.md) — AI infrastructure bet: memory as binding constraint, HBM cycle, BESI positioning, Citrini thesis; note: Eduardo's first-person thesis is a known open item.
+- [nvidia.md](assets/nvidia.md) — NVDA structural thesis via Jensen Huang 5-layer stack; not Eduardo's primary expression (consensus positioning); cross-reference for demand-leg context in semis thesis.
 
 ## portfolio/decisions/
 
