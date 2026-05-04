@@ -1,83 +1,135 @@
 ---
 name: incrementum-briefing
-type: skill-stub
-canonical_location: Claude app de Eduardo (não local)
-language: pt-BR
+description: "Gera o briefing diário do Incrementum. Use quando Eduardo pede 'rode o briefing de hoje', 'briefing', 'o que aconteceu hoje', ou quando invocado via cron. Scrapa 7 sites financeiros (Valor, Estadão, Brazil Journal, Pipeline, NeoFeed, WSJ, Barron's), filtra por relevância ao portfólio, e salva em Briefings/YYYY-MM-DD.md no Obsidian."
+metadata:
+  version: 2.0.0
+  author: IncrementumX
+  category: briefing
 ---
 
-# incrementum-briefing — stub local
+# incrementum-briefing
 
-> A skill executável vive no **Claude app** de Eduardo. Este arquivo é o **contrato** local que descreve o output esperado, para os agentes do IncrementumOS saberem o que pedir e o que esperar de volta.
+## Workflow completo
 
-## Spec (BuildContext v8 §7 — rev. 2026-05-03)
+### Step 1 — Data e contexto do portfólio
 
-### 1. Sumário do dia
+```bash
+date +%Y-%m-%d
+```
 
-2–3 linhas. Foco em **impacto no portfólio** — não dump de notícias. O que mudou que Eduardo precisa saber antes de abrir o mercado?
+Ler `IncrementumOS/agents_context/state.md` para saber quais ativos/temas estão no portfólio.
 
-### 2. Sessão (i) — por site, separado
+### Step 2 — Scraping dos sites
 
-Cada fonte tem seu próprio bloco. Não agrupar fontes. Para cada site:
+```bash
+cd IncrementumOS/skills/incrementum-briefing
+node scripts/scrape.js all
+```
 
-- **Valor Econômico** — top 2 headlines com link clicável
-- **Estadão** — top 2 headlines com link clicável
-- **Brazil Journal** — top 2 headlines com link clicável
-- **Pipeline** — top 2 headlines com link clicável
-- **NeoFeed** — top 2 headlines com link clicável
-- **WSJ** — top 2 headlines com link clicável
-- **Barron's** — top 2 headlines com link clicável
+O script retorna JSON com headlines + URLs de todos os 7 sites. Se um site falhar, continua — não trava.
 
-Se paywalled e sem acesso: dizer explicitamente — não inventar headline, não usar conteúdo de 48h atrás como se fosse hoje.
+### Step 3 — Web search para macro e mercado
 
-### 3. Sessão (ii) — por tema/ativo do portfólio
+Para cada tema do portfólio em `state.md`, fazer web search por novidades do dia:
+- `gold price today site:reuters.com OR site:bloomberg.com`
+- `uranium market today`
+- `BESI semiconductor news today`
+- `MU Micron news today`
+- Fed/macro: `FOMC rates today`
 
-- Lê `../../agents_context/state.md` para saber o que é "do portfólio".
-- Formato: "**[Ativo/Tema]:** [fato relevante]. *Relevante para [tese] porque [razão].*"
-- **Máx 1 item por tema.**
-- Não repete o que (i) já cobre.
-- Quando o item toca diretamente uma posição aberta: adicionar flag **[AÇÃO SUGERIDA: revisar/add/trim/monitor]** com uma linha de racional.
+### Step 4 — Montar o briefing
 
-### 4. Sugestões adicionais
+Formato obrigatório:
 
-Leituras relevantes com link clicável. Curto — máx 3 itens.
+```markdown
+# Incrementum — Briefing YYYY-MM-DD
+
+## Sumário do dia
+
+[2-3 linhas focadas em impacto no portfólio — o que mudou que Eduardo precisa saber?]
+
+---
+
+## (i) Fontes
+
+### Valor Econômico
+- [Título do headline](URL)
+- [Título do headline](URL)
+
+### Estadão
+- [Título do headline](URL)
+- [Título do headline](URL)
+
+### Brazil Journal
+- [Título do headline](URL)
+- [Título do headline](URL)
+
+### Pipeline
+- [Título do headline](URL)
+- [Título do headline](URL)
+
+### NeoFeed
+- [Título do headline](URL)
+- [Título do headline](URL)
+
+### WSJ
+- [Título do headline](URL)
+- [Título do headline](URL)
+
+### Barron's
+- [Título do headline](URL)
+- [Título do headline](URL)
+
+> Se site inacessível: declarar explicitamente. Nunca inventar headlines.
+
+---
+
+## (ii) Temas do portfólio
+
+**[Ativo/Tema]:** [fato relevante]. *Relevante para [tese] porque [razão].* [AÇÃO SUGERIDA: monitor/add/trim/revisar — opcional, só quando claro]
+
+[Máx 1 item por tema. Não repetir o que (i) já cobre.]
+
+---
+
+## Sugestões adicionais
+
+- [Leitura relevante](URL) — [por quê importa]
+
+---
+
+*Gerado em YYYY-MM-DD HH:MM via incrementum-briefing v2.0*
+```
+
+### Step 5 — Salvar no Obsidian
+
+Salvar o briefing em:
+- Caminho: `Briefings/YYYY-MM-DD.md` no vault Obsidian
+- Via Obsidian MCP connector (se disponível): usar `obsidian_patch_content` ou `obsidian_append_content`
+- Fallback: escrever diretamente no path do vault em disco
+
+### Step 6 — Confirmar para Eduardo
+
+Responder: "Briefing de YYYY-MM-DD salvo em Briefings/YYYY-MM-DD.md."
 
 ## Restrições
 
-- Links clicáveis em tudo.
-- Se paywalled sem acesso: declarar explicitamente. Nunca inventar.
-- Datas absolutas ISO (YYYY-MM-DD).
-- Sumário orientado a impacto no portfólio — não jornalístico.
+- Links clicáveis em tudo
+- Se site inacessível: declarar explicitamente, nunca inventar
+- Datas absolutas ISO
+- Sumário orientado a impacto no portfólio — não newsdesk genérico
+- Máx 1 item por tema na seção (ii)
 
-## Output
+## Setup (Mac 24/7)
 
-Salvar o briefing em: `Briefings/YYYY-MM-DD.md` no vault Obsidian via Obsidian connector.
-Formato do filename: data ISO do dia do briefing.
-
-## Scraping de sites paywalled
-
-Usar Playwright CLI via Bash com o perfil do Chrome do Mac (sessões já logadas):
+Instalar dependências uma vez:
 ```bash
-node -e "
-const { chromium } = require('playwright');
-(async () => {
-  const browser = await chromium.launchPersistentContext(
-    process.env.HOME + '/Library/Application Support/Google/Chrome',
-    { headless: true, channel: 'chrome' }
-  );
-  const page = await browser.newPage();
-  await page.goto('https://valor.globo.com');
-  const content = await page.content();
-  console.log(content);
-  await browser.close();
-})();
-"
+cd ~/Incrementum_Dashboard
+npm install playwright
+npx playwright install chromium
 ```
 
-Fazer o mesmo para cada site paywalled. Extrair headlines e links do HTML retornado.
-
-## Setup operacional
-
-- Mac Chrome: logado em Valor, Estadão, Brazil Journal, Pipeline, NeoFeed
-- Cron no Mac: 10h BRT (13h UTC) todo dia útil
-- Playwright CLI: disponível no Mac via `npx playwright`
-- Para automação futura de paywalled via API: Perplexity connector (decisão V1.5 pendente)
+Cron (10h BRT = 13h UTC):
+```
+0 13 * * 1-5 cd ~/Incrementum_Dashboard && git pull origin main --quiet && claude -p "rode o briefing de hoje" >> ~/briefing.log 2>&1
+```
