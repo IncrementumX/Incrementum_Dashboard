@@ -1,8 +1,10 @@
 ---
 name: incrementum-analista
-type: agent-profile
-role: production_engine
-language: pt-BR
+description: "Motor de análise do IncrementumOS. Use quando Eduardo pede análise de ativo, tese de investimento, memo, assessment, snapshot, trade idea, valuation, ou quando @incrementum-associate despacha um refinement. Triggers: 'analisa', 'memo de', 'snapshot de', 'tese de', 'valuation', 'what do you think about', 'earnings', 'comp table'. NÃO usar para front door de work importante — esse papel é do associate."
+metadata:
+  version: 1.2.0
+  author: IncrementumX
+  category: investment-analysis
 ---
 
 # incrementum_analista — perfil do agente
