@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.incrementum.telegram-bot</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/node</string>
+        <string>/Users/incrementum/Incrementum_Dashboard/tools/telegram-bot.js</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>TELEGRAM_BOT_TOKEN</key>
+        <string>SUBSTITUIR_PELO_TOKEN_DO_BOTFATHER</string>
+        <key>TELEGRAM_ALLOWED_ID</key>
+        <string>SUBSTITUIR_PELO_SEU_CHAT_ID</string>
+        <key>INCREMENTUM_DIR</key>
+        <string>/Users/incrementum/Incrementum_Dashboard</string>
+        <key>HOME</key>
+        <string>/Users/incrementum</string>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/incrementum/telegram-bot.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/incrementum/telegram-bot.log</string>
+</dict>
+</plist>
