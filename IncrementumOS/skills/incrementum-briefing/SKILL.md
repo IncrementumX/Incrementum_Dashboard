@@ -42,11 +42,15 @@ Para cada tema do portfólio em `state.md`, fazer web search por novidades do di
 Formato obrigatório:
 
 ```markdown
-# Incrementum — Briefing YYYY-MM-DD
+# Incrementum — Briefing DD-MM-YYYY
 
 ## Sumário do dia
 
-[2-3 linhas focadas em impacto no portfólio — o que mudou que Eduardo precisa saber?]
+[5-10 linhas. O que aconteceu no mundo hoje — macro, geopolítica, mercados, Brasil. Não filtrar por portfólio aqui — cobrir o que importa para qualquer investidor informado.]
+
+## Sumário do portfólio
+
+[5-10 linhas. O que do dia acima impacta diretamente o portfólio de Eduardo? Conectar os eventos do sumário do dia com as posições abertas e teses ativas. Ser específico — não genérico.]
 
 ---
 
@@ -98,7 +102,7 @@ Formato obrigatório:
 
 ---
 
-*Gerado em YYYY-MM-DD HH:MM via incrementum-briefing v2.0*
+*Gerado em DD-MM-YYYY HH:MM via incrementum-briefing v2.0*
 ```
 
 ### Step 5 — Salvar no Obsidian
@@ -120,16 +124,3 @@ Responder: "Briefing de YYYY-MM-DD salvo em Briefings/YYYY-MM-DD.md."
 - Sumário orientado a impacto no portfólio — não newsdesk genérico
 - Máx 1 item por tema na seção (ii)
 
-## Setup (Mac 24/7)
-
-Instalar dependências uma vez:
-```bash
-cd ~/Incrementum_Dashboard
-npm install playwright
-npx playwright install chromium
-```
-
-Cron (10h BRT = 13h UTC):
-```
-0 13 * * 1-5 cd ~/Incrementum_Dashboard && git pull origin main --quiet && claude -p "rode o briefing de hoje" >> ~/briefing.log 2>&1
-```
