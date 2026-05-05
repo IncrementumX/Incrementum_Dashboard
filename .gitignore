@@ -6,3 +6,4 @@ __pycache__/
 
 # Claude Code local settings (user-specific, do not commit)
 .claude/settings.local.json
+node_modules/\n.env\n*.log\n*.local
