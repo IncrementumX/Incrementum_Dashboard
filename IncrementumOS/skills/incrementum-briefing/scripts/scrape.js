@@ -1,4 +1,5 @@
 const { URL } = require('node:url');
+const https = require('node:https');
 const process = require('node:process');
 
 const SCRAPE_TIMEOUT_MS = 15000;
@@ -9,8 +10,8 @@ const SITES = {
   braziljournal:{ name: 'Brazil Journal',  url: 'https://braziljournal.com',          domain: 'braziljournal.com',    selectors: ['article h2 a','.post-title a','h2 a','h3 a'] },
   pipeline:     { name: 'Pipeline',        url: 'https://braziljournal.com/pipeline', domain: 'braziljournal.com',    selectors: ['article h2 a','.post-title a','h2 a','h3 a'] },
   neofeed:      { name: 'NeoFeed',         url: 'https://neofeed.com.br',             domain: 'neofeed.com.br',       selectors: ['a[href*="/negocios/"]','a[href*="/mercado/"]','a[href*="/wealth"]','a[href*="/experts/"]','a[href*="/tech/"]','h2 a','h3 a'] },
-  wsj:          { name: 'WSJ',             url: 'https://www.wsj.com',                domain: 'wsj.com',              selectors: ['[class*="headline"] a','article h2 a','h2 a','h3 a'] },
-  barrons:      { name: "Barron's",        url: 'https://www.barrons.com',            domain: 'barrons.com',          selectors: ['[class*="headline"] a','article h2 a','h2 a','h3 a'] }
+  wsj:          { name: 'WSJ',             rss: 'https://feeds.a.dj.com/rss/RSSMarketsMain.xml' },
+  barrons:      { name: "Barron's",        rss: 'https://feeds.a.dj.com/rss/RSSOpinion.xml' }
 };
 
 function failureResult(site, config, error) {
@@ -50,6 +51,39 @@ function getChromium() {
   return require('playwright').chromium;
 }
 
+function fetchRss(rssUrl) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('RSS timeout')), SCRAPE_TIMEOUT_MS);
+    https.get(rssUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        clearTimeout(timeout);
+        const items = [];
+        const regex = /<item>[\s\S]*?<title><!\[CDATA\[(.*?)\]\]><\/title>[\s\S]*?<link>(.*?)<\/link>[\s\S]*?<\/item>|<item>[\s\S]*?<title>(.*?)<\/title>[\s\S]*?<link>(.*?)<\/link>[\s\S]*?<\/item>/g;
+        let match;
+        while ((match = regex.exec(data)) !== null && items.length < 5) {
+          const title = (match[1] || match[3] || '').trim();
+          const url = (match[2] || match[4] || '').trim();
+          if (title && url && title.length > 10) items.push({ title, url });
+        }
+        resolve(items);
+      });
+    }).on('error', (e) => { clearTimeout(timeout); reject(e); });
+  });
+}
+
+async function scrapeRssSite(site) {
+  const config = SITES[site];
+  try {
+    const headlines = await fetchRss(config.rss);
+    return { site, name: config.name, url: config.rss, headlines, scrapedAt: new Date().toISOString() };
+  } catch (e) {
+    console.error(`[${site}] RSS error: ${e.message}`);
+    return failureResult(site, { name: config.name, url: config.rss }, e);
+  }
+}
+
 async function extractHeadlines(page, selector, baseUrl) {
   const rawHeadlines = await page.locator(selector).evaluateAll((elements) => {
     return elements.map((element) => ({
@@ -70,6 +104,7 @@ async function extractHeadlines(page, selector, baseUrl) {
 
 async function scrapeSite(site) {
   const config = SITES[site];
+  if (config.rss) return scrapeRssSite(site);
   let browser;
   let timedOut = false;
   let timeoutHandle;
