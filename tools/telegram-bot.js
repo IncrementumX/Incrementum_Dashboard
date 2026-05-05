@@ -2,12 +2,12 @@
 
 /**
  * Incrementum Telegram Bot
- * Bridges Telegram ↔ incrementum-analista (Claude Code)
+ * Telegram → claude CLI (OAuth, Max subscription) → Telegram
  *
- * Env vars required:
- *   TELEGRAM_BOT_TOKEN     - from BotFather
- *   TELEGRAM_ALLOWED_ID    - your Telegram chat ID (run once without it to discover)
- *   INCREMENTUM_DIR        - path to repo (default: ~/Incrementum_Dashboard)
+ * Env vars:
+ *   TELEGRAM_BOT_TOKEN    - from BotFather
+ *   TELEGRAM_ALLOWED_ID   - your chat ID (1775346822)
+ *   INCREMENTUM_DIR       - repo path (default: ~/Incrementum_Dashboard)
  */
 
 const https = require('node:https');
@@ -18,24 +18,20 @@ const os = require('node:os');
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const ALLOWED_ID = process.env.TELEGRAM_ALLOWED_ID ? Number(process.env.TELEGRAM_ALLOWED_ID) : null;
 const PROJECT_DIR = process.env.INCREMENTUM_DIR || path.join(os.homedir(), 'Incrementum_Dashboard');
-const API = `https://api.telegram.org/bot${TOKEN}`;
 const MAX_MSG_LEN = 4000;
 
-if (!TOKEN) {
-  console.error('TELEGRAM_BOT_TOKEN not set');
-  process.exit(1);
-}
+if (!TOKEN) { console.error('TELEGRAM_BOT_TOKEN not set'); process.exit(1); }
 
-function apiRequest(method, body) {
+function apiCall(method, body) {
   return new Promise((resolve, reject) => {
     const data = JSON.stringify(body);
-    const req = https.request(`${API}/${method}`, {
+    const req = https.request(`https://api.telegram.org/bot${TOKEN}/${method}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) }
     }, res => {
       let raw = '';
       res.on('data', c => raw += c);
-      res.on('end', () => resolve(JSON.parse(raw)));
+      res.on('end', () => { try { resolve(JSON.parse(raw)); } catch(e) { reject(e); } });
     });
     req.on('error', reject);
     req.write(data);
@@ -43,80 +39,67 @@ function apiRequest(method, body) {
   });
 }
 
-function sendMessage(chatId, text) {
+async function send(chatId, text) {
   const chunks = [];
-  for (let i = 0; i < text.length; i += MAX_MSG_LEN) {
-    chunks.push(text.slice(i, i + MAX_MSG_LEN));
+  for (let i = 0; i < text.length; i += MAX_MSG_LEN) chunks.push(text.slice(i, i + MAX_MSG_LEN));
+  for (const chunk of chunks) {
+    await apiCall('sendMessage', { chat_id: chatId, text: chunk })
+      .catch(e => console.error('send error:', e.message));
   }
-  return chunks.reduce((p, chunk) =>
-    p.then(() => apiRequest('sendMessage', { chat_id: chatId, text: chunk, parse_mode: 'Markdown' })
-      .catch(() => apiRequest('sendMessage', { chat_id: chatId, text: chunk }))),
-    Promise.resolve()
-  );
 }
 
-function runAnalista(prompt) {
-  console.log(`[bot] Running analista: ${prompt.slice(0, 80)}...`);
-  const result = spawnSync('claude', ['-p', prompt], {
+function runClaude(prompt) {
+  const result = spawnSync('claude', ['-p', prompt, '--dangerously-skip-permissions'], {
     cwd: PROJECT_DIR,
     encoding: 'utf8',
-    timeout: 300000, // 5 min
-    env: { ...process.env, CLAUDE_AGENT: 'incrementum-analista' }
+    timeout: 300000,
+    env: { ...process.env, HOME: os.homedir(), PATH: process.env.PATH }
   });
   if (result.error) throw result.error;
-  return (result.stdout || '').trim() || result.stderr || 'Sem resposta.';
+  return (result.stdout || '').trim() || (result.stderr || '').trim() || 'Sem resposta.';
 }
 
-async function processMessage(msg) {
+async function handle(msg) {
   const chatId = msg.chat.id;
-  const text = msg.text || '';
+  const text = (msg.text || '').trim();
 
   if (!ALLOWED_ID) {
-    console.log(`First message from chat_id: ${chatId} — set TELEGRAM_ALLOWED_ID=${chatId}`);
-    await sendMessage(chatId, `Seu chat ID é: \`${chatId}\`\nDefina TELEGRAM_ALLOWED_ID=${chatId} e reinicie o bot.`);
+    console.log(`Chat ID: ${chatId}`);
+    await send(chatId, `Seu chat ID: ${chatId}\nDefina TELEGRAM_ALLOWED_ID=${chatId} e reinicie.`);
     return;
   }
 
-  if (chatId !== ALLOWED_ID) {
-    console.log(`Ignored message from unauthorized chat_id: ${chatId}`);
-    return;
-  }
+  if (chatId !== ALLOWED_ID) return;
+  if (!text || text === '/start') { await send(chatId, 'Analista online.'); return; }
 
-  if (!text || text.startsWith('/start')) {
-    await sendMessage(chatId, 'Analista online. Pode falar.');
-    return;
-  }
-
-  await apiRequest('sendChatAction', { chat_id: chatId, action: 'typing' });
+  await apiCall('sendChatAction', { chat_id: chatId, action: 'typing' }).catch(() => {});
+  console.log(`[${new Date().toISOString()}] "${text.slice(0, 60)}"`);
 
   try {
-    const response = runAnalista(text);
-    await sendMessage(chatId, response);
+    const response = runClaude(text);
+    await send(chatId, response);
   } catch (err) {
-    console.error('[bot] Error:', err.message);
-    await sendMessage(chatId, `Erro: ${err.message}`);
+    console.error('Claude error:', err.message);
+    await send(chatId, `Erro: ${err.message}`);
   }
 }
 
 async function poll(offset = 0) {
   try {
-    const res = await apiRequest('getUpdates', { offset, timeout: 30, allowed_updates: ['message'] });
-    if (!res.ok) { console.error('getUpdates error:', res); return poll(offset); }
-
-    let nextOffset = offset;
-    for (const update of res.result || []) {
-      nextOffset = update.update_id + 1;
-      if (update.message) {
-        processMessage(update.message).catch(e => console.error('[bot] processMessage error:', e.message));
-      }
+    const res = await apiCall('getUpdates', { offset, timeout: 30, allowed_updates: ['message'] });
+    if (!res.ok) { await new Promise(r => setTimeout(r, 5000)); return poll(offset); }
+    let next = offset;
+    for (const u of res.result || []) {
+      next = u.update_id + 1;
+      if (u.message) handle(u.message).catch(e => console.error('handle error:', e.message));
     }
-    return poll(nextOffset);
+    return poll(next);
   } catch (err) {
-    console.error('[bot] Poll error:', err.message);
-    setTimeout(() => poll(offset), 5000);
+    console.error('Poll error:', err.message);
+    await new Promise(r => setTimeout(r, 5000));
+    return poll(offset);
   }
 }
 
-console.log(`Incrementum bot starting — project: ${PROJECT_DIR}`);
-if (!ALLOWED_ID) console.log('TELEGRAM_ALLOWED_ID not set — send any message to discover your chat ID');
+console.log(`Bot starting | dir: ${PROJECT_DIR} | allowed: ${ALLOWED_ID || 'discovery mode'}`);
 poll();
